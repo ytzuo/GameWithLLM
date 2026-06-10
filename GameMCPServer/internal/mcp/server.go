@@ -8,21 +8,24 @@ import (
 	mcpserver "github.com/mark3labs/mcp-go/server"
 
 	"GameMCPServer/internal/tool"
+	"GameMCPServer/internal/unity"
 )
 
 // NewServer 创建并配置 MCP 服务器，注册所有游戏工具
-func NewServer() *mcpserver.MCPServer {
+func NewServer(unityManager *unity.Manager) *mcpserver.MCPServer {
 	s := mcpserver.NewMCPServer(
 		"GameMCPServer", // 服务器名称
 		"1.0.0",         // 版本号
 	)
 
-	registerTools(s)
+	registerTools(s, unityManager)
 	return s
 }
 
 // registerTools 注册所有 MCP 工具
-func registerTools(s *mcpserver.MCPServer) {
+func registerTools(s *mcpserver.MCPServer, unityManager *unity.Manager) {
+	handlers := tool.NewNPCHandlers(unityManager)
+
 	// 查询类工具
 	s.AddTool(mcp.NewTool("get_npc_status",
 		mcp.WithDescription("获取指定 NPC 的当前状态信息"),
@@ -30,7 +33,7 @@ func registerTools(s *mcpserver.MCPServer) {
 			mcp.Required(),
 			mcp.Description("NPC 的唯一标识符"),
 		),
-	), tool.HandleGetNPCStatus)
+	), handlers.HandleGetNPCStatus)
 
 	s.AddTool(mcp.NewTool("get_npc_position",
 		mcp.WithDescription("获取指定 NPC 的当前位置坐标"),
@@ -38,7 +41,7 @@ func registerTools(s *mcpserver.MCPServer) {
 			mcp.Required(),
 			mcp.Description("NPC 的唯一标识符"),
 		),
-	), tool.HandleGetNPCPosition)
+	), handlers.HandleGetNPCPosition)
 
 	// 行为类工具
 	s.AddTool(mcp.NewTool("move_to",
@@ -51,7 +54,7 @@ func registerTools(s *mcpserver.MCPServer) {
 			mcp.Required(),
 			mcp.Description("目标位置或地标名称"),
 		),
-	), tool.HandleMoveTo)
+	), handlers.HandleMoveTo)
 
 	s.AddTool(mcp.NewTool("say",
 		mcp.WithDescription("让指定 NPC 说一句话"),
@@ -63,7 +66,7 @@ func registerTools(s *mcpserver.MCPServer) {
 			mcp.Required(),
 			mcp.Description("NPC 要说的内容"),
 		),
-	), tool.HandleSay)
+	), handlers.HandleSay)
 }
 
 // NewStreamableHTTPServer 基于已创建的 MCP 服务器创建 Streamable HTTP 服务器。

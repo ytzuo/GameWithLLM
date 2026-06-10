@@ -4,7 +4,7 @@
  *
  * 用法:
  *   node test_mcp.js                # 连接本机已启动的服务
- *   node test_mcp.js --start-server # 自动 go run main.go 启动并测试
+ *   node test_mcp.js --start-server # 自动 go run ./cmd/server 启动并测试
  *
  * 该脚本使用原生 fetch (Node >= 18)，无第三方依赖。
  */
@@ -13,6 +13,9 @@ const { spawn } = require("child_process");
 
 const BASE_URL = process.env.MCP_BASE_URL || "http://127.0.0.1:8080";
 const MCP_URL = process.env.MCP_ENDPOINT || `${BASE_URL}/mcp`;
+const UNITY_WS_URL =
+  process.env.UNITY_WS_URL ||
+  `${BASE_URL.replace(/^http:/, "ws:").replace(/^https:/, "wss:")}/unity/ws`;
 const TIMEOUT_MS = 30000;
 
 function sleep(ms) {
@@ -36,8 +39,8 @@ async function waitForServer(maxMs = 30000) {
 }
 
 function startServer() {
-  console.log("[启动] go run main.go");
-  const proc = spawn("go", ["run", "main.go"], {
+  console.log("[启动] go run ./cmd/server");
+  const proc = spawn("go", ["run", "./cmd/server"], {
     stdio: ["ignore", "pipe", "pipe"],
     shell: false,
     windowsHide: true,
@@ -46,6 +49,37 @@ function startServer() {
   proc.stdout.on("data", (d) => process.stdout.write(`[server-out] ${d}`));
   proc.stderr.on("data", (d) => process.stderr.write(`[server-err] ${d}`));
   return proc;
+}
+
+function startMockUnity() {
+  console.log(`[启动] go run ./cmd/mockunity --server ${UNITY_WS_URL}`);
+  const proc = spawn("go", ["run", "./cmd/mockunity", "--server", UNITY_WS_URL], {
+    stdio: ["ignore", "pipe", "pipe"],
+    shell: false,
+    windowsHide: true,
+  });
+
+  proc.stdout.on("data", (d) => process.stdout.write(`[mock-out] ${d}`));
+  proc.stderr.on("data", (d) => process.stderr.write(`[mock-err] ${d}`));
+  return proc;
+}
+
+async function fetchUnityStatus() {
+  const res = await fetch(`${BASE_URL}/unity/status`, { signal: AbortSignal.timeout(2000) });
+  if (!res.ok) return { connected: false };
+  return res.json();
+}
+
+async function waitForUnity(maxMs = 10000) {
+  const deadline = Date.now() + maxMs;
+  while (Date.now() < deadline) {
+    try {
+      const status = await fetchUnityStatus();
+      if (status.connected) return status;
+    } catch {}
+    await sleep(300);
+  }
+  return { connected: false };
 }
 
 class MCPClient {
@@ -176,6 +210,7 @@ function assert(condition, message) {
 async function runTests() {
   const startServerFlag = process.argv.includes("--start-server");
   let serverProc = null;
+  let mockUnityProc = null;
 
   if (startServerFlag) {
     serverProc = startServer();
@@ -186,15 +221,29 @@ async function runTests() {
       serverProc?.kill();
       process.exit(1);
     }
+    mockUnityProc = startMockUnity();
+    console.log("[等待] mockUnity 连接中...");
+    const unityStatus = await waitForUnity(10000);
+    if (!unityStatus.connected) {
+      console.error("mockUnity 未能在 10s 内连接");
+      serverProc?.kill();
+      mockUnityProc?.kill();
+      process.exit(1);
+    }
   } else {
     try {
       if (!(await fetchHealth())) {
-        console.error(`无法连接到 ${BASE_URL}/health，请先用 "go run main.go" 启动服务，或加上 --start-server 参数`);
+        console.error(`无法连接到 ${BASE_URL}/health，请先用 "go run ./cmd/server" 启动服务，或加上 --start-server 参数`);
         process.exit(1);
       }
     } catch (err) {
       console.error(`无法连接到 ${BASE_URL}/health: ${err.message}`);
-      console.error('请先用 "go run main.go" 启动服务，或加上 --start-server 参数');
+      console.error('请先用 "go run ./cmd/server" 启动服务，或加上 --start-server 参数');
+      process.exit(1);
+    }
+    const unityStatus = await waitForUnity(1000);
+    if (!unityStatus.connected) {
+      console.error(`无法连接到 mockUnity，请先启动: go run ./cmd/mockunity --server ${UNITY_WS_URL}`);
       process.exit(1);
     }
   }
@@ -235,6 +284,7 @@ async function runTests() {
     const statusText = statusRes?.content?.[0]?.text || "";
     console.log("     结果:", statusText);
     assert(statusText.includes("npc_001"), "结果包含 npc_id");
+    assert(statusText.includes("[Unity 反馈]"), "结果来自 Unity");
     assert(statusText.includes("状态"), "结果包含'状态'关键字");
 
     console.log("\n[5/6] 调用 get_npc_position...");
@@ -242,17 +292,20 @@ async function runTests() {
     const posText = posRes?.content?.[0]?.text || "";
     console.log("     结果:", posText);
     assert(posText.includes("npc_002"), "结果包含 npc_id");
+    assert(posText.includes("[Unity 反馈]"), "结果来自 Unity");
     assert(/\d/.test(posText), "结果包含数字坐标");
 
     console.log("\n[6/6] 调用 move_to 和 say...");
     const moveRes = await client.callTool("move_to", { npc_id: "npc_003", target: "城门" });
     const moveText = moveRes?.content?.[0]?.text || "";
     console.log("     move_to:", moveText);
+    assert(moveText.includes("[Unity 反馈]"), "move_to 结果来自 Unity");
     assert(moveText.includes("npc_003") && moveText.includes("城门"), "move_to 结果包含 npc_id 和 target");
 
     const sayRes = await client.callTool("say", { npc_id: "npc_004", content: "你好，世界！" });
     const sayText = sayRes?.content?.[0]?.text || "";
     console.log("     say    :", sayText);
+    assert(sayText.includes("[Unity 反馈]"), "say 结果来自 Unity");
     assert(sayText.includes("npc_004") && sayText.includes("你好，世界"), "say 结果包含 npc_id 和 content");
 
     console.log("\n[额外] 测试缺少必填参数...");
@@ -271,6 +324,12 @@ async function runTests() {
       serverProc.kill();
       await sleep(500);
       if (!serverProc.killed) serverProc.kill("SIGKILL");
+    }
+    if (mockUnityProc) {
+      console.log("[关闭] 终止 mockUnity 进程...");
+      mockUnityProc.kill();
+      await sleep(500);
+      if (!mockUnityProc.killed) mockUnityProc.kill("SIGKILL");
     }
   }
 
