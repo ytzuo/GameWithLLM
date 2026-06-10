@@ -2,7 +2,8 @@ package handler
 
 import (
 	"context"
-	"io"
+	"net/http"
+	"net/url"
 
 	"github.com/cloudwego/hertz/pkg/app"
 	"github.com/cloudwego/hertz/pkg/protocol/consts"
@@ -22,9 +23,9 @@ func handleRoot(ctx context.Context, c *app.RequestContext) {
 	c.String(consts.StatusOK, "Game MCP Server is running!")
 }
 
-// handleSSE 处理 SSE 端点请求。
-func handleSSE(ctx context.Context, c *app.RequestContext, sseServer *mcpserver.SSEServer) {
-	req, err := convertToHTTPRequest(c)
+// handleMCP 处理 MCP Streamable HTTP 单端点请求。
+func handleMCP(ctx context.Context, c *app.RequestContext, mcpHTTPServer *mcpserver.StreamableHTTPServer) {
+	reqURL, err := url.ParseRequestURI(string(c.Request.RequestURI()))
 	if err != nil {
 		c.AbortWithStatusJSON(consts.StatusInternalServerError, map[string]string{
 			"error": err.Error(),
@@ -32,33 +33,21 @@ func handleSSE(ctx context.Context, c *app.RequestContext, sseServer *mcpserver.
 		return
 	}
 
-	pr, pw := io.Pipe()
+	req := &mcpserver.HTTPRequest{
+		Method:  string(c.Request.Method()),
+		URL:     reqURL,
+		Header:  copyRequestHeaders(c),
+		Body:    c.Request.Body(),
+		Context: ctx,
+	}
 
-	c.Header("Content-Type", "text/event-stream")
-	c.Header("Cache-Control", "no-cache")
-	c.Header("Connection", "keep-alive")
-	c.Header("Access-Control-Allow-Origin", "*")
-	c.SetBodyStream(pr, -1)
-
-	go func() {
-		defer pw.Close()
-		rw := newStreamResponseWriter(pw)
-		sseServer.SSEHandler().ServeHTTP(rw, req)
-	}()
-}
-
-// handleMessage 处理 MCP 消息端点请求。
-func handleMessage(ctx context.Context, c *app.RequestContext, sseServer *mcpserver.SSEServer) {
-	req, err := convertToHTTPRequest(c)
-	if err != nil {
-		c.AbortWithStatusJSON(consts.StatusInternalServerError, map[string]string{
-			"error": err.Error(),
-		})
+	if req.Method == http.MethodGet || req.Method == http.MethodPost {
+		mcpHTTPServer.Handle(newHertzStreamResponseWriter(c), req)
 		return
 	}
 
 	rw := newResponseRecorder()
-	sseServer.MessageHandler().ServeHTTP(rw, req)
+	mcpHTTPServer.Handle(rw, req)
 
 	c.SetStatusCode(rw.statusCode)
 	for key, values := range rw.header {

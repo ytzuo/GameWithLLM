@@ -9,14 +9,18 @@ import (
 	mcpserver "github.com/mark3labs/mcp-go/server"
 )
 
-// RegisterRoutes 注册所有 HTTP 路由
-func RegisterRoutes(h *route.Engine, sseServer *mcpserver.SSEServer) {
-	h.GET("/sse", func(ctx context.Context, c *app.RequestContext) {
-		handleSSE(ctx, c, sseServer)
+// RegisterRoutes 注册所有 HTTP 路由。
+func RegisterRoutes(h *route.Engine, mcpHTTPServer *mcpserver.StreamableHTTPServer) {
+	h.POST("/mcp", func(ctx context.Context, c *app.RequestContext) {
+		handleMCP(ctx, c, mcpHTTPServer)
 	})
 
-	h.POST("/message", func(ctx context.Context, c *app.RequestContext) {
-		handleMessage(ctx, c, sseServer)
+	h.GET("/mcp", func(ctx context.Context, c *app.RequestContext) {
+		handleMCP(ctx, c, mcpHTTPServer)
+	})
+
+	h.DELETE("/mcp", func(ctx context.Context, c *app.RequestContext) {
+		handleMCP(ctx, c, mcpHTTPServer)
 	})
 
 	h.GET("/health", handleHealth)

@@ -2,6 +2,8 @@
 package mcp
 
 import (
+	"time"
+
 	"github.com/mark3labs/mcp-go/mcp"
 	mcpserver "github.com/mark3labs/mcp-go/server"
 
@@ -64,10 +66,11 @@ func registerTools(s *mcpserver.MCPServer) {
 	), tool.HandleSay)
 }
 
-// NewSSEServer 基于已创建的 MCP 服务器创建 SSE 服务器
-func NewSSEServer(mcpSvr *mcpserver.MCPServer) *mcpserver.SSEServer {
-	return mcpserver.NewSSEServer(
+// NewStreamableHTTPServer 基于已创建的 MCP 服务器创建 Streamable HTTP 服务器。
+func NewStreamableHTTPServer(mcpSvr *mcpserver.MCPServer) *mcpserver.StreamableHTTPServer {
+	return mcpserver.NewStreamableHTTPServer(
 		mcpSvr,
-		mcpserver.WithBaseURL("http://localhost:8888"),
+		mcpserver.WithEndpointPath("/mcp"),
+		mcpserver.WithHeartbeatInterval(time.Second),
 	)
 }

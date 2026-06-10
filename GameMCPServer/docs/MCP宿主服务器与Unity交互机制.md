@@ -26,22 +26,23 @@ Unity 游戏客户端是真正的**命令执行方**：
 
 ## 2. 当前已实现的通信链路
 
-### 2.1 对外接口：MCP over SSE
+### 2.1 对外接口：MCP Streamable HTTP
 
-服务器基于 [mcp-go](https://github.com/mark3labs/mcp-go) 库实现，使用 **SSE（Server-Sent Events）+ HTTP POST** 作为 MCP 协议传输层：
+服务器基于 [mcp-go](https://github.com/mark3labs/mcp-go) 库实现，使用 **Streamable HTTP** 作为 MCP 协议传输层。MCP 客户端通过单一 `/mcp` 端点发送 JSON-RPC 请求；`POST /mcp` 支持流式响应，常规工具调用通常直接返回 JSON-RPC 响应，必要时也可以返回 `text/event-stream`。`GET /mcp` 用于建立服务端消息监听流。
 
 | 端点 | 方法 | 作用 |
 |------|------|------|
-| `/sse` | GET | MCP 客户端建立 SSE 长连接，接收服务器推送 |
-| `/message` | POST | MCP 客户端发送 JSON-RPC 请求 |
+| `/mcp` | POST | MCP 客户端发送 JSON-RPC 请求并接收 JSON 或流式响应 |
+| `/mcp` | GET | 建立 Streamable HTTP 服务端消息监听流（`text/event-stream`） |
+| `/mcp` | DELETE | 预留会话释放入口 |
 | `/health` | GET | 健康检查 |
 
 ```
-MCP客户端线程  ──SSE──►  MCP宿主服务器(:8888)
-               ◄──SSE───
+MCP客户端线程  ──POST /mcp──►  MCP宿主服务器(:8080)
+               ◄──JSON-RPC────
 ```
 
-SSE 连接建立后，MCP 客户端通过 POST `/message` 发送请求，服务器通过 SSE 流推送响应。完整的 MCP 生命周期（initialize → tools/list → tools/call）均在此链路上完成。
+完整的 MCP 生命周期（initialize → tools/list → tools/call）均在 `/mcp` 链路上完成。初始化响应会返回 `Mcp-Session-Id`，后续请求需要携带该 header。
 
 ### 2.2 当前工具列表
 
@@ -70,7 +71,7 @@ SSE 连接建立后，MCP 客户端通过 POST `/message` 发送请求，服务�
          │  返回 tool_calls      │                       │                       │
          │◄──────────────────────│                       │                       │
          │                       │                       │                       │
-         │                       │  POST /message        │                       │
+         │                       │  POST /mcp            │                       │
          │                       │  (tools/call)         │                       │
          │                       │──────────────────────►│                       │
          │                       │                       │                       │
@@ -88,7 +89,7 @@ SSE 连接建立后，MCP 客户端通过 POST `/message` 发送请求，服务�
          │                       │                       │  返回执行结果           │
          │                       │                       │◄──────────────────────│
          │                       │                       │                       │
-         │                       │  SSE 推送 tool result │                       │
+         │                       │  JSON-RPC tool result │                       │
          │                       │◄──────────────────────│                       │
          │                       │                       │                       │
          │  提交 tool result     │                       │                       │
@@ -103,7 +104,7 @@ SSE 连接建立后，MCP 客户端通过 POST `/message` 发送请求，服务�
 
 **① MCP 客户端发起工具调用**
 
-MCP 客户端通过 SSE 的 POST `/message` 发送如下 JSON-RPC 请求：
+MCP 客户端通过 POST `/mcp` 发送如下 JSON-RPC 请求：
 
 ```json
 {
@@ -369,7 +370,7 @@ MCP 宿主服务器与 Unity 交互时需要考虑的异常：
 
 本 MCP 宿主服务器当前已实现：
 
-- ✅ 基于 SSE 的 MCP 协议对外服务
+- ✅ 基于 Streamable HTTP 的 MCP 协议对外服务
 - ✅ 4 个基础游戏工具的声明与接收
 - ✅ 工具参数校验与 NPC 身份识别
 - ✅ 健康检查与测试脚本
