@@ -2,41 +2,28 @@ package unity
 
 import "encoding/json"
 
-const (
-	MessageTypeHello   = "hello"
-	MessageTypeCommand = "command"
-	MessageTypeResult  = "result"
-	MessageTypePing    = "ping"
-	MessageTypePong    = "pong"
-)
+const jsonRPCVersion = "2.0"
 
-type HelloMessage struct {
-	Type         string   `json:"type"`
-	ClientID     string   `json:"client_id"`
-	Capabilities []string `json:"capabilities"`
+// JSON-RPC 2.0 协议的消息结构体
+type jsonRPCMessage struct {
+	JSONRPC string          `json:"jsonrpc,omitempty"`
+	Method  string          `json:"method,omitempty"`
+	ID      json.RawMessage `json:"id,omitempty"`
+	Params  json.RawMessage `json:"params,omitempty"`
+	Result  json.RawMessage `json:"result,omitempty"`
+	Error   *jsonRPCError   `json:"error,omitempty"`
 }
 
-type Command struct {
-	Type      string         `json:"type"`
-	CommandID string         `json:"command_id"`
-	ToolName  string         `json:"tool_name"`
-	NPCID     string         `json:"npc_id"`
-	Arguments map[string]any `json:"arguments,omitempty"`
+// JSON-RPC 2.0 协议的错误结构体
+type jsonRPCError struct {
+	Code    int    `json:"code"`
+	Message string `json:"message"`
 }
 
-type Result struct {
-	Type      string         `json:"type"`
-	CommandID string         `json:"command_id"`
-	ToolName  string         `json:"tool_name,omitempty"`
-	OK        bool           `json:"ok"`
-	ErrorCode string         `json:"error_code,omitempty"`
-	Message   string         `json:"message"`
-	Data      map[string]any `json:"data,omitempty"`
-}
-
-type envelope struct {
-	Type      string          `json:"type"`
-	CommandID string          `json:"command_id,omitempty"`
-	ClientID  string          `json:"client_id,omitempty"`
-	Raw       json.RawMessage `json:"-"`
+// JSON-RPC 2.0 协议中 tool_call 方法的参数结构体
+type jsonRPCToolCallParams struct {
+	NPCID string `json:"npcId"`
+	Name  string `json:"name"`
+	// Arguments 保持原始 JSON，因为 Unity 客户端需要拿到原始参数字符串。
+	Arguments json.RawMessage `json:"arguments"`
 }

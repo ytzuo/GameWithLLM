@@ -1,41 +1,19 @@
-// Package handler 负责 Hertz HTTP 路由注册和 MCP 请求适配
+// Package handler 负责注册 Unity JSON-RPC WebSocket 入口和健康检查入口。
 package handler
 
 import (
-	"context"
 	"net/http"
-
-	"github.com/cloudwego/hertz/pkg/app"
-	"github.com/cloudwego/hertz/pkg/common/adaptor"
-	"github.com/cloudwego/hertz/pkg/protocol/consts"
-	"github.com/cloudwego/hertz/pkg/route"
-	mcpserver "github.com/mark3labs/mcp-go/server"
+	"time"
 
 	"GameMCPServer/internal/unity"
 )
 
 // RegisterRoutes 注册所有 HTTP 路由。
-func RegisterRoutes(h *route.Engine, mcpHTTPServer *mcpserver.StreamableHTTPServer, unityManager *unity.Manager) {
-	h.POST("/mcp", func(ctx context.Context, c *app.RequestContext) {
-		handleMCP(ctx, c, mcpHTTPServer)
-	})
+func RegisterRoutes(mux *http.ServeMux) {
+	jsonRPCServer := unity.NewJSONRPCServer(10 * time.Second)
 
-	h.GET("/mcp", func(ctx context.Context, c *app.RequestContext) {
-		handleMCP(ctx, c, mcpHTTPServer)
-	})
-
-	h.DELETE("/mcp", func(ctx context.Context, c *app.RequestContext) {
-		handleMCP(ctx, c, mcpHTTPServer)
-	})
-
-	h.GET("/unity/ws", adaptor.HertzHandler(http.HandlerFunc(unityManager.HandleWebSocket)))
-	h.GET("/unity/status", func(ctx context.Context, c *app.RequestContext) {
-		c.JSON(consts.StatusOK, map[string]any{
-			"connected": unityManager.Connected(),
-			"client_id": unityManager.ClientID(),
-		})
-	})
-
-	h.GET("/health", handleHealth)
-	h.GET("/", handleRoot)
+	// /ws 是显式入口；/ 也接受 WebSocket 升级，因为 Unity 客户端默认连接 ws://127.0.0.1:8080。
+	mux.HandleFunc("/ws", jsonRPCServer.HandleWebSocket)
+	mux.HandleFunc("/health", handleHealth)
+	mux.HandleFunc("/", jsonRPCServer.HandleRoot)
 }
