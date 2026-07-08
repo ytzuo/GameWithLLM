@@ -182,9 +182,8 @@ public class McpAsyncClient : Singleton<McpAsyncClient>
     // 4. 开始新会话方法 
     private async Task StartNewSessionAsync(string npcId)
     {
-        // TODO：从本地存档/内存中拉取该 NPC 的聊天历史
-        // var historyJson = SaveManager.LoadNpcHistory(npcId);
-        // List<LlmMessage> messageList = JsonConvert.DeserializeObject<List<LlmMessage>>(historyJson);
+        // TODO：从本地存档/内存中拉取该 NPC 的聊天历史  
+        // var messageList = historyManager.LoadDialogueHistory(npcId);
 
         // 此处为了演示，构造初始列表
         List<LlmMessage> messageList = new List<LlmMessage>

@@ -43,11 +43,11 @@ public class CommandDispatcher : Singleton<CommandDispatcher>
         // 在启动时注册场景级别的工具声明（Tools Discovery）
         // 为 MoveArgs 提供 JSON Schema，注意字段名需与 MoveArgs 保持一致
         string moveArgsSchema = @"{""type"": ""object"",
-  ""properties"": {
-    ""targetLandmark"": { ""type"": ""string"", ""enum"": [""warehouse"", ""gate""], ""description"": ""目标地标名称"" }
-  },
-  ""required"": [""targetLandmark""]
-}";
+          ""properties"": {
+            ""targetLandmark"": { ""type"": ""string"", ""enum"": [""warehouse"", ""gate""], ""description"": ""目标地标名称"" }
+          },
+          ""required"": [""targetLandmark""]
+        }";
 
         ToolsRegistry.Instance.RegisterTool("game_npc_move", null, moveArgsSchema, "使 NPC 前往指定地标 (warehouse|gate)");
     }
