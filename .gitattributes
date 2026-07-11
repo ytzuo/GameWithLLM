@@ -1,0 +1,138 @@
+* text=auto
+
+*.go      text eol=lf
+*.js      text eol=lf
+*.md      text eol=lf
+Makefile  text eol=lf
+go.work   text eol=lf
+
+# Unity attributes. Macro definitions only work in top-level gitattributes files.
+[attr]lfs               filter=lfs diff=lfs merge=lfs -text
+[attr]unity-json        eol=lf linguist-language=json
+[attr]unity-yaml        merge=unityyamlmerge eol=lf linguist-language=yaml
+
+unity-NPC-agent-client/**/*.cginc                 text
+unity-NPC-agent-client/**/*.compute               text linguist-language=hlsl
+unity-NPC-agent-client/**/*.cs                    text diff=csharp
+unity-NPC-agent-client/**/*.hlsl                  text linguist-language=hlsl
+unity-NPC-agent-client/**/*.raytrace              text linguist-language=hlsl
+unity-NPC-agent-client/**/*.shader                text
+
+unity-NPC-agent-client/**/*.asmdef                unity-json
+unity-NPC-agent-client/**/*.asmref                unity-json
+unity-NPC-agent-client/**/*.index                 unity-json
+unity-NPC-agent-client/**/*.inputactions          unity-json
+unity-NPC-agent-client/**/*.shadergraph           unity-json
+unity-NPC-agent-client/**/*.shadersubgraph        unity-json
+
+unity-NPC-agent-client/**/*.tss                   text diff=css linguist-language=css
+unity-NPC-agent-client/**/*.uss                   text diff=css linguist-language=css
+unity-NPC-agent-client/**/*.uxml                  text linguist-language=xml linguist-detectable
+
+unity-NPC-agent-client/**/*.anim                  unity-yaml
+unity-NPC-agent-client/**/*.asset                 unity-yaml
+unity-NPC-agent-client/**/*.brush                 unity-yaml
+unity-NPC-agent-client/**/*.controller            unity-yaml
+unity-NPC-agent-client/**/*.flare                 unity-yaml
+unity-NPC-agent-client/**/*.fontsettings          unity-yaml
+unity-NPC-agent-client/**/*.giparams              unity-yaml
+unity-NPC-agent-client/**/*.guiskin               unity-yaml
+unity-NPC-agent-client/**/*.lighting              unity-yaml
+unity-NPC-agent-client/**/*.mask                  unity-yaml
+unity-NPC-agent-client/**/*.mat                   unity-yaml
+unity-NPC-agent-client/**/*.meta                  unity-yaml
+unity-NPC-agent-client/**/*.mixer                 unity-yaml
+unity-NPC-agent-client/**/*.overrideController    unity-yaml
+unity-NPC-agent-client/**/*.playable              unity-yaml
+unity-NPC-agent-client/**/*.prefab                unity-yaml
+unity-NPC-agent-client/**/*.preset                unity-yaml
+unity-NPC-agent-client/**/*.renderTexture         unity-yaml
+unity-NPC-agent-client/**/*.scenetemplate         unity-yaml
+unity-NPC-agent-client/**/*.shadervariants        unity-yaml
+unity-NPC-agent-client/**/*.signal                unity-yaml
+unity-NPC-agent-client/**/*.spriteatlas           unity-yaml
+unity-NPC-agent-client/**/*.spriteatlasv2         unity-yaml
+unity-NPC-agent-client/**/*.terrainlayer          unity-yaml
+unity-NPC-agent-client/**/*.unity                 unity-yaml
+unity-NPC-agent-client/**/*.physicMaterial        unity-yaml
+unity-NPC-agent-client/**/*.physicsMaterial2D     unity-yaml
+
+unity-NPC-agent-client/Assets/Plugins/**           linguist-generated
+unity-NPC-agent-client/Packages/packages-lock.json linguist-generated
+
+unity-NPC-agent-client/**/*.cubemap               lfs
+unity-NPC-agent-client/**/*.unitypackage          lfs
+unity-NPC-agent-client/**/*.3dm                   lfs
+unity-NPC-agent-client/**/*.3ds                   lfs
+unity-NPC-agent-client/**/*.blend                 lfs
+unity-NPC-agent-client/**/*.blend1                lfs
+unity-NPC-agent-client/**/*.c4d                   lfs
+unity-NPC-agent-client/**/*.collada               lfs
+unity-NPC-agent-client/**/*.dae                   lfs
+unity-NPC-agent-client/**/*.dxf                   lfs
+unity-NPC-agent-client/**/*.FBX                   lfs
+unity-NPC-agent-client/**/*.fbx                   lfs
+unity-NPC-agent-client/**/*.jas                   lfs
+unity-NPC-agent-client/**/*.lws                   lfs
+unity-NPC-agent-client/**/*.lxo                   lfs
+unity-NPC-agent-client/**/*.ma                    lfs
+unity-NPC-agent-client/**/*.max                   lfs
+unity-NPC-agent-client/**/*.mb                    lfs
+unity-NPC-agent-client/**/*.obj                   lfs
+unity-NPC-agent-client/**/*.ply                   lfs
+unity-NPC-agent-client/**/*.skp                   lfs
+unity-NPC-agent-client/**/*.stl                   lfs
+unity-NPC-agent-client/**/*.ztl                   lfs
+unity-NPC-agent-client/**/*.aif                   lfs
+unity-NPC-agent-client/**/*.aiff                  lfs
+unity-NPC-agent-client/**/*.it                    lfs
+unity-NPC-agent-client/**/*.mod                   lfs
+unity-NPC-agent-client/**/*.mp3                   lfs
+unity-NPC-agent-client/**/*.ogg                   lfs
+unity-NPC-agent-client/**/*.s3m                   lfs
+unity-NPC-agent-client/**/*.wav                   lfs
+unity-NPC-agent-client/**/*.xm                    lfs
+unity-NPC-agent-client/**/*.asf                   lfs
+unity-NPC-agent-client/**/*.avi                   lfs
+unity-NPC-agent-client/**/*.flv                   lfs
+unity-NPC-agent-client/**/*.mov                   lfs
+unity-NPC-agent-client/**/*.mp4                   lfs
+unity-NPC-agent-client/**/*.mpeg                  lfs
+unity-NPC-agent-client/**/*.mpg                   lfs
+unity-NPC-agent-client/**/*.ogv                   lfs
+unity-NPC-agent-client/**/*.wmv                   lfs
+unity-NPC-agent-client/**/*.bmp                   lfs
+unity-NPC-agent-client/**/*.exr                   lfs
+unity-NPC-agent-client/**/*.gif                   lfs
+unity-NPC-agent-client/**/*.hdr                   lfs
+unity-NPC-agent-client/**/*.iff                   lfs
+unity-NPC-agent-client/**/*.jpeg                  lfs
+unity-NPC-agent-client/**/*.jpg                   lfs
+unity-NPC-agent-client/**/*.pict                  lfs
+unity-NPC-agent-client/**/*.png                   lfs
+unity-NPC-agent-client/**/*.psd                   lfs
+unity-NPC-agent-client/**/*.tga                   lfs
+unity-NPC-agent-client/**/*.tif                   lfs
+unity-NPC-agent-client/**/*.tiff                  lfs
+unity-NPC-agent-client/**/*.webp                  lfs
+unity-NPC-agent-client/**/*.7z                    lfs
+unity-NPC-agent-client/**/*.bz2                   lfs
+unity-NPC-agent-client/**/*.gz                    lfs
+unity-NPC-agent-client/**/*.rar                   lfs
+unity-NPC-agent-client/**/*.tar                   lfs
+unity-NPC-agent-client/**/*.zip                   lfs
+unity-NPC-agent-client/**/*.dll                   lfs
+unity-NPC-agent-client/**/*.pdb                   lfs
+unity-NPC-agent-client/**/*.so                    lfs
+unity-NPC-agent-client/**/*.otf                   lfs
+unity-NPC-agent-client/**/*.ttf                   lfs
+unity-NPC-agent-client/**/*.apk                   lfs
+unity-NPC-agent-client/**/*.exe                   lfs
+unity-NPC-agent-client/**/*.pdf                   lfs
+unity-NPC-agent-client/**/*.a                     lfs
+unity-NPC-agent-client/**/*.reason                lfs
+unity-NPC-agent-client/**/*.rns                   lfs
+unity-NPC-agent-client/**/*.skel.bytes            lfs
+
+unity-NPC-agent-client/**/LightingData.asset      binary
+
