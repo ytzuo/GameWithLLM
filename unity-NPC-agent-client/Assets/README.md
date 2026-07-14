@@ -23,7 +23,8 @@ Assets
 │   │   └── Models.cs # 统一定义了与外部通信的 DTO
 │   ├── Tools
 │   │   └── Singleton.cs # 统一单例类实现
-│   └── SharedDataInstance.cs # 全局共享数据
+│   ├── SharedDataInstance.cs # 全局共享数据
+│   └── UIManager # UI管理器，统一负责所有UI的加载和关闭
 └── Readme.md
 ```
 特别说明：

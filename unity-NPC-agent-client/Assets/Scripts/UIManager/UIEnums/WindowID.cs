@@ -2,5 +2,6 @@
 {
     None, 
     Settings, 
-    Confirm
+    Confirm,
+    Chat
 }
