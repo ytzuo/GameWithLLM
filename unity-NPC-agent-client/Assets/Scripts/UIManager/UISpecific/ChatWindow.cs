@@ -20,6 +20,7 @@ public class ChatWindow : UIWindow
 
     protected override void OnBindElements(VisualElement root)
     {
+        LoadTemplatesFromResources();
         // 绑定滚动视图
         _chatScroll = root.Q<ScrollView>("chat-scroll");
         if (_chatScroll == null)
@@ -42,6 +43,32 @@ public class ChatWindow : UIWindow
         _playerMessageTemplate = playerTemplate;
         _opponentMessageTemplate = opponentTemplate;
         _systemMessageTemplate = systemTemplate;
+    }
+
+    /// <summary>
+    /// 从 Resources 文件夹按路径加载消息模板（同步）。
+    /// 路径为相对于 Resources 文件夹的路径，不包含扩展名，例如 "UI/Chat/PlayerMessage"。
+    /// 注意：确保对应的 VisualTreeAsset (.uxml) 已放到 Assets/Resources/... 下。
+    /// </summary>
+    public void LoadTemplatesFromResources(string playerPath, string opponentPath, string systemPath)
+    {
+        _playerMessageTemplate = Resources.Load<VisualTreeAsset>(playerPath);
+        _opponentMessageTemplate = Resources.Load<VisualTreeAsset>(opponentPath);
+        _systemMessageTemplate = Resources.Load<VisualTreeAsset>(systemPath);
+
+        if (_playerMessageTemplate == null || _opponentMessageTemplate == null || _systemMessageTemplate == null)
+        {
+            Debug.LogWarning($"ChatWindow: 从 Resources 加载消息模板时有未找到的资源。路径: player={playerPath}, opponent={opponentPath}, system={systemPath}");
+        }
+    }
+
+    /// <summary>
+    /// 使用默认路径从 Resources 加载模板（方便快速使用/原型）。
+    /// 默认位置：Assets/Resources/UI/Chat/PlayerMessage.uxml 等
+    /// </summary>
+    public void LoadTemplatesFromResources()
+    {
+        LoadTemplatesFromResources("UI/Chat/PlayerMessage", "UI/Chat/OpponentMessage", "UI/Chat/SystemMessage");
     }
 
     /// <summary>

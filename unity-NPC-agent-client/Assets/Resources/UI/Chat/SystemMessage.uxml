@@ -1,0 +1,11 @@
+<ui:UXML xmlns:ui="UnityEngine.UIElements" xmlns:uie="UnityEditor.UIElements" editor-extension-mode="False">
+    <Style src="../../../Art/UI/ChatStyle.uss" />
+
+    <!-- 系统消息模板：居中样式 -->
+    <ui:VisualElement class="message-system">
+        <!-- 名称为 message-text，便于在脚本中通过 Q<Label>("message-text") 查找并赋值 -->
+        <ui:Label name="message-text" text="系统消息示例" class="text-system" />
+    </ui:VisualElement>
+
+</ui:UXML>
+
