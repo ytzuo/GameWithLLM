@@ -4,28 +4,26 @@ using UnityEngine;
 
 public class ChatWindow : UIWindow
 {
-    // 序列化字段：在 Inspector 中直接拖拽分配消息模板资源
-    [SerializeField]
     private VisualTreeAsset _playerMessageTemplate;
-    
-    [SerializeField]
     private VisualTreeAsset _opponentMessageTemplate;
-    
-    [SerializeField]
     private VisualTreeAsset _systemMessageTemplate;
 
     // UI 元素缓存
     private ScrollView _chatScroll;
     private List<VisualElement> _messageList = new List<VisualElement>();
+    // 输入框相关
+    private TextField _inputField;
 
     protected override void OnBindElements(VisualElement root)
     {
         LoadTemplatesFromResources();
-        // 绑定滚动视图
         _chatScroll = root.Q<ScrollView>("chat-scroll");
-        if (_chatScroll == null)
+        _inputField = root.Q<TextField>("chat-input");
+
+        // 为输入框绑定回车键事件
+        if (_inputField != null)
         {
-            Debug.LogError("ChatWindow 未找到 chat-scroll 滚动视图！");
+            _inputField.RegisterCallback<KeyDownEvent>(OnInputFieldKeyDown);
         }
 
         // 验证消息模板是否已设置
@@ -34,17 +32,7 @@ public class ChatWindow : UIWindow
             Debug.LogWarning("ChatWindow: 消息模板未完全配置，请在 Inspector 中拖拽模板资源或调用 SetMessageTemplates()");
         }
     }
-
-    /// <summary>
-    /// 设置消息模板资源
-    /// </summary>
-    public void SetMessageTemplates(VisualTreeAsset playerTemplate, VisualTreeAsset opponentTemplate, VisualTreeAsset systemTemplate)
-    {
-        _playerMessageTemplate = playerTemplate;
-        _opponentMessageTemplate = opponentTemplate;
-        _systemMessageTemplate = systemTemplate;
-    }
-
+    
     /// <summary>
     /// 从 Resources 文件夹按路径加载消息模板（同步）。
     /// 路径为相对于 Resources 文件夹的路径，不包含扩展名，例如 "UI/Chat/PlayerMessage"。
@@ -156,23 +144,74 @@ public class ChatWindow : UIWindow
     }
 
     /// <summary>
+    /// 从输入框读取内容并发送（当按回车时调用）
+    /// </summary>
+    private void SendMessageFromInput()
+    {
+        if (_inputField == null) return;
+
+        var text = _inputField.value?.Trim();
+        if (string.IsNullOrEmpty(text)) return;
+
+        AddPlayerMessage(text);
+
+        // 发送后清空输入框，保留焦点以便继续输入
+        _inputField.value = string.Empty;
+        _inputField.Focus();
+    }
+
+    /// <summary>
+    /// 输入框键盘事件处理（监听回车键）
+    /// </summary>
+    private void OnInputFieldKeyDown(KeyDownEvent evt)
+    {
+        if (evt.keyCode == KeyCode.Return || evt.keyCode == KeyCode.KeypadEnter)
+        {
+            SendMessageFromInput();
+            evt.StopPropagation();
+        }
+    }
+
+    /// <summary>
     /// 自动滚动到底部（最新消息）
     /// </summary>
     private void ScrollToBottom()
     {
-        // 使用 schedule 在下一帧执行滚动，确保 UI 布局已更新
-        if (_chatScroll != null)
+        // 使用 schedule 重试方式确保元素完成布局后再滚动到末尾。
+        // 有时新加入的元素在同一帧尚未完成布局，直接 ScrollTo 无效，所以重试几次。
+        if (_chatScroll == null) return;
+
+        int attempts = 0;
+        const int maxAttempts = 8;
+
+        // 递归调度：如果布局尚未完成则延迟再次尝试，直到达到最大次数
+        System.Action tryScroll = null;
+        tryScroll = () =>
         {
-            _chatScroll.schedule.Execute(() =>
+            var contentContainer = _chatScroll.contentContainer;
+            if (contentContainer.childCount == 0)
             {
-                var contentContainer = _chatScroll.contentContainer;
-                if (contentContainer.childCount > 0)
+                attempts++;
+                if (attempts < maxAttempts)
                 {
-                    var lastChild = contentContainer[contentContainer.childCount - 1];
-                    _chatScroll.ScrollTo(lastChild);
+                    _chatScroll.schedule.Execute(tryScroll).ExecuteLater(10);
                 }
-            }).ExecuteLater(0);
-        }
+                return;
+            }
+
+            var lastChild = contentContainer[contentContainer.childCount - 1];
+            if (lastChild.layout.height <= 0f && attempts < maxAttempts)
+            {
+                attempts++;
+                _chatScroll.schedule.Execute(tryScroll).ExecuteLater(10);
+                return;
+            }
+
+            _chatScroll.ScrollTo(lastChild);
+        };
+
+        // 首次尝试放到下一次调度（短延迟）确保 UI 布局开始更新
+        _chatScroll.schedule.Execute(tryScroll).ExecuteLater(1);
     }
 }
 

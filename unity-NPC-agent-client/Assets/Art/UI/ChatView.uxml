@@ -1,58 +1,39 @@
 <ui:UXML xmlns:ui="UnityEngine.UIElements" xmlns:uie="UnityEditor.UIElements" editor-extension-mode="False">
-    <Style src="ChatStyle.uss" />
-
-    <!-- 根节点：75%透明度的黑色背景 -->
+    <Style src="project://database/Assets/Art/UI/ChatStyle.uss?fileID=7433441132597879392&amp;guid=08712ffda0bd7a447926e1fc125a3a90&amp;type=3#ChatStyle"/>
     <ui:VisualElement name="chat-root" class="chat-root">
-        
-        <!-- 滚动容器：垂直布局，占据剩余所有空间 -->
-        <ui:ScrollView name="chat-scroll" class="chat-scroll" mode="Vertical">
-            
-            <!-- 1. 系统提示消息 -->
+        <ui:ScrollView name="chat-scroll" mode="Vertical" class="chat-scroll">
             <ui:VisualElement class="message-system">
-                <ui:Label text="2026-07-09 17:00 游戏开始" class="text-system" />
+                <ui:Label text="2026-07-09 17:00 游戏开始" class="text-system"/>
             </ui:VisualElement>
-
-            <!-- 2. 对方的消息：头像在左，气泡在右 -->
             <ui:VisualElement class="message-row message-opponent">
-                <ui:VisualElement class="avatar avatar-opponent" />
+                <ui:VisualElement class="avatar avatar-opponent"/>
                 <ui:VisualElement class="bubble bubble-opponent">
-                    <ui:Label text="你好！测试一下普通长度的消息。" class="text-message text-opponent" />
+                    <ui:Label text="你好！测试一下普通长度的消息。" class="text-message text-opponent"/>
                 </ui:VisualElement>
             </ui:VisualElement>
-
-            <!-- 2. 对方的消息：长文本测试 -->
             <ui:VisualElement class="message-row message-opponent">
-                <ui:VisualElement class="avatar avatar-opponent" />
+                <ui:VisualElement class="avatar avatar-opponent"/>
                 <ui:VisualElement class="bubble bubble-opponent">
-                    <ui:Label text="这是一条非常长的消息，用来测试当消息长度超过最大限制时是否会自动换行，并且文本内容原点对齐在左侧。" class="text-message text-opponent" />
+                    <ui:Label text="这是一条非常长的消息，用来测试当消息长度超过最大限制时是否会自动换行，并且文本内容原点对齐在左侧。" class="text-message text-opponent"/>
                 </ui:VisualElement>
             </ui:VisualElement>
-
-            <!-- 3. 玩家的消息：短文本测试 -->
             <ui:VisualElement class="message-row message-player">
-                <ui:VisualElement class="avatar avatar-player" />
+                <ui:VisualElement class="avatar avatar-player"/>
                 <ui:VisualElement class="bubble bubble-player">
-                    <ui:Label text="收到，正在测试！" class="text-message text-player" />
+                    <ui:Label text="收到，正在测试！" class="text-message text-player"/>
                 </ui:VisualElement>
             </ui:VisualElement>
-
-            <!-- 3. 玩家的消息：长文本测试（头像在右，文本现在靠左对齐） -->
             <ui:VisualElement class="message-row message-player">
-                <ui:VisualElement class="avatar avatar-player" />
+                <ui:VisualElement class="avatar avatar-player"/>
                 <ui:VisualElement class="bubble bubble-player">
-                    <ui:Label text="这也是一条非常长的消息，用于测试气泡的最大宽度是否与对方完全一致。如果没有达到最大宽度，气泡会根据文字缩放；达到后会自动换行，且文本原点在左侧。" class="text-message text-player" />
+                    <ui:Label text="这也是一条非常长的消息，用于测试气泡的最大宽度是否与对方完全一致。如果没有达到最大宽度，气泡会根据文字缩放；达到后会自动换行，且文本原点在左侧。" class="text-message text-player"/>
                 </ui:VisualElement>
             </ui:VisualElement>
-
         </ui:ScrollView>
-
-        <!-- 底部输入区域：固定在底部，移除了发送按钮 -->
         <ui:VisualElement name="input-container" class="input-container">
             <ui:VisualElement class="input-wrapper">
-                <ui:TextField name="chat-input" class="chat-input" text="" />
-                <ui:Label name="chat-placeholder" class="chat-placeholder" text="请输入文本" picking-mode="Ignore" />
+                <ui:TextField name="chat-input" value="" class="chat-input"/>
             </ui:VisualElement>
         </ui:VisualElement>
-        
     </ui:VisualElement>
 </ui:UXML>
