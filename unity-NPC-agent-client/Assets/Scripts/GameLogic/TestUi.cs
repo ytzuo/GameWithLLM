@@ -32,7 +32,7 @@ namespace GameLogic
 
         private void OpenChat()
         {
-            UIManager.Instance.OpenWindow(WindowID.Chat);
+            UIManager.Instance.OpenNewWindow<ChatWindow>();
         }
     }
 

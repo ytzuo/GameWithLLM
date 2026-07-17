@@ -206,7 +206,7 @@ public class McpAsyncClient : Singleton<McpAsyncClient>
         {
             new LlmMessage { role = "system", content = $"你是末日幸存者。你的编号是 {npcId}。" }
         };
-
+        
         // TODO: UI 推送：将已有历史刷新到屏幕上
         // UIManager.Instance.RefreshChatHistory(messageList);
 
