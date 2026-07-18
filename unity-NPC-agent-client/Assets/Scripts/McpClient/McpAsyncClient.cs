@@ -28,7 +28,6 @@ public class McpAsyncClient : Singleton<McpAsyncClient>
     private Dictionary<string, TaskCompletionSource<string>> _pendingToolCalls = new Dictionary<string, TaskCompletionSource<string>>();
 
     // 模拟玩家 UI 输入的等待源
-    // TODO: 从UI获取玩家输入
     private TaskCompletionSource<string> _playerInputTcs;
 
     protected override void Init()
