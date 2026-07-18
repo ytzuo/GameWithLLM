@@ -28,9 +28,10 @@ public class McpAsyncClient : Singleton<McpAsyncClient>
     private Dictionary<string, TaskCompletionSource<string>> _pendingToolCalls = new Dictionary<string, TaskCompletionSource<string>>();
 
     // 模拟玩家 UI 输入的等待源
+    // TODO: 从UI获取玩家输入
     private TaskCompletionSource<string> _playerInputTcs;
 
-    void Start()
+    protected override void Init()
     {
         var config = DotEnvConfig.Load();
         mcpHostWsUrl = config.Get("UNITY_JSONRPC_WS_URL", mcpHostWsUrl);
@@ -182,7 +183,7 @@ public class McpAsyncClient : Singleton<McpAsyncClient>
         }
     }
 
-    // 2. 主循环触发入口 (玩家按 E 键交互)
+    // 2. 主循环触发入口
     public void OnPlayerInteractWithNpc(string npcId)
     {
         Debug.Log($"[UI] 玩家开始与 NPC({npcId}) 交互");
@@ -207,8 +208,33 @@ public class McpAsyncClient : Singleton<McpAsyncClient>
             new LlmMessage { role = "system", content = $"你是末日幸存者。你的编号是 {npcId}。" }
         };
         
-        // TODO: UI 推送：将已有历史刷新到屏幕上
-        // UIManager.Instance.RefreshChatHistory(messageList);
+        // UI 推送：将已有历史刷新到屏幕上（通过 ChatViewModel）
+        try
+        {
+            foreach (var msg in messageList)
+            {
+                if (msg == null) continue;
+                if (string.Equals(msg.role, "system", StringComparison.OrdinalIgnoreCase))
+                {
+                    if (!string.IsNullOrEmpty(msg.content))
+                        ChatViewModel.Instance.AddSystemMessage(msg.content);
+                }
+                else if (string.Equals(msg.role, "user", StringComparison.OrdinalIgnoreCase))
+                {
+                    if (!string.IsNullOrEmpty(msg.content))
+                        ChatViewModel.Instance.AddPlayerMessage(msg.content);
+                }
+                else if (string.Equals(msg.role, "assistant", StringComparison.OrdinalIgnoreCase))
+                {
+                    if (!string.IsNullOrEmpty(msg.content))
+                        ChatViewModel.Instance.AddOpponentMessage(msg.content);
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            Debug.LogWarning($"[MCP Client] failed to populate UI history via ChatViewModel: {ex.Message}");
+        }
 
         // 正式进入会话阻塞循环
         await SessionTaskAsync(npcId, messageList);
@@ -229,7 +255,15 @@ public class McpAsyncClient : Singleton<McpAsyncClient>
             if (playerText.ToLower() == "bye") break;
 
             messageList.Add(new LlmMessage { role = "user", content = playerText });
-            // UIManager.Instance.AddBubble("User", playerText);
+            // 玩家输入信息通过 ViewModel 推送到 UI
+            try
+            {
+                ChatViewModel.Instance.AddPlayerMessage(playerText);
+            }
+            catch (Exception ex)
+            {
+                Debug.LogWarning($"[MCP Client] failed to forward player input to ChatViewModel: {ex.Message}");
+            }
 
             bool waitingForLlm = true;
 
@@ -265,6 +299,17 @@ public class McpAsyncClient : Singleton<McpAsyncClient>
                         content = toolResult
                     });
 
+                    // 将工具执行结果推送到 UI（视为 System / internal 消息）
+                    try
+                    {
+                        if (!string.IsNullOrEmpty(toolResult))
+                            ChatViewModel.Instance.AddSystemMessage(toolResult);
+                    }
+                    catch (Exception ex)
+                    {
+                        Debug.LogWarning($"[MCP Client] failed to forward tool result to ChatViewModel: {ex.Message}");
+                    }
+
                     // 此时不跳出循环，带着工具结果继续向大模型发起 HTTP 请求
                 }
                 else
@@ -274,8 +319,16 @@ public class McpAsyncClient : Singleton<McpAsyncClient>
                     messageList.Add(new LlmMessage { role = "assistant", content = finalReply });
 
                     Debug.Log($"[LLM] NPC回复: {finalReply}");
-                    
-                    // TODO: UIManager.Instance.AddBubble(npcId, finalReply);
+                    // 将最终回复推送到 UI（通过 ViewModel）
+                    try
+                    {
+                        if (!string.IsNullOrEmpty(finalReply))
+                            ChatViewModel.Instance.AddOpponentMessage(finalReply);
+                    }
+                    catch (Exception ex)
+                    {
+                        Debug.LogWarning($"[MCP Client] failed to forward LLM reply to ChatViewModel: {ex.Message}");
+                    }
                     // 本轮对话结束，跳出内层循环，等待玩家下一次输入
                     
                     waitingForLlm = false;

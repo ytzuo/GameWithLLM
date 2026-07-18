@@ -12,6 +12,7 @@ public class NpcEntity : MonoBehaviour
 
     private NavMeshAgent _navAgent;
     private NpcState _fsmState = NpcState.Idle;
+    private ChatWindow _chatWindow;
 
     public enum NpcState { Idle, Talking, Operating }
 
@@ -20,6 +21,53 @@ public class NpcEntity : MonoBehaviour
         // 诞生时去全局路由报个到
         CommandDispatcher.Instance.RegisterNpc(npcId, this);
         _navAgent = GetComponent<NavMeshAgent>();
+    }
+
+    /// <summary>
+    /// 玩家与该 NPC 交互时调用。
+    /// 职责：
+    /// - 打开聊天窗口（通过 UIManager）
+    /// - 启动 MCP 会话（通过 McpAsyncClient）
+    /// </summary>
+    public void Interact()
+    {
+        try
+        {
+            if (UIManager.Instance != null)
+            {
+                // 首次交互：创建新的 ChatWindow，缓存引用，并启动 MCP 会话
+                if (_chatWindow == null)
+                {
+                    _chatWindow = UIManager.Instance.OpenNewWindow<ChatWindow>();
+                    McpAsyncClient.Instance.OnPlayerInteractWithNpc(npcId);
+                }
+                // 后续交互：复用已有的 ChatWindow，重新打开（会话已持久，无需重新启动）
+                else
+                {
+                    UIManager.Instance.ReopenWindow(_chatWindow);
+                }
+            }
+        }
+        catch (Exception e)
+        {
+            Debug.LogWarning($"NpcEntity.Interact failed: {e.Message}");
+        }
+    }
+
+    /// <summary>
+    /// 停止与 NPC 的交互。
+    /// 职责：
+    /// - 关闭聊天窗口
+    /// - 重置 NPC 状态回 Idle
+    /// 可以安全地在没有活跃交互时调用（no-op）。
+    /// </summary>
+    public void StopInteract()
+    {
+        // 关闭聊天窗口（如果存在）
+        _chatWindow?.Close();
+
+        // 重置 FSM 状态回 Idle
+        _fsmState = NpcState.Idle;
     }
 
     // 全局路由在主线程调用这个方法给我派活
