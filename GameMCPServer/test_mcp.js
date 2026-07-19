@@ -6,18 +6,16 @@
  *   node test_mcp.js                # 连接本机已启动的服务
  *   node test_mcp.js --start-server # 自动 go run ./cmd/server 启动并测试
  *
- * 该脚本使用原生 Node.js API，无第三方依赖。
+ * 该脚本使用 Node.js 22+ 内置的标准 WebSocket API，无第三方依赖。
  */
 
-const crypto = require("crypto");
-const net = require("net");
 const path = require("path");
 const { spawn } = require("child_process");
 
 const BASE_URL = process.env.MCP_BASE_URL || "http://127.0.0.1:8080";
 const WS_URL =
   process.env.UNITY_JSONRPC_WS_URL ||
-  BASE_URL.replace(/^http:/, "ws:").replace(/^https:/, "wss:");
+  `${BASE_URL.replace(/^http:/, "ws:").replace(/^https:/, "wss:")}/unity/ws`;
 const TIMEOUT_MS = 30000;
 
 // sleep 等待指定毫秒数。
@@ -58,87 +56,40 @@ function startServer() {
   return proc;
 }
 
-// RawWebSocketClient 是测试用的最小 WebSocket 客户端。
-class RawWebSocketClient {
-  // constructor 初始化连接参数和接收缓冲区。
+// JSONWebSocketClient 使用 Node.js 内置标准 WebSocket 实现测试协议。
+class JSONWebSocketClient {
   constructor(endpoint) {
     this.endpoint = endpoint;
     this.socket = null;
-    this.buffer = Buffer.alloc(0);
     this.messages = [];
     this.waiters = [];
   }
 
-  // connect 建立 TCP 连接并完成 WebSocket 握手。
-  async connect() {
-    const url = new URL(this.endpoint);
-    const port = Number(url.port || (url.protocol === "wss:" ? 443 : 80));
-    if (url.protocol !== "ws:") {
-      throw new Error("测试脚本的轻量 WebSocket 客户端仅支持 ws://");
-    }
-
-    this.socket = net.createConnection({ host: url.hostname, port });
-    await new Promise((resolve, reject) => {
-      this.socket.once("connect", resolve);
-      this.socket.once("error", reject);
-    });
-
-    const key = crypto.randomBytes(16).toString("base64");
-    const path = `${url.pathname || "/"}${url.search || ""}`;
-    const request = [
-      `GET ${path} HTTP/1.1`,
-      `Host: ${url.host}`,
-      "Upgrade: websocket",
-      "Connection: Upgrade",
-      `Sec-WebSocket-Key: ${key}`,
-      "Sec-WebSocket-Version: 13",
-      "",
-      "",
-    ].join("\r\n");
-    this.socket.write(request);
-
-    // HTTP 升级完成后，连接里剩余的数据都按 WebSocket 帧处理。
-    const leftover = await this.readHandshake();
-    this.socket.on("data", (chunk) => this.handleData(chunk));
-    this.socket.on("close", () => this.rejectWaiters(new Error("WebSocket closed")));
-    this.socket.on("error", (err) => this.rejectWaiters(err));
-    if (leftover.length > 0) {
-      this.handleData(leftover);
-    }
-  }
-
-  // readHandshake 读取并校验服务端的 HTTP 101 升级响应。
-  readHandshake() {
+  // connect 建立标准 WebSocket 连接并注册消息处理。
+  connect() {
     return new Promise((resolve, reject) => {
-      let data = Buffer.alloc(0);
-      const onData = (chunk) => {
-        data = Buffer.concat([data, chunk]);
-        const idx = data.indexOf("\r\n\r\n");
-        if (idx < 0) return;
-
-        this.socket.off("data", onData);
-        this.socket.off("error", onError);
-
-        const header = data.slice(0, idx).toString("utf8");
-        if (!header.startsWith("HTTP/1.1 101") && !header.startsWith("HTTP/1.0 101")) {
-          reject(new Error(`WebSocket 握手失败: ${header.split("\r\n")[0]}`));
-          return;
-        }
-        resolve(data.slice(idx + 4));
-      };
-      const onError = (err) => {
-        this.socket.off("data", onData);
+      this.socket = new WebSocket(this.endpoint);
+      this.socket.addEventListener("open", resolve, { once: true });
+      this.socket.addEventListener("error", (event) => {
+        const err = event.error || new Error("WebSocket connection failed");
+        this.rejectWaiters(err);
         reject(err);
-      };
-      this.socket.on("data", onData);
-      this.socket.once("error", onError);
+      }, { once: true });
+      this.socket.addEventListener("message", (event) => {
+        const message = typeof event.data === "string"
+          ? event.data
+          : Buffer.from(event.data).toString("utf8");
+        this.deliver(message);
+      });
+      this.socket.addEventListener("close", () => {
+        this.rejectWaiters(new Error("WebSocket closed"));
+      });
     });
   }
 
-  // sendJSON 将对象序列化后作为 WebSocket 文本帧发送。
+  // sendJSON 使用标准客户端发送 JSON 文本消息。
   sendJSON(value) {
-    const payload = Buffer.from(JSON.stringify(value), "utf8");
-    this.socket.write(this.makeClientTextFrame(payload));
+    this.socket.send(JSON.stringify(value));
   }
 
   // readJSON 读取一条文本消息并解析为 JSON。
@@ -153,11 +104,7 @@ class RawWebSocketClient {
       return Promise.resolve(this.messages.shift());
     }
     return new Promise((resolve, reject) => {
-      const timer = setTimeout(() => {
-        this.waiters = this.waiters.filter((w) => w.resolve !== resolve);
-        reject(new Error("WebSocket read timeout"));
-      }, timeoutMs);
-      this.waiters.push({
+      const waiter = {
         resolve: (message) => {
           clearTimeout(timer);
           resolve(message);
@@ -166,59 +113,13 @@ class RawWebSocketClient {
           clearTimeout(timer);
           reject(err);
         },
-      });
+      };
+      const timer = setTimeout(() => {
+        this.waiters = this.waiters.filter((candidate) => candidate !== waiter);
+        reject(new Error("WebSocket read timeout"));
+      }, timeoutMs);
+      this.waiters.push(waiter);
     });
-  }
-
-  // handleData 累积 TCP 数据并解析其中的 WebSocket 帧。
-  handleData(chunk) {
-    this.buffer = Buffer.concat([this.buffer, chunk]);
-    while (this.buffer.length >= 2) {
-      const first = this.buffer[0];
-      const second = this.buffer[1];
-      const opcode = first & 0x0f;
-      let len = second & 0x7f;
-      let offset = 2;
-
-      if (len === 126) {
-        if (this.buffer.length < offset + 2) return;
-        len = this.buffer.readUInt16BE(offset);
-        offset += 2;
-      } else if (len === 127) {
-        if (this.buffer.length < offset + 8) return;
-        const high = this.buffer.readUInt32BE(offset);
-        const low = this.buffer.readUInt32BE(offset + 4);
-        if (high !== 0) throw new Error("WebSocket frame too large for test client");
-        len = low;
-        offset += 8;
-      }
-
-      const masked = (second & 0x80) !== 0;
-      let mask;
-      if (masked) {
-        if (this.buffer.length < offset + 4) return;
-        mask = this.buffer.slice(offset, offset + 4);
-        offset += 4;
-      }
-
-      if (this.buffer.length < offset + len) return;
-      let payload = this.buffer.slice(offset, offset + len);
-      this.buffer = this.buffer.slice(offset + len);
-
-      if (masked) {
-        // 测试客户端发给服务端的帧需要 mask；服务端返回的帧通常不带 mask。
-        payload = Buffer.from(payload.map((b, i) => b ^ mask[i % 4]));
-      }
-
-      if (opcode === 0x8) {
-        this.close();
-        return;
-      }
-      if (opcode !== 0x1) {
-        continue;
-      }
-      this.deliver(payload.toString("utf8"));
-    }
   }
 
   // deliver 将消息交给等待者，或暂存在消息队列中。
@@ -239,40 +140,10 @@ class RawWebSocketClient {
     }
   }
 
-  // makeClientTextFrame 将 payload 编码为客户端到服务端的 masked 文本帧。
-  makeClientTextFrame(payload) {
-    let header;
-    if (payload.length < 126) {
-      header = Buffer.alloc(2);
-      header[0] = 0x81;
-      header[1] = 0x80 | payload.length;
-    } else if (payload.length < 65536) {
-      header = Buffer.alloc(4);
-      header[0] = 0x81;
-      header[1] = 0x80 | 126;
-      header.writeUInt16BE(payload.length, 2);
-    } else {
-      header = Buffer.alloc(10);
-      header[0] = 0x81;
-      header[1] = 0x80 | 127;
-      header.writeUInt32BE(0, 2);
-      header.writeUInt32BE(payload.length, 6);
-    }
-
-    const mask = crypto.randomBytes(4);
-    // 浏览器和 WebSocket 客户端发给服务端的帧必须带 mask。
-    const masked = Buffer.alloc(payload.length);
-    for (let i = 0; i < payload.length; i++) {
-      masked[i] = payload[i] ^ mask[i % 4];
-    }
-    return Buffer.concat([header, mask, masked]);
-  }
-
   // close 关闭测试客户端连接。
   close() {
-    if (this.socket) {
-      this.socket.end();
-      this.socket.destroy();
+    if (this.socket?.readyState === WebSocket.OPEN) {
+      this.socket.close(1000, "test complete");
     }
   }
 }
@@ -293,7 +164,7 @@ function assert(condition, message) {
 
 // runUnityProtocolTests 验证 Unity JSON-RPC WebSocket 主流程。
 async function runUnityProtocolTests() {
-  const ws = new RawWebSocketClient(WS_URL);
+  const ws = new JSONWebSocketClient(WS_URL);
   await ws.connect();
   try {
     // 模拟 Unity 客户端发起工具发现请求。

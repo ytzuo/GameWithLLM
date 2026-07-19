@@ -31,7 +31,7 @@
 
 - 读取配置：`internal/config/config.go`
 - 注册路由：`internal/handler/router.go`
-- 启动 HTTP 服务：`http.ListenAndServe`
+- 启动 HTTP 服务：显式 `http.Server`，支持超时、Signal 监听和优雅关闭
 
 配置来源优先级：
 
@@ -49,18 +49,18 @@
 
 ### 1.3 对外接口
 
-当前代码实现了三个入口：
+当前代码实现了四个入口：
 
-- `/ws`：显式 WebSocket 入口
-- `/`：根路径，普通请求返回运行提示；WebSocket 升级时也进入协议处理
+- `/unity/ws`：正式 WebSocket 入口
+- `/ws`：迁移期兼容入口，会输出弃用日志
+- `/`：普通请求返回运行提示；迁移期仍兼容 WebSocket 升级并输出弃用日志
 - `/health`：健康检查
 
 ### 1.4 协议实现
 
-服务端使用的是轻量 JSON-RPC WebSocket 实现，核心文件在 `internal/unity/`：
+服务端使用 `github.com/coder/websocket` 承担 WebSocket 协议，业务层保留轻量 JSON-RPC 实现，核心文件在 `internal/unity/`：
 
 - `protocol.go`：JSON-RPC 消息结构
-- `websocket.go`：手写 WebSocket 握手和帧读写
 - `session.go`：会话循环、pending 请求匹配、超时控制
 - `tools.go`：工具声明
 - `server.go`：WebSocket / 根路径入口处理
@@ -88,6 +88,9 @@
 - 只负责协议与转发，不负责游戏逻辑
 - 用 `id` 追踪请求和响应
 - 有超时保护
+- WebSocket 握手、分片和 Ping/Pong 由成熟库处理
+- 单条消息上限为 1 MiB
+- 服务退出时使用标准关闭码结束活动连接
 - 工具 schema 与 Unity 侧保持一致
 
 ---
@@ -212,7 +215,6 @@
 - `internal/handler/health.go`
 - `internal/unity/server.go`
 - `internal/unity/session.go`
-- `internal/unity/websocket.go`
 - `internal/unity/protocol.go`
 - `internal/unity/tools.go`
 
@@ -240,4 +242,4 @@
 - `tools/list` / `tools/call`
 - 单个 `game_npc_move` 工具
 - Unity 主线程安全执行
-
+- Go 侧 WebSocket 已切换到 `coder/websocket`，正式入口为 `/unity/ws`

@@ -1,17 +1,24 @@
 package unity
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"log"
-	"net"
 	"sync"
 	"time"
 )
 
+type jsonRPCConnection interface {
+	Read(context.Context, *jsonRPCMessage) error
+	Write(context.Context, jsonRPCMessage) error
+}
+
 // JSON-RPC 2.0 协议的 WebSocket 会话
 type jsonRPCSession struct {
-	conn    net.Conn
+	ctx     context.Context
+	cancel  context.CancelFunc
+	conn    jsonRPCConnection
 	writeMu sync.Mutex
 	mu      sync.Mutex
 	// pending 用 JSON-RPC id 关联正在等待 Unity 工具执行结果的 goroutine。
@@ -19,19 +26,24 @@ type jsonRPCSession struct {
 	timeout time.Duration
 }
 
+func newJSONRPCSession(ctx context.Context, cancel context.CancelFunc, conn jsonRPCConnection, timeout time.Duration) *jsonRPCSession {
+	return &jsonRPCSession{
+		ctx:     ctx,
+		cancel:  cancel,
+		conn:    conn,
+		pending: make(map[string]chan jsonRPCMessage),
+		timeout: timeout,
+	}
+}
+
 // readLoop 持续读取 JSON-RPC 消息并按 method 路由处理。
 func (s *jsonRPCSession) readLoop() {
+	defer s.cancel()
 	for {
-		payload, err := readTextFrame(s.conn)
-		if err != nil {
+		var msg jsonRPCMessage
+		if err := s.conn.Read(s.ctx, &msg); err != nil {
 			log.Printf("JSON-RPC websocket read failed: %v", err)
 			return
-		}
-
-		var msg jsonRPCMessage
-		if err := json.Unmarshal(payload, &msg); err != nil {
-			log.Printf("JSON-RPC websocket invalid payload: %v", err)
-			continue
 		}
 
 		if msg.Method == "" {
@@ -81,6 +93,10 @@ func (s *jsonRPCSession) handleToolCall(msg jsonRPCMessage) {
 		_ = s.writeError(msg.ID, -32602, "tool name is required")
 		return
 	}
+	if !unityClientToolExists(params.Name) {
+		_ = s.writeError(msg.ID, -32601, fmt.Sprintf("tool not found: %s", params.Name))
+		return
+	}
 	if len(params.Arguments) == 0 {
 		_ = s.writeError(msg.ID, -32602, "tool arguments are required")
 		return
@@ -127,6 +143,8 @@ func (s *jsonRPCSession) handleToolCall(msg jsonRPCMessage) {
 		})
 	case <-timer.C:
 		_ = s.writeError(msg.ID, -32000, "unity tool execution timed out")
+	case <-s.ctx.Done():
+		return
 	}
 }
 
@@ -146,7 +164,11 @@ func (s *jsonRPCSession) complete(msg jsonRPCMessage) {
 		return
 	}
 
-	ch <- msg
+	select {
+	case ch <- msg:
+	default:
+		log.Printf("JSON-RPC duplicate response ignored: id=%s", key)
+	}
 }
 
 // addPending 注册一个正在等待结果的 JSON-RPC 请求。
@@ -191,11 +213,7 @@ func (s *jsonRPCSession) writeError(id json.RawMessage, code int, message string
 
 // writeMessage 序列化 JSON-RPC 消息并写入 WebSocket 文本帧。
 func (s *jsonRPCSession) writeMessage(msg jsonRPCMessage) error {
-	payload, err := json.Marshal(msg)
-	if err != nil {
-		return err
-	}
 	s.writeMu.Lock()
 	defer s.writeMu.Unlock()
-	return writeTextFrame(s.conn, payload)
+	return s.conn.Write(s.ctx, msg)
 }

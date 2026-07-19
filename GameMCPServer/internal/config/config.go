@@ -15,7 +15,7 @@ import (
 const (
 	defaultServerAddr         = ":8080"
 	defaultBaseURL            = "http://127.0.0.1:8080"
-	defaultUnityJSONRPCWSURL  = "ws://127.0.0.1:8080"
+	defaultUnityJSONRPCWSURL  = "ws://127.0.0.1:8080/unity/ws"
 	defaultToolTimeoutSeconds = 10
 )
 

@@ -29,7 +29,7 @@
 ```env
 MCP_SERVER_ADDR=:8080
 MCP_BASE_URL=http://127.0.0.1:8080
-UNITY_JSONRPC_WS_URL=ws://127.0.0.1:8080
+UNITY_JSONRPC_WS_URL=ws://127.0.0.1:8080/unity/ws
 UNITY_TOOL_TIMEOUT_SECONDS=10
 
 LLM_API_URL=https://api.openai.com/v1/chat/completions
@@ -54,6 +54,8 @@ make test
 make unity-info
 ```
 
+直接运行 `GameMCPServer/test_mcp.js` 需要 Node.js 22 或更高版本；脚本使用 Node 内置标准 WebSocket，不安装额外依赖。
+
 ## 启动服务端
 
 ```bash
@@ -64,7 +66,7 @@ make server
 
 ```txt
 http://127.0.0.1:8080
-ws://127.0.0.1:8080
+ws://127.0.0.1:8080/unity/ws
 ```
 
 如果需要换端口，修改 `.env.local` 中的：
@@ -72,7 +74,7 @@ ws://127.0.0.1:8080
 ```env
 MCP_SERVER_ADDR=:8090
 MCP_BASE_URL=http://127.0.0.1:8090
-UNITY_JSONRPC_WS_URL=ws://127.0.0.1:8090
+UNITY_JSONRPC_WS_URL=ws://127.0.0.1:8090/unity/ws
 ```
 
 ## 启动 Unity
@@ -96,4 +98,3 @@ Assets/Scenes/SampleScene.unity
 ```
 
 Unity 运行时会读取根目录 `.env.local` 中的 `UNITY_JSONRPC_WS_URL`、`LLM_API_URL`、`LLM_MODEL` 和 `OPENAI_API_KEY`。
-

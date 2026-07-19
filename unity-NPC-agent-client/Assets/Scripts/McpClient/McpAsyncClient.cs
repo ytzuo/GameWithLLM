@@ -13,7 +13,7 @@ using UnityEngine;
 public class McpAsyncClient : Singleton<McpAsyncClient>
 {
     [Header("网络配置")]
-    public string mcpHostWsUrl = "ws://127.0.0.1:8080";
+    public string mcpHostWsUrl = "ws://127.0.0.1:8080/unity/ws";
     public string llmApiUrl = "https://api.openai.com/v1/chat/completions";
     public string llmModel = "gpt-4o-mini";
 

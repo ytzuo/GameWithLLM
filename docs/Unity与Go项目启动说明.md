@@ -72,7 +72,7 @@ Unity JSON-RPC WebSocket endpoint: ws://localhost:8080/ws
 服务监听端口为 `8080`，主要入口包括：
 
 - 健康检查：`http://localhost:8080/health`
-- Unity 默认 WebSocket 地址：`ws://127.0.0.1:8080`
+- Unity 默认 WebSocket 地址：`ws://127.0.0.1:8080/unity/ws`
 - 显式 WebSocket 地址：`ws://localhost:8080/ws`
 
 可在另一个 PowerShell 窗口中验证健康检查：
@@ -115,13 +115,13 @@ Assets/Scenes/SampleScene.unity
 Unity 客户端会优先读取 monorepo 根目录 `.env.local` 中的连接地址：
 
 ```env
-UNITY_JSONRPC_WS_URL=ws://127.0.0.1:8080
+UNITY_JSONRPC_WS_URL=ws://127.0.0.1:8080/unity/ws
 ```
 
 脚本中的默认 fallback 地址为：
 
 ```csharp
-public string mcpHostWsUrl = "ws://127.0.0.1:8080";
+public string mcpHostWsUrl = "ws://127.0.0.1:8080/unity/ws";
 ```
 
 因此只要 Go 服务端已经在本机 `8080` 端口启动，Unity 进入 Play 模式后会自动连接。连接成功时，Unity Console 会出现类似日志：
@@ -172,7 +172,7 @@ C:\Users\zz\Desktop\game\unity-NPC-agent-client
 ```
 
 3. 打开 `Assets/Scenes/SampleScene.unity`。
-4. 检查根目录 `.env.local` 中的 `UNITY_JSONRPC_WS_URL` 是否为 `ws://127.0.0.1:8080`。
+4. 检查根目录 `.env.local` 中的 `UNITY_JSONRPC_WS_URL` 是否为 `ws://127.0.0.1:8080/unity/ws`。
 5. 如需调用大模型，配置 `OPENAI_API_KEY`。
 6. 点击 Play。
 7. 在 Unity Console 和 Go 服务端终端中确认 WebSocket 已连接。

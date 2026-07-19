@@ -2,6 +2,7 @@
 package handler
 
 import (
+	"log"
 	"net/http"
 	"time"
 
@@ -10,15 +11,20 @@ import (
 
 // RegisterRoutes 注册所有 HTTP 路由。
 func RegisterRoutes(mux *http.ServeMux) {
-	RegisterRoutesWithTimeout(mux, 10*time.Second)
+	_ = RegisterRoutesWithTimeout(mux, 10*time.Second)
 }
 
 // RegisterRoutesWithTimeout 注册所有 HTTP 路由，并允许调用方配置 Unity 工具调用超时。
-func RegisterRoutesWithTimeout(mux *http.ServeMux, timeout time.Duration) {
+func RegisterRoutesWithTimeout(mux *http.ServeMux, timeout time.Duration) *unity.JSONRPCServer {
 	jsonRPCServer := unity.NewJSONRPCServer(timeout)
 
-	// /ws 是显式入口；/ 也接受 WebSocket 升级，因为 Unity 客户端默认连接 ws://127.0.0.1:8080。
-	mux.HandleFunc("/ws", jsonRPCServer.HandleWebSocket)
+	// /unity/ws 是正式入口；/ws 和根路径在迁移期间继续兼容。
+	mux.HandleFunc("/unity/ws", jsonRPCServer.HandleWebSocket)
+	mux.HandleFunc("/ws", func(w http.ResponseWriter, r *http.Request) {
+		log.Print("deprecated Unity WebSocket endpoint used: /ws; migrate to /unity/ws")
+		jsonRPCServer.HandleWebSocket(w, r)
+	})
 	mux.HandleFunc("/health", handleHealth)
 	mux.HandleFunc("/", jsonRPCServer.HandleRoot)
+	return jsonRPCServer
 }
