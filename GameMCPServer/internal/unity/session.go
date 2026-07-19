@@ -49,7 +49,7 @@ func (s *jsonRPCSession) readLoop() {
 	for {
 		var msg jsonRPCMessage
 		if err := s.conn.Read(s.ctx, &msg); err != nil {
-			log.Printf("JSON-RPC websocket read failed: %v", err)
+			log.Printf("event=jsonrpc_read_stopped error=%q", err)
 			return
 		}
 
@@ -61,11 +61,13 @@ func (s *jsonRPCSession) readLoop() {
 
 		switch msg.Method {
 		case "tools/list":
+			log.Printf("event=jsonrpc_request_received method=%q id=%s", msg.Method, logID(msg.ID))
 			if err := s.writeResult(msg.ID, map[string]any{"tools": s.tools.List()}); err != nil {
 				log.Printf("JSON-RPC tools/list response failed: %v", err)
 				return
 			}
 		case "tools/call":
+			log.Printf("event=jsonrpc_request_received method=%q id=%s", msg.Method, logID(msg.ID))
 			go s.handleToolCall(msg)
 		default:
 			if err := s.writeError(msg.ID, -32601, fmt.Sprintf("method not found: %s", msg.Method)); err != nil {
@@ -78,6 +80,7 @@ func (s *jsonRPCSession) readLoop() {
 
 // handleToolCall 校验工具调用参数，转发给 Unity，并等待同 id 结果。
 func (s *jsonRPCSession) handleToolCall(msg jsonRPCMessage) {
+	startedAt := time.Now()
 	if len(msg.ID) == 0 {
 		_ = s.writeError(msg.ID, -32600, "tools/call requires id")
 		return
@@ -118,6 +121,7 @@ func (s *jsonRPCSession) handleToolCall(msg jsonRPCMessage) {
 		return
 	}
 	defer s.removePending(key)
+	log.Printf("event=tool_call_forwarding id=%s npc_id=%q tool=%q timeout_ms=%d", logID(msg.ID), params.NPCID, params.Name, s.timeout.Milliseconds())
 
 	request := jsonRPCMessage{
 		JSONRPC: jsonRPCVersion,
@@ -135,6 +139,7 @@ func (s *jsonRPCSession) handleToolCall(msg jsonRPCMessage) {
 
 	select {
 	case response := <-ch:
+		log.Printf("event=tool_call_completed id=%s npc_id=%q tool=%q outcome=%q duration_ms=%d", logID(msg.ID), params.NPCID, params.Name, toolOutcome(response), time.Since(startedAt).Milliseconds())
 		if response.Error != nil {
 			_ = s.writeMessage(jsonRPCMessage{
 				JSONRPC: jsonRPCVersion,
@@ -149,6 +154,7 @@ func (s *jsonRPCSession) handleToolCall(msg jsonRPCMessage) {
 			Result:  response.Result,
 		})
 	case <-timer.C:
+		log.Printf("event=tool_call_completed id=%s npc_id=%q tool=%q outcome=timeout duration_ms=%d", logID(msg.ID), params.NPCID, params.Name, time.Since(startedAt).Milliseconds())
 		_ = s.writeError(msg.ID, -32000, "unity tool execution timed out")
 	case <-s.ctx.Done():
 		return
@@ -229,6 +235,7 @@ func (s *jsonRPCSession) writeMessage(msg jsonRPCMessage) error {
 // 用 Unity 返回的工具列表替换当前的种子工具。
 // 此方法在 readLoop 主循环启动前同步调用，确保在任何 tools/call 到达前工具已同步。
 func (s *jsonRPCSession) requestToolsFromUnity() {
+	startedAt := time.Now()
 	reqID := json.RawMessage(`"tools_sync_1"`)
 
 	req := jsonRPCMessage{
@@ -256,5 +263,20 @@ func (s *jsonRPCSession) requestToolsFromUnity() {
 		return
 	}
 	s.tools.ReplaceAll(parsed.Tools)
-	log.Printf("received %d tools from Unity", len(parsed.Tools))
+	log.Printf("event=tools_sync_completed tool_count=%d duration_ms=%d", len(parsed.Tools), time.Since(startedAt).Milliseconds())
+}
+
+// logID 只输出请求标识，不输出 params/result，避免业务内容进入控制台日志。
+func logID(id json.RawMessage) string {
+	if len(id) == 0 {
+		return "\"<missing>\""
+	}
+	return string(id)
+}
+
+func toolOutcome(response jsonRPCMessage) string {
+	if response.Error != nil {
+		return "unity_error"
+	}
+	return "success"
 }

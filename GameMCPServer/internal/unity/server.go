@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/coder/websocket"
@@ -20,6 +21,7 @@ type JSONRPCServer struct {
 	tools         *ToolRegistry
 	connectionsMu sync.Mutex
 	connections   map[*websocket.Conn]struct{}
+	nextSessionID atomic.Uint64
 }
 
 // NewJSONRPCServer 创建 Unity JSON-RPC WebSocket 服务。
@@ -44,13 +46,19 @@ func (s *JSONRPCServer) HandleRoot(w http.ResponseWriter, r *http.Request) {
 
 // HandleWebSocket 完成 WebSocket 升级并启动单连接会话循环。
 func (s *JSONRPCServer) HandleWebSocket(w http.ResponseWriter, r *http.Request) {
+	sessionID := s.nextSessionID.Add(1)
+	remoteAddr := r.RemoteAddr
+	log.Printf("event=websocket_upgrade_started session_id=%d remote_addr=%q path=%q", sessionID, remoteAddr, r.URL.Path)
 	conn, err := websocket.Accept(w, r, nil)
 	if err != nil {
-		log.Printf("JSON-RPC websocket upgrade failed: %v", err)
+		log.Printf("event=websocket_upgrade_failed session_id=%d remote_addr=%q error=%q", sessionID, remoteAddr, err)
 		return
 	}
-	s.addConnection(conn)
-	defer s.removeConnection(conn)
+	activeConnections := s.addConnection(conn)
+	defer func() {
+		remaining := s.removeConnection(conn)
+		log.Printf("event=websocket_disconnected session_id=%d remote_addr=%q active_connections=%d", sessionID, remoteAddr, remaining)
+	}()
 	defer func() {
 		// 对端正常关闭时 Reader 已完成 close handshake，再次 Close 可能返回
 		// net.ErrClosed；这里保持 best-effort，不把正常断线记录成服务错误。
@@ -61,10 +69,9 @@ func (s *JSONRPCServer) HandleWebSocket(w http.ResponseWriter, r *http.Request) 
 	ctx, cancel := context.WithCancel(r.Context())
 	defer cancel()
 
-	log.Print("Unity JSON-RPC websocket connected")
+	log.Printf("event=websocket_connected session_id=%d remote_addr=%q active_connections=%d", sessionID, remoteAddr, activeConnections)
 	session := newJSONRPCSession(ctx, cancel, &websocketJSONRPCConnection{conn: conn}, s.tools, s.timeout)
 	session.readLoop()
-	log.Print("Unity JSON-RPC websocket disconnected")
 }
 
 // Shutdown 使用标准 Going Away 关闭码结束当前所有 Unity WebSocket 连接。
@@ -75,6 +82,7 @@ func (s *JSONRPCServer) Shutdown(ctx context.Context) error {
 		connections = append(connections, conn)
 	}
 	s.connectionsMu.Unlock()
+	log.Printf("event=websocket_shutdown_started active_connections=%d", len(connections))
 
 	done := make(chan struct{})
 	go func() {
@@ -94,22 +102,26 @@ func (s *JSONRPCServer) Shutdown(ctx context.Context) error {
 
 	select {
 	case <-done:
+		log.Print("event=websocket_shutdown_completed")
 		return nil
 	case <-ctx.Done():
+		log.Printf("event=websocket_shutdown_timed_out error=%q", ctx.Err())
 		return ctx.Err()
 	}
 }
 
-func (s *JSONRPCServer) addConnection(conn *websocket.Conn) {
+func (s *JSONRPCServer) addConnection(conn *websocket.Conn) int {
 	s.connectionsMu.Lock()
 	defer s.connectionsMu.Unlock()
 	s.connections[conn] = struct{}{}
+	return len(s.connections)
 }
 
-func (s *JSONRPCServer) removeConnection(conn *websocket.Conn) {
+func (s *JSONRPCServer) removeConnection(conn *websocket.Conn) int {
 	s.connectionsMu.Lock()
 	defer s.connectionsMu.Unlock()
 	delete(s.connections, conn)
+	return len(s.connections)
 }
 
 // isWebSocketUpgrade 仅用于兼容根路径入口；握手和协议校验由 websocket 库完成。

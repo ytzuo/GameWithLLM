@@ -36,9 +36,7 @@ func run(ctx context.Context, cfg config.Config) error {
 		IdleTimeout:       60 * time.Second,
 	}
 
-	log.Printf("Game MCP Server starting on %s", cfg.BaseURL)
-	log.Printf("Unity JSON-RPC WebSocket endpoint: %s", cfg.UnityJSONRPCWSURL)
-	log.Printf("Unity tool timeout: %ds", cfg.UnityToolTimeoutSecond)
+	log.Printf("event=server_starting base_url=%q websocket_url=%q tool_timeout_seconds=%d", cfg.BaseURL, cfg.UnityJSONRPCWSURL, cfg.UnityToolTimeoutSecond)
 
 	serveErr := make(chan error, 1)
 	go func() {
@@ -52,7 +50,7 @@ func run(ctx context.Context, cfg config.Config) error {
 		}
 		return err
 	case <-ctx.Done():
-		log.Print("Game MCP Server shutting down")
+		log.Printf("event=server_shutdown_started reason=%q", ctx.Err())
 		shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
 
