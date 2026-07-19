@@ -62,7 +62,7 @@ public class ToolsRegistry : Singleton<ToolsRegistry>
             {
                 JObject schemaObj = null;
                 try { schemaObj = !string.IsNullOrEmpty(kv.Value.InputSchemaJson) ? JObject.Parse(kv.Value.InputSchemaJson) : null; } catch { schemaObj = null; }
-                list.Add(new { name = kv.Key, description = kv.Value.Description, parameters = schemaObj });
+                list.Add(new { type = "function", function = new { name = kv.Key, description = kv.Value.Description, parameters = schemaObj } });
             }
         }
         return list;

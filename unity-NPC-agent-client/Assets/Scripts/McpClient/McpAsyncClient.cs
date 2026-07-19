@@ -14,10 +14,9 @@ public class McpAsyncClient : Singleton<McpAsyncClient>
 {
     [Header("网络配置")]
     public string mcpHostWsUrl = "ws://127.0.0.1:8080/unity/ws";
-    public string llmApiUrl = "https://api.openai.com/v1/chat/completions";
-    public string llmModel = "gpt-4o-mini";
-
-    private string llmApiKey;
+    public string llmApiUrl = "https://api.siliconflow.cn/v1";
+    public string llmModel = "deepseek-ai/DeepSeek-V4-Pro";
+    public string llmApiKey = "YOUR_API_KEY";
 
     private ClientWebSocket _webSocket;
     private HttpClient _httpClient;
@@ -42,6 +41,10 @@ public class McpAsyncClient : Singleton<McpAsyncClient>
         if (!string.IsNullOrWhiteSpace(llmApiKey))
         {
             _httpClient.DefaultRequestHeaders.Add("Authorization", $"Bearer {llmApiKey}");
+            Debug.Log("[MCP Client] httpClient created, configs:");
+            Debug.Log("[MCP Client] llmApiUrl: " + llmApiUrl);
+            Debug.Log("[MCP Client] llmModel: " + llmModel);
+            Debug.Log("[MCP Client] llmApiKey: " + llmApiKey);
         }
         else
         {
@@ -204,7 +207,7 @@ public class McpAsyncClient : Singleton<McpAsyncClient>
         // 此处为了演示，构造初始列表
         List<LlmMessage> messageList = new List<LlmMessage>
         {
-            new LlmMessage { role = "system", content = $"你是末日幸存者。你的编号是 {npcId}。" }
+            new LlmMessage { role = "system", content = $"你现在将扮演和驱动一名Unity游戏中的NPC，接下来我可能提出要求或提问问题，你要尝试调用工具解决它们或是给我问题的答案" }
         };
         
         // UI 推送：将已有历史刷新到屏幕上（通过 ChatViewModel）
@@ -242,27 +245,20 @@ public class McpAsyncClient : Singleton<McpAsyncClient>
     // 5. 会话任务核心循环 (极其线性的逻辑，完全没有回调地狱)
     private async Task SessionTaskAsync(string npcId, List<LlmMessage> messageList)
     {
+        Debug.Log($"[MCP Client] SessionTaskAsync: {npcId}");
         bool isSessionActive = true;
 
         while (isSessionActive && !_appCts.Token.IsCancellationRequested)
         {
+            Debug.Log($"[MCP Client] {npcId} is waiting for player input...");
             // A. 等待玩家输入 (挂起，直到 UI 调用了 SubmitPlayerInput)
             _playerInputTcs = new TaskCompletionSource<string>();
             string playerText = await _playerInputTcs.Task;
-
+            
             // 玩家想退出对话
             if (playerText.ToLower() == "bye") break;
 
             messageList.Add(new LlmMessage { role = "user", content = playerText });
-            // 玩家输入信息通过 ViewModel 推送到 UI
-            try
-            {
-                ChatViewModel.Instance.AddPlayerMessage(playerText);
-            }
-            catch (Exception ex)
-            {
-                Debug.LogWarning($"[MCP Client] failed to forward player input to ChatViewModel: {ex.Message}");
-            }
 
             bool waitingForLlm = true;
 
@@ -340,6 +336,7 @@ public class McpAsyncClient : Singleton<McpAsyncClient>
     // 6. 发送大模型请求 (HTTP) 
     private async Task<LlmResponse> SendLlmRequestAsync(List<LlmMessage> messages)
     {
+        Debug.Log($"[MCP Client] SendLlmRequestAsync");
         var requestBody = new
         {
             model = llmModel,
@@ -351,11 +348,13 @@ public class McpAsyncClient : Singleton<McpAsyncClient>
         string jsonPayload = JsonConvert.SerializeObject(requestBody, new JsonSerializerSettings { NullValueHandling = NullValueHandling.Ignore });
         var content = new StringContent(jsonPayload, Encoding.UTF8, "application/json");
 
+        Debug.Log($"[MCP Client] waiting for llm response...");
         HttpResponseMessage response = await _httpClient.PostAsync(llmApiUrl, content);
         string responseString = await response.Content.ReadAsStringAsync();
-
+        
         // 解析标准的 OpenAI 格式响应
         var responseJson = JObject.Parse(responseString);
+        Debug.Log($"[MCP Client] received response: {responseString}");
         var messageObj = responseJson["choices"][0]["message"];
 
         return messageObj.ToObject<LlmResponse>();

@@ -748,8 +748,9 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::MCPAsyncClient
   mcpHostWsUrl: ws://127.0.0.1:8080
-  llmApiUrl: https://api.openai.com/v1/chat/completions
-  llmModel: gpt-4o-mini
+  llmApiUrl: https://api.siliconflow.cn/v1/chat/completions
+  llmModel: deepseek-ai/DeepSeek-V4-Pro
+  llmApiKey: sk-vlqvhrcnsygfbsntwgajtoxxvbstgrduuszasffjkwncawoo
 --- !u!4 &1447612216
 Transform:
   m_ObjectHideFlags: 0
