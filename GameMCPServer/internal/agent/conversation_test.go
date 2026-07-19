@@ -1,0 +1,131 @@
+package agent
+
+import (
+	"context"
+	"encoding/json"
+	"errors"
+	"sync"
+	"testing"
+
+	gametools "GameMCPServer/internal/tools"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+)
+
+type scriptedLLM struct {
+	mu       sync.Mutex
+	results  []*CompletionResult
+	requests []CompletionRequest
+}
+
+func (l *scriptedLLM) Complete(_ context.Context, request CompletionRequest) (*CompletionResult, error) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	l.requests = append(l.requests, request)
+	if len(l.results) == 0 {
+		return nil, errors.New("unexpected completion")
+	}
+	result := l.results[0]
+	l.results = l.results[1:]
+	return result, nil
+}
+
+type fakeRuntime struct {
+	executions []ToolCall
+}
+
+func (r *fakeRuntime) Capabilities(npcID string) (string, []gametools.Definition, bool) {
+	if npcID == "offline" {
+		return "", nil, false
+	}
+	return "game-1", []gametools.Definition{{
+		Name: "game_npc_move", InputSchema: json.RawMessage(`{
+			"type":"object","properties":{"targetLandmark":{"type":"string","enum":["gate","warehouse"]}},
+			"required":["targetLandmark"]
+		}`),
+	}}, true
+}
+
+func (r *fakeRuntime) Execute(_ context.Context, _, _, name string, arguments json.RawMessage) (ToolExecutionResult, error) {
+	r.executions = append(r.executions, ToolCall{Name: name, Arguments: arguments})
+	return ToolExecutionResult{OK: true, Message: "movement started"}, nil
+}
+
+func TestConversationService_NoToolReplyAndIsolation(t *testing.T) {
+	llm := &scriptedLLM{results: []*CompletionResult{{Content: "hello"}, {Content: "second"}}}
+	service := NewConversationService(llm, NewMemorySessionStore(), &fakeRuntime{}, "test-model", 3)
+
+	first, err := service.StartSession(context.Background(), "player", "npc-1")
+	require.NoError(t, err)
+	second, err := service.StartSession(context.Background(), "player", "npc-2")
+	require.NoError(t, err)
+	assert.NotEqual(t, first.ID, second.ID)
+
+	reply, err := service.SubmitMessage(context.Background(), first.ID, "hi")
+	require.NoError(t, err)
+	assert.Equal(t, "hello", reply.Text)
+	_, err = service.SubmitMessage(context.Background(), second.ID, "hi again")
+	require.NoError(t, err)
+	assert.Len(t, first.Messages, 3)
+	assert.Len(t, second.Messages, 3)
+}
+
+func TestConversationService_ToolLoopKeepsAtomicPair(t *testing.T) {
+	llm := &scriptedLLM{results: []*CompletionResult{
+		{ToolCalls: []ToolCall{{ID: "call-1", Name: "game_npc_move", Arguments: json.RawMessage(`{"targetLandmark":"gate"}`)}}},
+		{Content: "我去大门。"},
+	}}
+	runtime := &fakeRuntime{}
+	service := NewConversationService(llm, NewMemorySessionStore(), runtime, "test-model", 3)
+	session, err := service.StartSession(context.Background(), "player", "npc-1")
+	require.NoError(t, err)
+
+	reply, err := service.SubmitMessage(context.Background(), session.ID, "去大门")
+	require.NoError(t, err)
+	assert.Equal(t, "我去大门。", reply.Text)
+	require.Len(t, runtime.executions, 1)
+	require.Len(t, llm.requests, 2)
+	lastMessages := llm.requests[1].Messages
+	require.GreaterOrEqual(t, len(lastMessages), 4)
+	assert.Equal(t, "assistant", lastMessages[len(lastMessages)-2].Role)
+	assert.Equal(t, "tool", lastMessages[len(lastMessages)-1].Role)
+	assert.Equal(t, "call-1", lastMessages[len(lastMessages)-1].ToolCallID)
+}
+
+func TestConversationService_RejectsToolLoopPastLimit(t *testing.T) {
+	call := &CompletionResult{ToolCalls: []ToolCall{{ID: "call", Name: "game_npc_move", Arguments: json.RawMessage(`{"targetLandmark":"gate"}`)}}}
+	llm := &scriptedLLM{results: []*CompletionResult{call, call}}
+	service := NewConversationService(llm, NewMemorySessionStore(), &fakeRuntime{}, "test-model", 1)
+	session, err := service.StartSession(context.Background(), "player", "npc-1")
+	require.NoError(t, err)
+
+	_, err = service.SubmitMessage(context.Background(), session.ID, "keep moving")
+	assert.ErrorContains(t, err, "maximum tool rounds")
+}
+
+type blockingLLM struct {
+	started chan struct{}
+}
+
+func (l *blockingLLM) Complete(ctx context.Context, _ CompletionRequest) (*CompletionResult, error) {
+	close(l.started)
+	<-ctx.Done()
+	return nil, ctx.Err()
+}
+
+func TestConversationService_EndSessionCancelsActiveCompletion(t *testing.T) {
+	llm := &blockingLLM{started: make(chan struct{})}
+	service := NewConversationService(llm, NewMemorySessionStore(), &fakeRuntime{}, "test-model", 3)
+	session, err := service.StartSession(context.Background(), "player", "npc-1")
+	require.NoError(t, err)
+
+	done := make(chan error, 1)
+	go func() {
+		_, submitErr := service.SubmitMessage(context.Background(), session.ID, "wait")
+		done <- submitErr
+	}()
+	<-llm.started
+	require.NoError(t, service.EndSession(context.Background(), session.ID))
+	assert.ErrorIs(t, <-done, context.Canceled)
+}

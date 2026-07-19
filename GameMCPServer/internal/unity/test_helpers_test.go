@@ -49,7 +49,8 @@ func (c *fakeJSONRPCConnection) Write(ctx context.Context, msg jsonRPCMessage) e
 func newTestSession(timeout time.Duration) (*jsonRPCSession, *fakeJSONRPCConnection) {
 	ctx, cancel := context.WithCancel(context.Background())
 	conn := newFakeJSONRPCConnection()
-	return newJSONRPCSession(ctx, cancel, conn, NewToolRegistry(), timeout), conn
+	registry := NewUnityRegistry()
+	return newJSONRPCSession(ctx, cancel, conn, registry), conn
 }
 
 func mustReceiveMessage(t *testing.T, messages <-chan jsonRPCMessage) jsonRPCMessage {

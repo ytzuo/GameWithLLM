@@ -12,7 +12,7 @@ public class NpcEntity : MonoBehaviour
     [SerializeField] private Transform warehouseLandmark;
     [SerializeField] private Transform gateLandmark;
 
-    private readonly ConcurrentQueue<LlmToolCall> _myPrivateQueue = new ConcurrentQueue<LlmToolCall>();
+    private readonly ConcurrentQueue<UnityToolCommand> _myPrivateQueue = new ConcurrentQueue<UnityToolCommand>();
     private NavMeshAgent _navAgent;
     private NpcState _fsmState = NpcState.Idle;
     private ChatWindow _chatWindow;
@@ -41,7 +41,7 @@ public class NpcEntity : MonoBehaviour
             {
                 _chatWindow = UIManager.Instance.OpenNewWindow<ChatWindow>();
                 _chatWindow.Closed += OnChatWindowClosed;
-                McpAsyncClient.Instance.OnPlayerInteractWithNpc(npcId);
+                AgentHostClient.Instance.OnPlayerInteractWithNpc(npcId);
             }
             else
             {
@@ -60,7 +60,7 @@ public class NpcEntity : MonoBehaviour
         _fsmState = NpcState.Idle;
     }
 
-    public void ReceiveCommand(LlmToolCall request)
+    public void ReceiveCommand(UnityToolCommand request)
     {
         _myPrivateQueue.Enqueue(request);
     }
@@ -70,7 +70,7 @@ public class NpcEntity : MonoBehaviour
         switch (_fsmState)
         {
             case NpcState.Idle:
-                if (_myPrivateQueue.TryDequeue(out LlmToolCall request))
+                if (_myPrivateQueue.TryDequeue(out UnityToolCommand request))
                     ExecuteBusinessLogic(request);
                 break;
 
@@ -84,38 +84,38 @@ public class NpcEntity : MonoBehaviour
         }
     }
 
-    private void ExecuteBusinessLogic(LlmToolCall request)
+    private void ExecuteBusinessLogic(UnityToolCommand request)
     {
-        if (request?.function?.name != "game_npc_move")
+        if (request?.Function?.Name != "game_npc_move")
             return;
 
-        var wrapper = new McpToolWrapper<MoveArgs>(MoveToLandmark);
-        McpToolExecutionResult result = wrapper.Execute(request.function.arguments);
+        var wrapper = new GameToolWrapper<MoveArgs>(MoveToLandmark);
+        ToolExecutionResult result = wrapper.Execute(request.Function.ArgumentsJson);
 
         Debug.Log(result.IsError
             ? $"[NPC:{npcId}] move failed: {result.Message}"
             : $"[NPC:{npcId}] {result.Message}");
 
-        if (!string.IsNullOrEmpty(request.transactionId))
-            _ = McpAsyncClient.Instance.SendMcpResponseAsync(request.transactionId, result.Message, result.IsError);
+        if (!string.IsNullOrEmpty(request.RequestId))
+            _ = AgentHostClient.Instance.SendToolResponseAsync(request.RequestId, result.Message, result.IsError, result.ErrorCode);
     }
 
     private string MoveToLandmark(MoveArgs args)
     {
         if (_navAgent == null)
-            throw new InvalidOperationException($"NPC '{npcId}' 没有 NavMeshAgent。 ");
+            throw new ToolExecutionException("NAV_AGENT_MISSING", $"NPC '{npcId}' 没有 NavMeshAgent。");
         if (!_navAgent.isOnNavMesh)
-            throw new InvalidOperationException($"NPC '{npcId}' 当前不在 NavMesh 上。");
+            throw new ToolExecutionException("NPC_NOT_ON_NAVMESH", $"NPC '{npcId}' 当前不在 NavMesh 上。");
 
         Transform landmark = ResolveLandmark(args.targetLandmark);
         if (landmark == null)
-            throw new InvalidOperationException($"场景中未配置地标 '{args.targetLandmark}'。");
+            throw new ToolExecutionException("LANDMARK_NOT_FOUND", $"场景中未配置地标 '{args.targetLandmark}'。");
 
         if (!NavMesh.SamplePosition(landmark.position, out NavMeshHit hit, 2f, NavMesh.AllAreas))
-            throw new InvalidOperationException($"地标 '{args.targetLandmark}' 附近没有可行走的 NavMesh。");
+            throw new ToolExecutionException("LANDMARK_NOT_ON_NAVMESH", $"地标 '{args.targetLandmark}' 附近没有可行走的 NavMesh。");
 
         if (!_navAgent.SetDestination(hit.position))
-            throw new InvalidOperationException($"无法为 NPC '{npcId}' 设置前往 '{args.targetLandmark}' 的路径。");
+            throw new ToolExecutionException("PATH_NOT_FOUND", $"无法为 NPC '{npcId}' 设置前往 '{args.targetLandmark}' 的路径。");
 
         _fsmState = NpcState.Operating;
         return $"NPC 已开始前往 {args.targetLandmark}";

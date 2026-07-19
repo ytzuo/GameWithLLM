@@ -1,8 +1,8 @@
-﻿using System;
+using System;
 using UnityEngine;
 
 [Serializable]
-public class MoveArgs : McpArgsBase
+public class MoveArgs : ToolArgsBase
 {
     public string targetLandmark;
 

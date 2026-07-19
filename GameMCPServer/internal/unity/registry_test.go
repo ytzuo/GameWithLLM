@@ -1,0 +1,90 @@
+package unity
+
+import (
+	"encoding/json"
+	"testing"
+	"time"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+)
+
+func testRegistration(instanceID string, npcs ...string) UnityRegistration {
+	return UnityRegistration{
+		ProtocolVersion: unityProtocolVersion,
+		InstanceID:      instanceID,
+		NPCs:            npcs,
+		Tools: []ToolDefinition{{
+			Name:        "game_npc_move",
+			Description: "move",
+			InputSchema: json.RawMessage(`{"type":"object"}`),
+		}},
+	}
+}
+
+func TestUnityRegistryRegisterResolveAndDisconnect_BitsUT(t *testing.T) {
+	registry := NewUnityRegistry()
+	session, _ := newTestSession(time.Second)
+
+	replaced, err := registry.Register(session, testRegistration("game-1", "Ryan_001"))
+	require.NoError(t, err)
+	assert.False(t, replaced)
+	instanceID, resolved, ok := registry.ResolveNPC("Ryan_001")
+	assert.True(t, ok)
+	assert.Equal(t, "game-1", instanceID)
+	assert.Same(t, session, resolved)
+	assert.True(t, registry.HasTool("game-1", "game_npc_move"))
+
+	registry.UnregisterSession(session)
+	_, _, ok = registry.ResolveNPC("Ryan_001")
+	assert.False(t, ok)
+}
+
+func TestUnityRegistryNewConnectionReplacesOldWithoutStaleCleanup_BitsUT(t *testing.T) {
+	registry := NewUnityRegistry()
+	oldSession, _ := newTestSession(time.Second)
+	newSession, _ := newTestSession(time.Second)
+	require.NoError(t, registerForTest(registry, oldSession, testRegistration("game-1", "Ryan_001")))
+
+	replaced, err := registry.Register(newSession, testRegistration("game-1", "Ryan_001", "Mia_002"))
+	require.NoError(t, err)
+	assert.True(t, replaced)
+	registry.UnregisterSession(oldSession)
+
+	_, resolved, ok := registry.ResolveNPC("Ryan_001")
+	assert.True(t, ok)
+	assert.Same(t, newSession, resolved)
+	instances, npcs := registry.Counts()
+	assert.Equal(t, 1, instances)
+	assert.Equal(t, 2, npcs)
+}
+
+func TestUnityRegistryChangesRequireOwningSession_BitsUT(t *testing.T) {
+	registry := NewUnityRegistry()
+	owner, _ := newTestSession(time.Second)
+	other, _ := newTestSession(time.Second)
+	require.NoError(t, registerForTest(registry, owner, testRegistration("game-1", "Ryan_001")))
+
+	err := registry.UpdateNPC(other, UnityNPCChangedParams{InstanceID: "game-1", NPCID: "Mia_002", Online: true})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "does not own")
+}
+
+func TestUnityRegistryUpdatesNPCAndTools_BitsUT(t *testing.T) {
+	registry := NewUnityRegistry()
+	session, _ := newTestSession(time.Second)
+	require.NoError(t, registerForTest(registry, session, testRegistration("game-1", "Ryan_001")))
+
+	require.NoError(t, registry.UpdateNPC(session, UnityNPCChangedParams{InstanceID: "game-1", NPCID: "Mia_002", Online: true}))
+	_, _, ok := registry.ResolveNPC("Mia_002")
+	assert.True(t, ok)
+
+	require.NoError(t, registry.UpdateTools(session, UnityToolsChangedParams{InstanceID: "game-1", Tools: []ToolDefinition{{Name: "inspect", InputSchema: json.RawMessage(`{"type":"object"}`)}}}))
+	assert.False(t, registry.HasTool("game-1", "game_npc_move"))
+	assert.True(t, registry.HasTool("game-1", "inspect"))
+}
+
+func registerForTest(registry *UnityRegistry, session *jsonRPCSession, registration UnityRegistration) error {
+	_, err := registry.Register(session, registration)
+	return err
+}

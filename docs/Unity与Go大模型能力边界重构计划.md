@@ -1,6 +1,6 @@
 # Unity 与 Go 大模型能力边界重构计划
 
-> 状态：执行中 v0.2（第一轮 Go M0 + M1 已完成）  
+> 状态：核心边界重构完成 v0.6（M0 至 M4 与迁移收尾已完成；M5 持久化、M6 标准 MCP 均作为可选新功能冻结）
 > 更新日期：2026-07-19  
 > 适用仓库：GameWithLLM  
 > 关联文档：[GameMCPServer 改造与目标架构建议](./GameMCPServer改造与目标架构建议.md)
@@ -49,6 +49,157 @@ go test -race ./...  PASS
 - Unity 客户端职责拆分。
 - LLM 调用与历史迁移到 Go。
 
+## 0.2 第二轮结果（2026-07-19）
+
+第二轮完成 M2 内部执行协议 v1 的代码实现，并保留旧 `tools/list` / `tools/call` 兼容入口。
+
+已完成：
+
+- 新增强类型 `unity.register`、`unity.npc.changed`、`unity.tools.changed`、`unity.tool.execute` 和 `unity.tool.cancel` DTO。
+- `arguments` 在 v1 通道中使用 JSON 对象，不再二次编码为字符串。
+- 新增线程安全 `UnityRegistry`，维护实例、NPC、Session 和运行时工具能力映射。
+- 新增统一 `ToolExecutor`，在 Go 侧预检查 NPC 在线状态和工具能力。
+- 业务失败统一返回 `{ok:false,errorCode,message}`，协议失败继续使用 JSON-RPC error。
+- 旧 `tools/call` 在 v1 实例注册后自动适配到 `unity.tool.execute`；旧客户端仍可继续使用环回链路。
+- Unity 连接后主动发送完整实例/NPC/工具注册，并在运行时能力变化时发送增量通知。
+- Unity 工具结果新增稳定错误码；Go 日志区分 `success`、`tool_error` 和协议/宿主错误。
+- Go 超时或取消时发送 `unity.tool.cancel`；Unity 可跳过尚未进入 NPC 执行的排队命令。
+- WebSocket 发送不再追加换行，并通过发送锁串行化。
+- Unity 启动日志不再输出 LLM API Key。
+
+自动验证：
+
+```text
+go test ./...        PASS
+go test -race ./...  PASS
+Unity C# build        PASS（0 warning / 0 error）
+v1 WebSocket 集成测试 PASS
+```
+
+人工验收结果：
+
+- Unity `SampleScene` 注册日志包含 `event=unity_registered` 和 `protocol_version=1`。
+- 连续三次 `game_npc_move` 均记录 `outcome="success" protocol=v1`。
+- NPC 已实际到达目标位置，M2 阶段门通过。
+
+后续范围：
+
+- M3 的网络职责拆分进入第三轮。
+- M4 的 LLM API Key、对话 Session 和 tool loop 迁移到 Go。
+- 标准 MCP 外部接口。
+
+## 0.3 第三轮结果（2026-07-19）
+
+第三轮完成 M3 Unity 网络职责拆分的代码实现，保留 `McpAsyncClient` 作为临时 LLM 会话编排入口。
+
+已完成：
+
+- 新增独立 `UnityGatewayClient`，集中负责 WebSocket 连接、注册、协议路由、pending、串行发送和关闭清理。
+- 新增 `ReconnectPolicy`，连接失败按 1、2、4、8、15 秒指数退避，连接恢复后重新注册实例、NPC 和工具能力。
+- 接收端循环读取到 `EndOfMessage=true` 后才解析，支持大于 8192 字节的分片文本消息。
+- 单条消息限制与 Go 对齐为 1 MiB。
+- pending 改为 `ConcurrentDictionary`；超时、取消、断线和销毁均返回明确异常并清理。
+- 所有 WebSocket 发送继续由 `SemaphoreSlim` 串行化。
+- Gateway 内网络 await 使用 `ConfigureAwait(false)`，避免网络延续占用 Unity 主线程。
+- `CommandDispatcher` 的 NPC 注册表增加锁，网络线程可安全读取注册快照。
+- 断线或超时的工具调用会转换为 `isError=true` 的工具结果，对话循环不会无提示卡死。
+- `McpAsyncClient` 已移除 WebSocket、注册、协议解析和 pending 管理代码，只保留 LLM/对话编排及 Gateway 调用。
+
+自动验证：
+
+```text
+Unity C# build        PASS（0 warning / 0 error）
+```
+
+人工验收结果：
+
+- Unity 首次注册和 NPC 移动正常。
+- 停止 Go Server 后 Unity 按指数退避重连。
+- Go Server 重新启动后 Unity 自动注册成功。
+- 重连后的 NPC 移动仍可到达目标，M3 阶段门通过。
+
+后续范围：
+
+- M4 的 LLM API Key、对话 Session 和 tool loop 迁移到 Go。
+- 标准 MCP 外部接口。
+
+## 0.4 第四轮结果（2026-07-19）
+
+第四轮完成 M4 Go Agent Host 的代码迁移；Unity 不再直接访问 LLM。
+
+已完成：
+
+- Go 新增 OpenAI-compatible `LLMClient`，支持完整 `/chat/completions` 地址或以 `/v1` 结尾的基础地址。
+- Go 新增 `ConversationService`、内存 `SessionStore`、消息模型和运行时工具适配器。
+- Session 包含玩家、NPC、Unity 实例、System Prompt、模型、历史、当前 tool call 和时间信息。
+- 新增 `conversation.start`、`player.message`、`conversation.end` 和 `assistant.status` 内部方法。
+- Go 完成 LLM tool-call 循环：能力过滤、参数校验、注入 NPC、调用 `ToolExecutor`、配对写入 tool result、再次请求模型。
+- 最大工具轮数由 `LLM_MAX_TOOL_ROUNDS` 控制，避免模型无限调用工具。
+- LLM、会话和工具执行日志只记录 ID、长度、耗时与结果，不记录 API Key 或玩家消息正文。
+- 断线和结束会话会取消正在进行的 LLM 请求；Session 取消使用独立锁，不等待 HTTP 超时。
+- Unity `McpAsyncClient` 删除 `HttpClient`、API Key、模型配置、本地 LLM 请求和 tool loop，只保留 Gateway/UI 适配。
+- 删除无场景引用、无运行时调用的 Unity `HistoryManager` 本地 LLM 历史实现；展示缓存继续由 `ChatViewModel` 管理。
+- Unity 构建物不再引用 `OPENAI_API_KEY`、`LLM_API_URL`、`LLM_MODEL` 或 `HttpClient`。
+- 模型可见工具由 Go 根据 Unity 注册能力生成；Unity 删除 `GetToolsForLlm()`。
+- 当前 Session 策略明确为内存且连接级：Unity 断线或 Go 重启后自动创建新 Session，不恢复旧历史。
+
+新增 Go 配置：
+
+- `LLM_API_KEY`，并兼容旧 `OPENAI_API_KEY`。
+- `LLM_REQUEST_TIMEOUT_SECONDS`，默认 60。
+- `LLM_MAX_TOOL_ROUNDS`，默认 4。
+- `PLAYER_ID` 由 Unity 读取，默认 `local-player-1`。
+
+自动验证：
+
+```text
+go test ./...                    PASS
+go test -race ./...              PASS
+Go Agent tool-loop WebSocket E2E PASS
+Unity C# build                    PASS（0 warning / 0 error）
+Unity LLM/HttpClient 引用扫描     PASS（0 references）
+```
+
+人工验收结果：
+
+- 用户已确认普通对话、工具调用、NPC 行动和最终回复均正常。
+- Go 控制台已确认完整 Agent Host 与 `unity.tool.execute` 链路。
+- M4 阶段门通过。
+
+未纳入本轮：
+
+- 持久化历史、TTL 和长期记忆属于可选新功能，本轮不实现。
+- 单一工具契约来源已经在迁移收尾中完成：Go 不再维护硬编码默认 Schema。
+- 标准 MCP 外部接口。
+
+## 0.5 迁移收尾结果（2026-07-19）
+
+用户完成 M4 真实场景验收后，继续删除 M1 至 M4 遗留的过渡层，不引入持久化、TTL、长期记忆或标准 MCP 等新能力。
+
+已完成：
+
+- 删除 Go 连接启动时主动发送的旧 `tools/list` 同步请求。
+- 删除 Go 对旧 `tools/list` / `tools/call` 的处理、适配和 `protocol=legacy` 日志。
+- 删除 `internal/unity/tools.go` 及其中硬编码的 `game_npc_move` 默认 Schema；模型可见工具只来自 `UnityRegistry` 的运行时注册快照。
+- Unity 删除旧工具协议解析和双结果格式，统一为 `UnityToolCommand` 与 `{ok,errorCode,message}`。
+- Unity 本地执行辅助类统一改名为 `GameToolWrapper` / `ToolArgsBase`，`ToolsRegistry` 删除无调用的工具实例接口，只保留运行时 Schema 注册。
+- `McpAsyncClient` 重命名为 `AgentHostClient`，只承担 Unity 交互、会话门面和 UI 回调职责。
+- 删除 `/ws` 与根路径 WebSocket Upgrade；唯一 Unity WebSocket 入口为 `/unity/ws`。
+- 重写单元、集成和 Node 冒烟测试，只覆盖当前 Agent Host + 内部协议 v1 链路，并明确断言旧方法返回 `-32601`。
+
+验证结果：
+
+```text
+go test ./...                    PASS
+go vet ./...                     PASS
+go test -race ./...              PASS
+Unity C# build                    PASS（0 warning / 0 error）
+当前协议端到端冒烟测试            7 PASS / 0 FAIL
+```
+
+最终范围结论：M0 至 M4 的职责边界重构和兼容层清理完成。M5 中的持久化历史、TTL、长期记忆，以及 M6 标准 MCP 接口均是新增能力，等待单独立项。
+
+---
 ## 1. 计划目标
 
 本计划用于把当前的 Unity → Go → Unity 工具调用环回链路，逐步重构为职责明确、可测试、可扩展的 Agent Host 架构。
@@ -235,7 +386,7 @@ Unity 是游戏世界状态的最终权威。
 | M2 | 建立内部协议 v1 | 注册、执行、结果、错误模型 | M1 |
 | M3 | 拆分 Unity 网络职责 | `UnityGatewayClient`、可靠收发 | M2 |
 | M4 | 把 Agent Host 迁到 Go | LLM Client、Session、tool loop | M3 |
-| M5 | 收敛历史与工具契约 | 单一 Schema 来源、持久化接口 | M4 |
+| M5（冻结） | 可选持久化能力 | 持久化历史、TTL、长期记忆 | M4 |
 | M6 | 可选标准 MCP 接口 | 官方 Go MCP SDK、`/mcp` | M5 |
 
 ---
@@ -824,6 +975,8 @@ AGENT_HOST_MODE=unity|go
 ---
 
 ## 11. M5：历史、工具契约与状态收敛
+
+> 执行状态：Schema 所有权、Go 权威 Session、Unity 状态快照和重连更新等重构项已完成。当前 `MemorySessionStore` 已满足既定接口；磁盘/数据库持久化、TTL 和长期记忆属于新增产品能力，已冻结，不纳入本次收尾。
 
 ### 11.1 目标
 

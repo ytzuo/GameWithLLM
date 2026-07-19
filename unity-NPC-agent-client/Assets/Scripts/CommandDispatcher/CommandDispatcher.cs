@@ -1,37 +1,70 @@
-﻿using System.Collections.Generic;
+using System;
 using System.Collections.Concurrent;
+using System.Collections.Generic;
 using UnityEngine;
 
 public class CommandDispatcher : Singleton<CommandDispatcher>
 {
-    // 管理全场景所有激活的 NPC 实体组件字典
     private readonly Dictionary<string, NpcEntity> _npcEntities = new Dictionary<string, NpcEntity>();
+    private readonly object _npcLock = new object();
+    private readonly ConcurrentQueue<UnityToolCommand> _netIncomingQueue = new ConcurrentQueue<UnityToolCommand>();
+    private readonly ConcurrentDictionary<string, byte> _cancelledRequests = new ConcurrentDictionary<string, byte>();
 
-    // 全局唯一网络线程往这里塞数据
-    private readonly ConcurrentQueue<LlmToolCall> _netIncomingQueue = new ConcurrentQueue<LlmToolCall>();
+    public event Action<string, bool> NpcChanged;
 
-    public void RegisterNpc(string id, NpcEntity npc) => _npcEntities[id] = npc;
-    public void UnregisterNpc(string id) => _npcEntities.Remove(id);
+    public void RegisterNpc(string id, NpcEntity npc)
+    {
+        if (string.IsNullOrWhiteSpace(id) || npc == null)
+            return;
+        lock (_npcLock)
+            _npcEntities[id] = npc;
+        NpcChanged?.Invoke(id, true);
+    }
 
-    // 全局唯一的 MCP 客户端网络线程接收到数据后，调用此方法（线程安全）
-    public void OnReceiveNetMessage(LlmToolCall request)
+    public void UnregisterNpc(string id)
+    {
+        if (string.IsNullOrWhiteSpace(id))
+            return;
+        lock (_npcLock)
+        {
+            if (!_npcEntities.Remove(id))
+                return;
+        }
+        NpcChanged?.Invoke(id, false);
+    }
+
+    public List<string> GetRegisteredNpcIds()
+    {
+        lock (_npcLock)
+            return new List<string>(_npcEntities.Keys);
+    }
+
+    public void OnReceiveNetMessage(UnityToolCommand request)
     {
         _netIncomingQueue.Enqueue(request);
     }
 
-    void Update()
+    public void CancelRequest(string requestId)
     {
-        // 主线程 Tick：高效分发包裹
-        while (_netIncomingQueue.TryDequeue(out LlmToolCall request))
+        if (!string.IsNullOrWhiteSpace(requestId))
+            _cancelledRequests[requestId] = 0;
+    }
+    private void Update()
+    {
+        while (_netIncomingQueue.TryDequeue(out UnityToolCommand request))
         {
-            if (_npcEntities.TryGetValue(request.id, out NpcEntity npc))
+            if (!string.IsNullOrEmpty(request.RequestId) && _cancelledRequests.TryRemove(request.RequestId, out _))
+                continue;
+            NpcEntity npc;
+            lock (_npcLock)
+                _npcEntities.TryGetValue(request.NpcId, out npc);
+            if (npc != null)
             {
-                // 定点投递到该 NPC 自己的状态机队列里，不影响其他 NPC
                 npc.ReceiveCommand(request);
             }
             else
             {
-                Debug.LogWarning($"[Router] 收到 {request.id} 的命令，但该NPC实体不存在。");
+                Debug.LogWarning($"[Router] 收到 {request.NpcId} 的命令，但该 NPC 实体不存在。");
             }
         }
     }
@@ -39,9 +72,6 @@ public class CommandDispatcher : Singleton<CommandDispatcher>
     protected override void Init()
     {
         base.Init();
-
-        // 在启动时注册场景级别的工具声明（Tools Discovery）
-        // 为 MoveArgs 提供 JSON Schema，注意字段名需与 MoveArgs 保持一致
         string moveArgsSchema = @"{""type"": ""object"",
           ""properties"": {
             ""targetLandmark"": { ""type"": ""string"", ""enum"": [""warehouse"", ""gate""], ""description"": ""目标地标名称"" }
@@ -49,6 +79,6 @@ public class CommandDispatcher : Singleton<CommandDispatcher>
           ""required"": [""targetLandmark""]
         }";
 
-        ToolsRegistry.Instance.RegisterTool("game_npc_move", null, moveArgsSchema, "使 NPC 前往指定地标 (warehouse|gate)");
+        ToolsRegistry.Instance.RegisterTool("game_npc_move", moveArgsSchema, "使 NPC 前往指定地标 (warehouse|gate)");
     }
 }

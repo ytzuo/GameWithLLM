@@ -4,10 +4,11 @@ import (
 	"context"
 	"log"
 	"net/http"
-	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
+
+	"GameMCPServer/internal/agent"
 
 	"github.com/coder/websocket"
 	"github.com/coder/websocket/wsjson"
@@ -17,8 +18,8 @@ const maxWebSocketMessageSize = 1 << 20
 
 // JSONRPCServer 实现 unity-NPC-agent-client 使用的 JSON-RPC WebSocket 协议。
 type JSONRPCServer struct {
-	timeout       time.Duration
-	tools         *ToolRegistry
+	registry      *UnityRegistry
+	conversations agent.ConversationService
 	connectionsMu sync.Mutex
 	connections   map[*websocket.Conn]struct{}
 	nextSessionID atomic.Uint64
@@ -26,21 +27,30 @@ type JSONRPCServer struct {
 
 // NewJSONRPCServer 创建 Unity JSON-RPC WebSocket 服务。
 func NewJSONRPCServer(timeout time.Duration) *JSONRPCServer {
-	return &JSONRPCServer{
-		timeout:     timeout,
-		tools:       NewToolRegistry(),
-		connections: make(map[*websocket.Conn]struct{}),
-	}
+	return newJSONRPCServer(timeout, nil, "", 0)
 }
 
-// HandleRoot 处理根路径请求，并在 WebSocket 升级时进入协议处理。
-func (s *JSONRPCServer) HandleRoot(w http.ResponseWriter, r *http.Request) {
-	// 迁移期间保留旧根路径，默认配置已经切换到 /unity/ws。
-	if isWebSocketUpgrade(r) {
-		log.Print("deprecated Unity WebSocket endpoint used: /; migrate to /unity/ws")
-		s.HandleWebSocket(w, r)
-		return
+func NewJSONRPCServerWithAgent(timeout time.Duration, llm agent.LLMClient, model string, maxToolRounds int) *JSONRPCServer {
+	return newJSONRPCServer(timeout, llm, model, maxToolRounds)
+}
+
+func newJSONRPCServer(timeout time.Duration, llm agent.LLMClient, model string, maxToolRounds int) *JSONRPCServer {
+	registry := NewUnityRegistry()
+	executor := NewToolExecutor(registry, timeout)
+	server := &JSONRPCServer{
+		registry:    registry,
+		connections: make(map[*websocket.Conn]struct{}),
 	}
+	if llm != nil {
+		server.conversations = agent.NewConversationService(
+			llm, agent.NewMemorySessionStore(), newAgentRuntime(registry, executor), model, maxToolRounds,
+		)
+	}
+	return server
+}
+
+// HandleRoot 返回普通 HTTP 运行提示；WebSocket 只允许使用 /unity/ws。
+func (s *JSONRPCServer) HandleRoot(w http.ResponseWriter, _ *http.Request) {
 	_, _ = w.Write([]byte("Game MCP Server is running!"))
 }
 
@@ -70,7 +80,7 @@ func (s *JSONRPCServer) HandleWebSocket(w http.ResponseWriter, r *http.Request) 
 	defer cancel()
 
 	log.Printf("event=websocket_connected session_id=%d remote_addr=%q active_connections=%d", sessionID, remoteAddr, activeConnections)
-	session := newJSONRPCSession(ctx, cancel, &websocketJSONRPCConnection{conn: conn}, s.tools, s.timeout)
+	session := newJSONRPCSession(ctx, cancel, &websocketJSONRPCConnection{conn: conn}, s.registry, s.conversations)
 	session.readLoop()
 }
 
@@ -122,12 +132,6 @@ func (s *JSONRPCServer) removeConnection(conn *websocket.Conn) int {
 	defer s.connectionsMu.Unlock()
 	delete(s.connections, conn)
 	return len(s.connections)
-}
-
-// isWebSocketUpgrade 仅用于兼容根路径入口；握手和协议校验由 websocket 库完成。
-func isWebSocketUpgrade(r *http.Request) bool {
-	return strings.EqualFold(r.Header.Get("Upgrade"), "websocket") &&
-		strings.Contains(strings.ToLower(r.Header.Get("Connection")), "upgrade")
 }
 
 type websocketJSONRPCConnection struct {

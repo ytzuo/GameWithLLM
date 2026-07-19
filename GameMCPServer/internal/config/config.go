@@ -17,15 +17,25 @@ const (
 	defaultBaseURL            = "http://127.0.0.1:8080"
 	defaultUnityJSONRPCWSURL  = "ws://127.0.0.1:8080/unity/ws"
 	defaultToolTimeoutSeconds = 10
+	defaultLLMAPIURL          = "https://api.openai.com/v1/chat/completions"
+	defaultLLMModel           = "gpt-4o-mini"
+	defaultLLMTimeoutSeconds  = 60
+	defaultLLMMaxToolRounds   = 4
 )
 
 // Config contains runtime settings shared by local development tools.
 type Config struct {
-	ServerAddr             string
-	BaseURL                string
-	UnityJSONRPCWSURL      string
-	UnityToolTimeout       time.Duration
-	UnityToolTimeoutSecond int
+	ServerAddr              string
+	BaseURL                 string
+	UnityJSONRPCWSURL       string
+	UnityToolTimeout        time.Duration
+	UnityToolTimeoutSecond  int
+	LLMAPIURL               string
+	LLMAPIKey               string
+	LLMModel                string
+	LLMRequestTimeout       time.Duration
+	LLMRequestTimeoutSecond int
+	LLMMaxToolRounds        int
 }
 
 // Load reads .env.local/.env while allowing real process environment variables
@@ -33,13 +43,24 @@ type Config struct {
 func Load() Config {
 	values := loadDotEnvFiles()
 	timeoutSeconds := intValue("UNITY_TOOL_TIMEOUT_SECONDS", values, defaultToolTimeoutSeconds)
+	llmTimeoutSeconds := intValue("LLM_REQUEST_TIMEOUT_SECONDS", values, defaultLLMTimeoutSeconds)
+	apiKey := stringValue("LLM_API_KEY", values, "")
+	if apiKey == "" {
+		apiKey = stringValue("OPENAI_API_KEY", values, "")
+	}
 
 	return Config{
-		ServerAddr:             stringValue("MCP_SERVER_ADDR", values, defaultServerAddr),
-		BaseURL:                stringValue("MCP_BASE_URL", values, defaultBaseURL),
-		UnityJSONRPCWSURL:      stringValue("UNITY_JSONRPC_WS_URL", values, defaultUnityJSONRPCWSURL),
-		UnityToolTimeout:       time.Duration(timeoutSeconds) * time.Second,
-		UnityToolTimeoutSecond: timeoutSeconds,
+		ServerAddr:              stringValue("MCP_SERVER_ADDR", values, defaultServerAddr),
+		BaseURL:                 stringValue("MCP_BASE_URL", values, defaultBaseURL),
+		UnityJSONRPCWSURL:       stringValue("UNITY_JSONRPC_WS_URL", values, defaultUnityJSONRPCWSURL),
+		UnityToolTimeout:        time.Duration(timeoutSeconds) * time.Second,
+		UnityToolTimeoutSecond:  timeoutSeconds,
+		LLMAPIURL:               stringValue("LLM_API_URL", values, defaultLLMAPIURL),
+		LLMAPIKey:               apiKey,
+		LLMModel:                stringValue("LLM_MODEL", values, defaultLLMModel),
+		LLMRequestTimeout:       time.Duration(llmTimeoutSeconds) * time.Second,
+		LLMRequestTimeoutSecond: llmTimeoutSeconds,
+		LLMMaxToolRounds:        intValue("LLM_MAX_TOOL_ROUNDS", values, defaultLLMMaxToolRounds),
 	}
 }
 

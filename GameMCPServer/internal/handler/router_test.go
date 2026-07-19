@@ -28,38 +28,26 @@ func TestRegisterRoutesWithTimeout_BitsUT(t *testing.T) {
 
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
-	wsURL := "ws" + strings.TrimPrefix(httpServer.URL, "http") + "/unity/ws"
-	conn, _, err := websocket.Dial(ctx, wsURL, nil)
+	conn, _, err := websocket.Dial(ctx, "ws"+strings.TrimPrefix(httpServer.URL, "http")+"/unity/ws", nil)
 	require.NoError(t, err)
 	defer conn.CloseNow()
 
-	// 消费服务端在连接建立后主动发送的 tools/list 请求。
-	var toolsReq struct {
-		JSONRPC string          `json:"jsonrpc"`
-		ID      json.RawMessage `json:"id"`
-		Method  string          `json:"method"`
-	}
-	require.NoError(t, wsjson.Read(ctx, conn, &toolsReq))
-	assert.Equal(t, "tools/list", toolsReq.Method)
-	assert.JSONEq(t, `"tools_sync_1"`, string(toolsReq.ID))
-
-	// 回复 Unity 工具列表让 requestToolsFromUnity 完成。
 	require.NoError(t, wsjson.Write(ctx, conn, map[string]any{
 		"jsonrpc": "2.0",
-		"id":      "tools_sync_1",
-		"result":  map[string]any{"tools": []map[string]any{}},
-	}))
-
-	require.NoError(t, wsjson.Write(ctx, conn, map[string]any{
-		"jsonrpc": "2.0",
-		"id":      "list-1",
-		"method":  "tools/list",
+		"id":      "register-1",
+		"method":  "unity.register",
+		"params": map[string]any{
+			"protocolVersion": 1,
+			"instanceId":      "router-test",
+			"tools":           []any{},
+			"npcs":            []string{"Ryan_001"},
+		},
 	}))
 	var message struct {
 		ID     json.RawMessage `json:"id"`
 		Result json.RawMessage `json:"result"`
 	}
 	require.NoError(t, wsjson.Read(ctx, conn, &message))
-	assert.JSONEq(t, `"list-1"`, string(message.ID))
-	require.NotEmpty(t, message.Result)
+	assert.JSONEq(t, `"register-1"`, string(message.ID))
+	assert.JSONEq(t, `{"accepted":true,"protocolVersion":1}`, string(message.Result))
 }

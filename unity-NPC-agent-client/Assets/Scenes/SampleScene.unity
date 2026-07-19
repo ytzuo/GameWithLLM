@@ -749,7 +749,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: ef559bf0ea0da4f4dae76d810714e30a, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::MCPAsyncClient
-  mcpHostWsUrl: ws://127.0.0.1:8080
+  gatewayWsUrl: ws://127.0.0.1:8080/unity/ws
   llmApiUrl: https://api.siliconflow.cn/v1/chat/completions
   llmModel: deepseek-ai/DeepSeek-V4-Pro
   llmApiKey: sk-vlqvhrcnsygfbsntwgajtoxxvbstgrduuszasffjkwncawoo

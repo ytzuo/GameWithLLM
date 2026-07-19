@@ -2,9 +2,11 @@
 package handler
 
 import (
-	"log"
 	"net/http"
 	"time"
+
+	"GameMCPServer/internal/agent"
+	"GameMCPServer/internal/config"
 
 	"GameMCPServer/internal/unity"
 )
@@ -14,16 +16,21 @@ func RegisterRoutes(mux *http.ServeMux) {
 	_ = RegisterRoutesWithTimeout(mux, 10*time.Second)
 }
 
-// RegisterRoutesWithTimeout 注册所有 HTTP 路由，并允许调用方配置 Unity 工具调用超时。
+// RegisterRoutesWithTimeout 注册不启用 Go Agent Host 的测试路由。
 func RegisterRoutesWithTimeout(mux *http.ServeMux, timeout time.Duration) *unity.JSONRPCServer {
-	jsonRPCServer := unity.NewJSONRPCServer(timeout)
+	return registerRoutes(mux, unity.NewJSONRPCServer(timeout))
+}
 
-	// /unity/ws 是正式入口；/ws 和根路径在迁移期间继续兼容。
+// RegisterRoutesWithConfig 注册生产路由，并把 LLM 与 ConversationService 装配到 Go Agent Host。
+func RegisterRoutesWithConfig(mux *http.ServeMux, cfg config.Config) *unity.JSONRPCServer {
+	llm := agent.NewOpenAICompatibleClient(cfg.LLMAPIURL, cfg.LLMAPIKey, cfg.LLMModel, cfg.LLMRequestTimeout)
+	return registerRoutes(mux, unity.NewJSONRPCServerWithAgent(
+		cfg.UnityToolTimeout, llm, cfg.LLMModel, cfg.LLMMaxToolRounds,
+	))
+}
+
+func registerRoutes(mux *http.ServeMux, jsonRPCServer *unity.JSONRPCServer) *unity.JSONRPCServer {
 	mux.HandleFunc("/unity/ws", jsonRPCServer.HandleWebSocket)
-	mux.HandleFunc("/ws", func(w http.ResponseWriter, r *http.Request) {
-		log.Print("deprecated Unity WebSocket endpoint used: /ws; migrate to /unity/ws")
-		jsonRPCServer.HandleWebSocket(w, r)
-	})
 	mux.HandleFunc("/health", handleHealth)
 	mux.HandleFunc("/", jsonRPCServer.HandleRoot)
 	return jsonRPCServer

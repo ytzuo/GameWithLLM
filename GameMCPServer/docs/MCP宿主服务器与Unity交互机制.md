@@ -1,5 +1,7 @@
 # MCP宿主服务器与Unity交互机制
 
+> **历史设计稿：** 本文描述的是重构前或可选标准 MCP 蓝图，不代表当前已实现接口。当前运行架构是 Go Agent Host + Unity 内部协议 v1，唯一 WebSocket 入口为 `/unity/ws`；请以仓库根目录 `README.md` 和 `docs/Unity与Go大模型能力边界重构计划.md` 的“迁移收尾结果”为准。
+
 本文档说明本 MCP 宿主服务器（GameMCPServer）如何与 Unity 游戏客户端进行交互，包括当前已实现的通信链路、数据流向、以及 Unity 侧需要配合实现的接入方案。
 
 ---

@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using UnityEngine;
 
@@ -6,7 +6,7 @@ using UnityEngine;
  ChatViewModel 的职责：
  - 保存聊天记录（MessageHistory）
  - 对外通过事件通知 UI（与 ChatWindow.AddMessageToUI 的签名兼容）
- - 处理来自 UI 的输入（把玩家输入分发到本地模型并调用 McpAsyncClient 发送到会话层）
+ - 处理来自 UI 的输入（把玩家输入分发到Go Agent Host 发送到会话层）
 
  说明：项目中存在 ChatWindow.AddMessageToUI(ChatWindow.Role, string)，
  因此这里的事件使用相同签名 Action<ChatWindow.Role, string> 方便直接订阅。
@@ -50,22 +50,22 @@ public class ChatViewModel
 	// 与 ChatWindow.AddMessageToUI 签名兼容，UI 层可直接订阅
 	public event Action<ChatWindow.Role, string> OnMessageAdded;
 
-	// 公共 API：添加玩家消息（会触发事件并尝试提交到 MCP/LLM 层）
+	// 公共 API：添加玩家消息（会触发事件并尝试提交到 Agent Host 会话层）
 	public void AddPlayerMessage(string text)
 	{
 		if (string.IsNullOrWhiteSpace(text)) return;
 		var msg = new Message(ChatWindow.Role.Player, text);
 		AddToHistoryAndNotify(msg);
 
-		// 将玩家输入提交到会话层（如果 McpAsyncClient 可用）
+		// 将玩家输入提交到会话层（如果 AgentHostClient 可用）
 		try
 		{
-			// McpAsyncClient 是项目中的单例客户端，用于将玩家输入转发给会话任务
-			McpAsyncClient.Instance.SubmitPlayerInput(text);
+			// AgentHostClient 是项目中的单例客户端，用于将玩家输入转发给会话任务
+			AgentHostClient.Instance.SubmitPlayerInput(text);
 		}
 		catch (Exception e)
 		{
-			Debug.LogWarning($"ChatViewModel: failed to forward player input to McpAsyncClient: {e.Message}");
+			Debug.LogWarning($"ChatViewModel: failed to forward player input to AgentHostClient: {e.Message}");
 		}
 	}
 

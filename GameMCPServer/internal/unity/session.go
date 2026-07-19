@@ -6,7 +6,10 @@ import (
 	"fmt"
 	"log"
 	"sync"
+	"sync/atomic"
 	"time"
+
+	"GameMCPServer/internal/agent"
 )
 
 type jsonRPCConnection interface {
@@ -14,37 +17,43 @@ type jsonRPCConnection interface {
 	Write(context.Context, jsonRPCMessage) error
 }
 
-// JSON-RPC 2.0 协议的 WebSocket 会话
 type jsonRPCSession struct {
-	ctx     context.Context
-	cancel  context.CancelFunc
-	conn    jsonRPCConnection
-	tools   *ToolRegistry
-	writeMu sync.Mutex
-	mu      sync.Mutex
-	// pending 用 JSON-RPC id 关联正在等待 Unity 工具执行结果的 goroutine。
-	pending map[string]chan jsonRPCMessage
-	timeout time.Duration
+	ctx             context.Context
+	cancel          context.CancelFunc
+	conn            jsonRPCConnection
+	registry        *UnityRegistry
+	conversations   agent.ConversationService
+	conversationMu  sync.Mutex
+	conversationIDs map[string]struct{}
+	writeMu         sync.Mutex
+	mu              sync.Mutex
+	pending         map[string]chan jsonRPCMessage
+	nextID          atomic.Uint64
 }
 
-func newJSONRPCSession(ctx context.Context, cancel context.CancelFunc, conn jsonRPCConnection, tools *ToolRegistry, timeout time.Duration) *jsonRPCSession {
+func newJSONRPCSession(
+	ctx context.Context,
+	cancel context.CancelFunc,
+	conn jsonRPCConnection,
+	registry *UnityRegistry,
+	conversationServices ...agent.ConversationService,
+) *jsonRPCSession {
+	var conversations agent.ConversationService
+	if len(conversationServices) > 0 {
+		conversations = conversationServices[0]
+	}
 	return &jsonRPCSession{
-		ctx:     ctx,
-		cancel:  cancel,
-		conn:    conn,
-		tools:   tools,
-		pending: make(map[string]chan jsonRPCMessage),
-		timeout: timeout,
+		ctx: ctx, cancel: cancel, conn: conn, registry: registry,
+		conversations:   conversations,
+		conversationIDs: make(map[string]struct{}),
+		pending:         make(map[string]chan jsonRPCMessage),
 	}
 }
 
-// readLoop 持续读取 JSON-RPC 消息并按 method 路由处理。
 func (s *jsonRPCSession) readLoop() {
+	defer s.registry.UnregisterSession(s)
+	defer s.endConversations()
 	defer s.cancel()
-
-	// 连接建立后向 Unity 请求工具列表（阻塞直到收到响应或超时），
-	// 确保在开始处理其它请求之前工具已同步。
-	s.requestToolsFromUnity()
 
 	for {
 		var msg jsonRPCMessage
@@ -54,137 +63,287 @@ func (s *jsonRPCSession) readLoop() {
 		}
 
 		if msg.Method == "" {
-			// 没有 method 的消息表示这是对之前转发出去的工具调用的响应。
 			s.complete(msg)
 			continue
 		}
 
+		log.Printf("event=jsonrpc_request_received method=%q id=%s", msg.Method, logID(msg.ID))
 		switch msg.Method {
-		case "tools/list":
-			log.Printf("event=jsonrpc_request_received method=%q id=%s", msg.Method, logID(msg.ID))
-			if err := s.writeResult(msg.ID, map[string]any{"tools": s.tools.List()}); err != nil {
-				log.Printf("JSON-RPC tools/list response failed: %v", err)
-				return
-			}
-		case "tools/call":
-			log.Printf("event=jsonrpc_request_received method=%q id=%s", msg.Method, logID(msg.ID))
-			go s.handleToolCall(msg)
+		case methodUnityRegister:
+			s.handleUnityRegister(msg)
+		case methodUnityNPCChanged:
+			s.handleUnityNPCChanged(msg)
+		case methodUnityToolsChanged:
+			s.handleUnityToolsChanged(msg)
+		case methodConversationStart:
+			s.handleConversationStart(msg)
+		case methodPlayerMessage:
+			go s.handlePlayerMessage(msg)
+		case methodConversationEnd:
+			s.handleConversationEnd(msg)
 		default:
 			if err := s.writeError(msg.ID, -32601, fmt.Sprintf("method not found: %s", msg.Method)); err != nil {
-				log.Printf("JSON-RPC error response failed: %v", err)
+				log.Printf("event=jsonrpc_error_response_failed method=%q error=%q", msg.Method, err)
 				return
 			}
 		}
 	}
 }
 
-// handleToolCall 校验工具调用参数，转发给 Unity，并等待同 id 结果。
-func (s *jsonRPCSession) handleToolCall(msg jsonRPCMessage) {
+func (s *jsonRPCSession) handleUnityRegister(msg jsonRPCMessage) {
+	if len(msg.ID) == 0 {
+		_ = s.writeError(msg.ID, -32600, "unity.register requires id")
+		return
+	}
+	var registration UnityRegistration
+	if err := decodeParams(msg.Params, &registration); err != nil {
+		_ = s.writeError(msg.ID, -32602, fmt.Sprintf("invalid unity.register params: %v", err))
+		return
+	}
+	replaced, err := s.registry.Register(s, registration)
+	if err != nil {
+		_ = s.writeError(msg.ID, -32602, err.Error())
+		return
+	}
+	instances, npcs := s.registry.Counts()
+	log.Printf("event=unity_registered instance_id=%q protocol_version=%d npc_count=%d tool_count=%d replaced=%t online_instances=%d online_npcs=%d", registration.InstanceID, registration.ProtocolVersion, len(registration.NPCs), len(registration.Tools), replaced, instances, npcs)
+	_ = s.writeResult(msg.ID, UnityRegistrationResult{Accepted: true, ProtocolVersion: unityProtocolVersion})
+}
+
+func (s *jsonRPCSession) handleUnityNPCChanged(msg jsonRPCMessage) {
+	var change UnityNPCChangedParams
+	if err := decodeParams(msg.Params, &change); err != nil {
+		_ = s.writeError(msg.ID, -32602, fmt.Sprintf("invalid unity.npc.changed params: %v", err))
+		return
+	}
+	if err := s.registry.UpdateNPC(s, change); err != nil {
+		_ = s.writeError(msg.ID, -32001, err.Error())
+		return
+	}
+	_, npcs := s.registry.Counts()
+	log.Printf("event=unity_npc_changed instance_id=%q npc_id=%q online=%t online_npcs=%d", change.InstanceID, change.NPCID, change.Online, npcs)
+	if len(msg.ID) > 0 {
+		_ = s.writeResult(msg.ID, map[string]bool{"ok": true})
+	}
+}
+
+func (s *jsonRPCSession) handleUnityToolsChanged(msg jsonRPCMessage) {
+	var change UnityToolsChangedParams
+	if err := decodeParams(msg.Params, &change); err != nil {
+		_ = s.writeError(msg.ID, -32602, fmt.Sprintf("invalid unity.tools.changed params: %v", err))
+		return
+	}
+	if err := s.registry.UpdateTools(s, change); err != nil {
+		_ = s.writeError(msg.ID, -32001, err.Error())
+		return
+	}
+	log.Printf("event=unity_tools_changed instance_id=%q tool_count=%d", change.InstanceID, len(change.Tools))
+	if len(msg.ID) > 0 {
+		_ = s.writeResult(msg.ID, map[string]bool{"ok": true})
+	}
+}
+
+func (s *jsonRPCSession) handleConversationStart(msg jsonRPCMessage) {
+	if len(msg.ID) == 0 {
+		_ = s.writeError(msg.ID, -32600, "conversation.start requires id")
+		return
+	}
+	if s.conversations == nil {
+		_ = s.writeError(msg.ID, -32010, "Go Agent Host is not configured")
+		return
+	}
+	var params ConversationStartParams
+	if err := decodeParams(msg.Params, &params); err != nil {
+		_ = s.writeError(msg.ID, -32602, fmt.Sprintf("invalid conversation.start params: %v", err))
+		return
+	}
+	_, owner, online := s.registry.ResolveNPC(params.NPCID)
+	if !online || owner != s {
+		_ = s.writeError(msg.ID, -32004, fmt.Sprintf("NPC is not registered on this Unity connection: %s", params.NPCID))
+		return
+	}
+	session, err := s.conversations.StartSession(s.ctx, params.PlayerID, params.NPCID)
+	if err != nil {
+		_ = s.writeError(msg.ID, -32020, err.Error())
+		return
+	}
+	s.conversationMu.Lock()
+	s.conversationIDs[session.ID] = struct{}{}
+	s.conversationMu.Unlock()
+	log.Printf("event=conversation_started session_id=%q player_id=%q npc_id=%q instance_id=%q", session.ID, session.PlayerID, session.NPCID, session.UnityInstanceID)
+	_ = s.writeResult(msg.ID, ConversationStartResult{SessionID: session.ID, NPCID: session.NPCID})
+}
+
+func (s *jsonRPCSession) handlePlayerMessage(msg jsonRPCMessage) {
 	startedAt := time.Now()
 	if len(msg.ID) == 0 {
-		_ = s.writeError(msg.ID, -32600, "tools/call requires id")
+		_ = s.writeError(msg.ID, -32600, "player.message requires id")
 		return
 	}
+	if s.conversations == nil {
+		_ = s.writeError(msg.ID, -32010, "Go Agent Host is not configured")
+		return
+	}
+	var params PlayerMessageParams
+	if err := decodeParams(msg.Params, &params); err != nil {
+		_ = s.writeError(msg.ID, -32602, fmt.Sprintf("invalid player.message params: %v", err))
+		return
+	}
+	if params.SessionID == "" || params.Text == "" {
+		_ = s.writeError(msg.ID, -32602, "sessionId and text are required")
+		return
+	}
+	if !s.ownsConversation(params.SessionID) {
+		_ = s.writeError(msg.ID, -32011, "conversation session is not owned by this Unity connection")
+		return
+	}
+	_ = s.writeNotification(methodAssistantStatus, AssistantStatusParams{
+		Type: "assistant.status", SessionID: params.SessionID, Status: "thinking",
+	})
+	log.Printf("event=player_message_received session_id=%q text_length=%d", params.SessionID, len([]rune(params.Text)))
+	reply, err := s.conversations.SubmitMessage(s.ctx, params.SessionID, params.Text)
+	if err != nil {
+		log.Printf("event=assistant_reply_failed session_id=%q duration_ms=%d error=%q", params.SessionID, time.Since(startedAt).Milliseconds(), err)
+		_ = s.writeError(msg.ID, -32020, err.Error())
+		return
+	}
+	log.Printf("event=assistant_reply_completed session_id=%q npc_id=%q duration_ms=%d text_length=%d", reply.SessionID, reply.NPCID, time.Since(startedAt).Milliseconds(), len([]rune(reply.Text)))
+	_ = s.writeResult(msg.ID, reply)
+}
 
-	var params jsonRPCToolCallParams
-	if len(msg.Params) == 0 {
-		_ = s.writeError(msg.ID, -32602, "tools/call params are required")
+func (s *jsonRPCSession) handleConversationEnd(msg jsonRPCMessage) {
+	var params ConversationEndParams
+	if err := decodeParams(msg.Params, &params); err != nil {
+		_ = s.writeError(msg.ID, -32602, fmt.Sprintf("invalid conversation.end params: %v", err))
 		return
 	}
-	if err := json.Unmarshal(msg.Params, &params); err != nil {
-		_ = s.writeError(msg.ID, -32602, fmt.Sprintf("invalid tools/call params: %v", err))
+	if !s.removeConversation(params.SessionID) {
+		if len(msg.ID) > 0 {
+			_ = s.writeError(msg.ID, -32011, "conversation session is not owned by this Unity connection")
+		}
 		return
 	}
-	if params.NPCID == "" {
-		_ = s.writeError(msg.ID, -32602, "npcId is required")
-		return
+	if s.conversations != nil {
+		_ = s.conversations.EndSession(s.ctx, params.SessionID)
 	}
-	if params.Name == "" {
-		_ = s.writeError(msg.ID, -32602, "tool name is required")
-		return
+	log.Printf("event=conversation_ended session_id=%q", params.SessionID)
+	if len(msg.ID) > 0 {
+		_ = s.writeResult(msg.ID, map[string]bool{"ok": true})
 	}
-	if !s.tools.Exists(params.Name) {
-		_ = s.writeError(msg.ID, -32601, fmt.Sprintf("tool not found: %s", params.Name))
-		return
-	}
-	if len(params.Arguments) == 0 {
-		_ = s.writeError(msg.ID, -32602, "tool arguments are required")
-		return
-	}
+}
 
-	// 服务端在这里扮演 JSON-RPC 中转站：记录请求 id，把调用通过同一条连接发给 Unity，
-	// 然后等待 Unity 用相同 id 返回执行结果。
-	key := string(msg.ID)
+func (s *jsonRPCSession) ownsConversation(sessionID string) bool {
+	s.conversationMu.Lock()
+	defer s.conversationMu.Unlock()
+	_, ok := s.conversationIDs[sessionID]
+	return ok
+}
+
+func (s *jsonRPCSession) removeConversation(sessionID string) bool {
+	s.conversationMu.Lock()
+	defer s.conversationMu.Unlock()
+	if _, ok := s.conversationIDs[sessionID]; !ok {
+		return false
+	}
+	delete(s.conversationIDs, sessionID)
+	return true
+}
+
+func (s *jsonRPCSession) endConversations() {
+	if s.conversations == nil {
+		return
+	}
+	s.conversationMu.Lock()
+	ids := make([]string, 0, len(s.conversationIDs))
+	for id := range s.conversationIDs {
+		ids = append(ids, id)
+	}
+	s.conversationIDs = make(map[string]struct{})
+	s.conversationMu.Unlock()
+	for _, id := range ids {
+		_ = s.conversations.EndSession(context.Background(), id)
+	}
+}
+
+func (s *jsonRPCSession) writeNotification(method string, params any) error {
+	payload, err := json.Marshal(params)
+	if err != nil {
+		return err
+	}
+	return s.writeMessage(jsonRPCMessage{JSONRPC: jsonRPCVersion, Method: method, Params: payload})
+}
+
+func (s *jsonRPCSession) executeUnityTool(ctx context.Context, params UnityToolExecuteParams) (*ToolResult, error) {
+	if err := params.Validate(); err != nil {
+		return nil, err
+	}
+	payload, err := json.Marshal(params)
+	if err != nil {
+		return nil, err
+	}
+	id := json.RawMessage(fmt.Sprintf(`"unity-exec-%d"`, s.nextID.Add(1)))
+	key := string(id)
 	ch := make(chan jsonRPCMessage, 1)
 	if !s.addPending(key, ch) {
-		_ = s.writeError(msg.ID, -32600, "duplicate request id")
-		return
+		return nil, fmt.Errorf("duplicate internal request id: %s", key)
 	}
 	defer s.removePending(key)
-	log.Printf("event=tool_call_forwarding id=%s npc_id=%q tool=%q timeout_ms=%d", logID(msg.ID), params.NPCID, params.Name, s.timeout.Milliseconds())
 
-	request := jsonRPCMessage{
-		JSONRPC: jsonRPCVersion,
-		Method:  "tools/call",
-		ID:      msg.ID,
-		Params:  msg.Params,
+	if err := s.writeMessage(jsonRPCMessage{JSONRPC: jsonRPCVersion, Method: methodUnityToolExecute, ID: id, Params: payload}); err != nil {
+		return nil, err
 	}
-	if err := s.writeMessage(request); err != nil {
-		_ = s.writeError(msg.ID, -32603, fmt.Sprintf("forward tools/call failed: %v", err))
-		return
-	}
-
-	timer := time.NewTimer(s.timeout)
-	defer timer.Stop()
 
 	select {
 	case response := <-ch:
-		log.Printf("event=tool_call_completed id=%s npc_id=%q tool=%q outcome=%q duration_ms=%d", logID(msg.ID), params.NPCID, params.Name, toolOutcome(response), time.Since(startedAt).Milliseconds())
 		if response.Error != nil {
-			_ = s.writeMessage(jsonRPCMessage{
-				JSONRPC: jsonRPCVersion,
-				ID:      msg.ID,
-				Error:   response.Error,
-			})
-			return
+			return nil, fmt.Errorf("Unity protocol error %d: %s", response.Error.Code, response.Error.Message)
 		}
-		_ = s.writeMessage(jsonRPCMessage{
-			JSONRPC: jsonRPCVersion,
-			ID:      msg.ID,
-			Result:  response.Result,
-		})
-	case <-timer.C:
-		log.Printf("event=tool_call_completed id=%s npc_id=%q tool=%q outcome=timeout duration_ms=%d", logID(msg.ID), params.NPCID, params.Name, time.Since(startedAt).Milliseconds())
-		_ = s.writeError(msg.ID, -32000, "unity tool execution timed out")
+		var result ToolResult
+		if err := json.Unmarshal(response.Result, &result); err != nil {
+			return nil, fmt.Errorf("invalid unity.tool.execute result: %w", err)
+		}
+		return &result, nil
+	case <-ctx.Done():
+		s.sendUnityToolCancel(id)
+		return nil, ctx.Err()
 	case <-s.ctx.Done():
-		return
+		return nil, s.ctx.Err()
 	}
 }
 
-// complete 将 Unity 返回的 JSON-RPC 结果投递给对应等待者。
+func (s *jsonRPCSession) sendUnityToolCancel(id json.RawMessage) {
+	var requestID string
+	if err := json.Unmarshal(id, &requestID); err != nil {
+		return
+	}
+	payload, err := json.Marshal(UnityToolCancelParams{RequestID: requestID})
+	if err != nil {
+		return
+	}
+	if err := s.writeMessage(jsonRPCMessage{JSONRPC: jsonRPCVersion, Method: methodUnityToolCancel, Params: payload}); err != nil {
+		log.Printf("event=unity_tool_cancel_failed request_id=%q error=%q", requestID, err)
+	}
+}
 func (s *jsonRPCSession) complete(msg jsonRPCMessage) {
 	if len(msg.ID) == 0 {
-		log.Print("JSON-RPC response ignored: missing id")
+		log.Print("event=jsonrpc_response_ignored reason=missing_id")
 		return
 	}
 	key := string(msg.ID)
-
 	s.mu.Lock()
 	ch := s.pending[key]
 	s.mu.Unlock()
 	if ch == nil {
-		log.Printf("JSON-RPC response has no pending request: id=%s", key)
+		log.Printf("event=jsonrpc_response_ignored reason=no_pending_request id=%s", key)
 		return
 	}
-
 	select {
 	case ch <- msg:
 	default:
-		log.Printf("JSON-RPC duplicate response ignored: id=%s", key)
+		log.Printf("event=jsonrpc_response_ignored reason=duplicate id=%s", key)
 	}
 }
 
-// addPending 注册一个正在等待结果的 JSON-RPC 请求。
 func (s *jsonRPCSession) addPending(key string, ch chan jsonRPCMessage) bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -195,95 +354,40 @@ func (s *jsonRPCSession) addPending(key string, ch chan jsonRPCMessage) bool {
 	return true
 }
 
-// removePending 移除已经完成或超时的等待请求。
 func (s *jsonRPCSession) removePending(key string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	delete(s.pending, key)
 }
 
-// writeResult 写回 JSON-RPC result 响应。
 func (s *jsonRPCSession) writeResult(id json.RawMessage, result any) error {
 	payload, err := json.Marshal(result)
 	if err != nil {
 		return err
 	}
-	return s.writeMessage(jsonRPCMessage{
-		JSONRPC: jsonRPCVersion,
-		ID:      id,
-		Result:  payload,
-	})
+	return s.writeMessage(jsonRPCMessage{JSONRPC: jsonRPCVersion, ID: id, Result: payload})
 }
 
-// writeError 写回 JSON-RPC error 响应。
 func (s *jsonRPCSession) writeError(id json.RawMessage, code int, message string) error {
-	return s.writeMessage(jsonRPCMessage{
-		JSONRPC: jsonRPCVersion,
-		ID:      id,
-		Error:   &jsonRPCError{Code: code, Message: message},
-	})
+	return s.writeMessage(jsonRPCMessage{JSONRPC: jsonRPCVersion, ID: id, Error: &jsonRPCError{Code: code, Message: message}})
 }
 
-// writeMessage 序列化 JSON-RPC 消息并写入 WebSocket 文本帧。
 func (s *jsonRPCSession) writeMessage(msg jsonRPCMessage) error {
 	s.writeMu.Lock()
 	defer s.writeMu.Unlock()
 	return s.conn.Write(s.ctx, msg)
 }
 
-// requestToolsFromUnity 向 Unity 发送 tools/list 请求并阻塞等待响应，
-// 用 Unity 返回的工具列表替换当前的种子工具。
-// 此方法在 readLoop 主循环启动前同步调用，确保在任何 tools/call 到达前工具已同步。
-func (s *jsonRPCSession) requestToolsFromUnity() {
-	startedAt := time.Now()
-	reqID := json.RawMessage(`"tools_sync_1"`)
-
-	req := jsonRPCMessage{
-		JSONRPC: jsonRPCVersion,
-		Method:  "tools/list",
-		ID:      reqID,
+func decodeParams(raw json.RawMessage, target any) error {
+	if len(raw) == 0 {
+		return fmt.Errorf("params are required")
 	}
-
-	if err := s.writeMessage(req); err != nil {
-		log.Printf("failed to send tools/list request to Unity: %v", err)
-		return
-	}
-
-	var resp jsonRPCMessage
-	if err := s.conn.Read(s.ctx, &resp); err != nil {
-		log.Printf("failed to read tools/list response from Unity: %v", err)
-		return
-	}
-
-	var parsed struct {
-		Tools []map[string]any `json:"tools"`
-	}
-	if err := json.Unmarshal(resp.Result, &parsed); err != nil {
-		log.Printf("failed to parse tools/list response from Unity: %v", err)
-		return
-	}
-	s.tools.ReplaceAll(parsed.Tools)
-	log.Printf("event=tools_sync_completed tool_count=%d duration_ms=%d", len(parsed.Tools), time.Since(startedAt).Milliseconds())
+	return json.Unmarshal(raw, target)
 }
 
-// logID 只输出请求标识，不输出 params/result，避免业务内容进入控制台日志。
 func logID(id json.RawMessage) string {
 	if len(id) == 0 {
 		return "\"<missing>\""
 	}
 	return string(id)
-}
-
-func toolOutcome(response jsonRPCMessage) string {
-	if response.Error != nil {
-		return "unity_error"
-	}
-
-	var result struct {
-		IsError bool `json:"isError"`
-	}
-	if len(response.Result) > 0 && json.Unmarshal(response.Result, &result) == nil && result.IsError {
-		return "tool_error"
-	}
-	return "success"
 }
