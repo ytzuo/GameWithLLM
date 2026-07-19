@@ -451,7 +451,9 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 917aa36f984c06647bc025149ee6108a, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::UIManager
-  serializedUiConfigs: []
+  serializedUiConfigs:
+  - WindowName: ChatWindow
+    uxmlAsset: {fileID: 9197481963319205126, guid: 75a50981d1250fa4097aa6e0555ca3ff, type: 3}
 --- !u!1 &614615628
 GameObject:
   m_ObjectHideFlags: 0
