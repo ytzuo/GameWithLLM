@@ -54,10 +54,33 @@ func TestJSONRPCServerWebSocketIntegration_BitsUT(t *testing.T) {
 	require.NoError(t, err)
 	defer conn.CloseNow()
 
+	// 消费服务端在连接建立后主动发送的 tools/list 请求。
+	var toolsReq jsonRPCMessage
+	require.NoError(t, wsjson.Read(ctx, conn, &toolsReq))
+	assert.Equal(t, "tools/list", toolsReq.Method)
+	assert.JSONEq(t, `"tools_sync_1"`, string(toolsReq.ID))
+
+	// 回复 Unity 工具列表让 requestToolsFromUnity 完成。
+	require.NoError(t, wsjson.Write(ctx, conn, jsonRPCMessage{
+		JSONRPC: jsonRPCVersion,
+		ID:      json.RawMessage(`"tools_sync_1"`),
+		Result:  json.RawMessage(`{"tools":[{"name":"game_npc_move","description":"使 NPC 前往指定地标 (warehouse|gate)","inputSchema":{"type":"object","properties":{"targetLandmark":{"type":"string","enum":["warehouse","gate"],"description":"目标地标名称"}},"required":["targetLandmark"]}}]}`),
+	}))
+
 	// coder/websocket 需要一个持续 Reader 来消费 Pong；先用独立连接验证
 	// 服务端能处理控制帧，再用当前连接验证 JSON-RPC 消息。
 	pingConn, _, err := websocket.Dial(ctx, wsURL, nil)
 	require.NoError(t, err)
+
+	// 消费服务端主动发送的 tools/list 请求并回复。
+	var pingToolsReq jsonRPCMessage
+	require.NoError(t, wsjson.Read(ctx, pingConn, &pingToolsReq))
+	require.NoError(t, wsjson.Write(ctx, pingConn, jsonRPCMessage{
+		JSONRPC: jsonRPCVersion,
+		ID:      json.RawMessage(`"tools_sync_1"`),
+		Result:  json.RawMessage(`{"tools":[{"name":"game_npc_move","description":"使 NPC 前往指定地标 (warehouse|gate)","inputSchema":{"type":"object","properties":{"targetLandmark":{"type":"string","enum":["warehouse","gate"],"description":"目标地标名称"}},"required":["targetLandmark"]}}]}`),
+	}))
+
 	pingReadCtx := pingConn.CloseRead(ctx)
 	require.NoError(t, pingConn.Ping(pingReadCtx))
 	require.NoError(t, pingConn.Close(websocket.StatusNormalClosure, ""))
@@ -115,6 +138,16 @@ func TestJSONRPCServerShutdownClosesActiveConnections_BitsUT(t *testing.T) {
 	conn, _, err := websocket.Dial(ctx, wsURL, nil)
 	require.NoError(t, err)
 	defer conn.CloseNow()
+
+	// 消费服务端在连接建立后主动发送的 tools/list 请求并回复。
+	var notification jsonRPCMessage
+	require.NoError(t, wsjson.Read(ctx, conn, &notification))
+	require.NoError(t, wsjson.Write(ctx, conn, jsonRPCMessage{
+		JSONRPC: jsonRPCVersion,
+		ID:      json.RawMessage(`"tools_sync_1"`),
+		Result:  json.RawMessage(`{"tools":[{"name":"game_npc_move","description":"使 NPC 前往指定地标 (warehouse|gate)","inputSchema":{"type":"object","properties":{"targetLandmark":{"type":"string","enum":["warehouse","gate"],"description":"目标地标名称"}},"required":["targetLandmark"]}}]}`),
+	}))
+
 	require.Eventually(t, func() bool {
 		server.connectionsMu.Lock()
 		defer server.connectionsMu.Unlock()

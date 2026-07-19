@@ -19,6 +19,7 @@ type jsonRPCSession struct {
 	ctx     context.Context
 	cancel  context.CancelFunc
 	conn    jsonRPCConnection
+	tools   *ToolRegistry
 	writeMu sync.Mutex
 	mu      sync.Mutex
 	// pending 用 JSON-RPC id 关联正在等待 Unity 工具执行结果的 goroutine。
@@ -26,11 +27,12 @@ type jsonRPCSession struct {
 	timeout time.Duration
 }
 
-func newJSONRPCSession(ctx context.Context, cancel context.CancelFunc, conn jsonRPCConnection, timeout time.Duration) *jsonRPCSession {
+func newJSONRPCSession(ctx context.Context, cancel context.CancelFunc, conn jsonRPCConnection, tools *ToolRegistry, timeout time.Duration) *jsonRPCSession {
 	return &jsonRPCSession{
 		ctx:     ctx,
 		cancel:  cancel,
 		conn:    conn,
+		tools:   tools,
 		pending: make(map[string]chan jsonRPCMessage),
 		timeout: timeout,
 	}
@@ -39,6 +41,11 @@ func newJSONRPCSession(ctx context.Context, cancel context.CancelFunc, conn json
 // readLoop 持续读取 JSON-RPC 消息并按 method 路由处理。
 func (s *jsonRPCSession) readLoop() {
 	defer s.cancel()
+
+	// 连接建立后向 Unity 请求工具列表（阻塞直到收到响应或超时），
+	// 确保在开始处理其它请求之前工具已同步。
+	s.requestToolsFromUnity()
+
 	for {
 		var msg jsonRPCMessage
 		if err := s.conn.Read(s.ctx, &msg); err != nil {
@@ -54,7 +61,7 @@ func (s *jsonRPCSession) readLoop() {
 
 		switch msg.Method {
 		case "tools/list":
-			if err := s.writeResult(msg.ID, map[string]any{"tools": unityClientTools()}); err != nil {
+			if err := s.writeResult(msg.ID, map[string]any{"tools": s.tools.List()}); err != nil {
 				log.Printf("JSON-RPC tools/list response failed: %v", err)
 				return
 			}
@@ -93,7 +100,7 @@ func (s *jsonRPCSession) handleToolCall(msg jsonRPCMessage) {
 		_ = s.writeError(msg.ID, -32602, "tool name is required")
 		return
 	}
-	if !unityClientToolExists(params.Name) {
+	if !s.tools.Exists(params.Name) {
 		_ = s.writeError(msg.ID, -32601, fmt.Sprintf("tool not found: %s", params.Name))
 		return
 	}
@@ -216,4 +223,38 @@ func (s *jsonRPCSession) writeMessage(msg jsonRPCMessage) error {
 	s.writeMu.Lock()
 	defer s.writeMu.Unlock()
 	return s.conn.Write(s.ctx, msg)
+}
+
+// requestToolsFromUnity 向 Unity 发送 tools/list 请求并阻塞等待响应，
+// 用 Unity 返回的工具列表替换当前的种子工具。
+// 此方法在 readLoop 主循环启动前同步调用，确保在任何 tools/call 到达前工具已同步。
+func (s *jsonRPCSession) requestToolsFromUnity() {
+	reqID := json.RawMessage(`"tools_sync_1"`)
+
+	req := jsonRPCMessage{
+		JSONRPC: jsonRPCVersion,
+		Method:  "tools/list",
+		ID:      reqID,
+	}
+
+	if err := s.writeMessage(req); err != nil {
+		log.Printf("failed to send tools/list request to Unity: %v", err)
+		return
+	}
+
+	var resp jsonRPCMessage
+	if err := s.conn.Read(s.ctx, &resp); err != nil {
+		log.Printf("failed to read tools/list response from Unity: %v", err)
+		return
+	}
+
+	var parsed struct {
+		Tools []map[string]any `json:"tools"`
+	}
+	if err := json.Unmarshal(resp.Result, &parsed); err != nil {
+		log.Printf("failed to parse tools/list response from Unity: %v", err)
+		return
+	}
+	s.tools.ReplaceAll(parsed.Tools)
+	log.Printf("received %d tools from Unity", len(parsed.Tools))
 }

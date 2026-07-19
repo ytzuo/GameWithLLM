@@ -17,6 +17,7 @@ const maxWebSocketMessageSize = 1 << 20
 // JSONRPCServer 实现 unity-NPC-agent-client 使用的 JSON-RPC WebSocket 协议。
 type JSONRPCServer struct {
 	timeout       time.Duration
+	tools         *ToolRegistry
 	connectionsMu sync.Mutex
 	connections   map[*websocket.Conn]struct{}
 }
@@ -25,6 +26,7 @@ type JSONRPCServer struct {
 func NewJSONRPCServer(timeout time.Duration) *JSONRPCServer {
 	return &JSONRPCServer{
 		timeout:     timeout,
+		tools:       NewToolRegistry(),
 		connections: make(map[*websocket.Conn]struct{}),
 	}
 }
@@ -60,7 +62,7 @@ func (s *JSONRPCServer) HandleWebSocket(w http.ResponseWriter, r *http.Request) 
 	defer cancel()
 
 	log.Print("Unity JSON-RPC websocket connected")
-	session := newJSONRPCSession(ctx, cancel, &websocketJSONRPCConnection{conn: conn}, s.timeout)
+	session := newJSONRPCSession(ctx, cancel, &websocketJSONRPCConnection{conn: conn}, s.tools, s.timeout)
 	session.readLoop()
 	log.Print("Unity JSON-RPC websocket disconnected")
 }

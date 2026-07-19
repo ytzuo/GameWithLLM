@@ -8,7 +8,8 @@ import (
 )
 
 func TestUnityClientTools_BitsUT(t *testing.T) {
-	tools := unityClientTools()
+	r := NewToolRegistry()
+	tools := r.List()
 	require.Len(t, tools, 1)
 	assert.Equal(t, "game_npc_move", tools[0]["name"])
 
@@ -22,6 +23,6 @@ func TestUnityClientTools_BitsUT(t *testing.T) {
 	target, ok := properties["targetLandmark"].(map[string]any)
 	require.True(t, ok)
 	assert.Equal(t, []string{"warehouse", "gate"}, target["enum"])
-	assert.True(t, unityClientToolExists(gameNPCMoveToolName))
-	assert.False(t, unityClientToolExists("game_does_not_exist"))
+	assert.True(t, r.Exists(gameNPCMoveToolName))
+	assert.False(t, r.Exists("game_does_not_exist"))
 }

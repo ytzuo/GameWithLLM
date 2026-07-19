@@ -17,6 +17,18 @@ func TestJSONRPCSessionReadLoop_BitsUT(t *testing.T) {
 		session.readLoop()
 	}()
 
+	// Consume the initial tools/list request sent on connect.
+	toolsReq := mustReceiveMessage(t, conn.writes)
+	assert.Equal(t, "tools/list", toolsReq.Method)
+	assert.JSONEq(t, `"tools_sync_1"`, string(toolsReq.ID))
+
+	// Respond with Unity's tool list so requestToolsFromUnity can complete.
+	conn.reads <- fakeRead{msg: jsonRPCMessage{
+		JSONRPC: jsonRPCVersion,
+		ID:      json.RawMessage(`"tools_sync_1"`),
+		Result:  json.RawMessage(`{"tools":[{"name":"game_npc_move","description":"使 NPC 前往指定地标 (warehouse|gate)","inputSchema":{"type":"object","properties":{"targetLandmark":{"type":"string","enum":["warehouse","gate"],"description":"目标地标名称"}},"required":["targetLandmark"]}}]}`),
+	}}
+
 	conn.reads <- fakeRead{msg: jsonRPCMessage{
 		JSONRPC: jsonRPCVersion,
 		ID:      json.RawMessage(`"list-1"`),

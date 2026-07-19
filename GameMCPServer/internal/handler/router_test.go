@@ -33,6 +33,23 @@ func TestRegisterRoutesWithTimeout_BitsUT(t *testing.T) {
 	require.NoError(t, err)
 	defer conn.CloseNow()
 
+	// 消费服务端在连接建立后主动发送的 tools/list 请求。
+	var toolsReq struct {
+		JSONRPC string          `json:"jsonrpc"`
+		ID      json.RawMessage `json:"id"`
+		Method  string          `json:"method"`
+	}
+	require.NoError(t, wsjson.Read(ctx, conn, &toolsReq))
+	assert.Equal(t, "tools/list", toolsReq.Method)
+	assert.JSONEq(t, `"tools_sync_1"`, string(toolsReq.ID))
+
+	// 回复 Unity 工具列表让 requestToolsFromUnity 完成。
+	require.NoError(t, wsjson.Write(ctx, conn, map[string]any{
+		"jsonrpc": "2.0",
+		"id":      "tools_sync_1",
+		"result":  map[string]any{"tools": []map[string]any{}},
+	}))
+
 	require.NoError(t, wsjson.Write(ctx, conn, map[string]any{
 		"jsonrpc": "2.0",
 		"id":      "list-1",

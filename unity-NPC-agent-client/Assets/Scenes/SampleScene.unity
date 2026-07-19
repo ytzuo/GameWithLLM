@@ -448,12 +448,10 @@ MonoBehaviour:
   m_GameObject: {fileID: 601293169}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: b1d98408a5b4411481651aa12a961a5b, type: 3}
+  m_Script: {fileID: 11500000, guid: 917aa36f984c06647bc025149ee6108a, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::UIManager
-  serializedUiConfigs:
-  - WindowName: ChatWindow
-    uxmlAsset: {fileID: 9197481963319205126, guid: 75a50981d1250fa4097aa6e0555ca3ff, type: 3}
+  serializedUiConfigs: []
 --- !u!1 &614615628
 GameObject:
   m_ObjectHideFlags: 0
@@ -807,7 +805,7 @@ MonoBehaviour:
   m_GameObject: {fileID: 1621335199}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 23afc06214a347ecb7220fce6f3872c3, type: 3}
+  m_Script: {fileID: 11500000, guid: 92478486c943e774a8e9e24c95854952, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::PlayerMock
   targetNpc: {fileID: 614615634}
