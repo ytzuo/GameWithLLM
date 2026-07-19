@@ -39,12 +39,17 @@ public class PlayerMock : MonoBehaviour
 
     private void OnEnable()
     {
-        // Enable the correct action based on current mode
+        if (targetNpc != null)
+            targetNpc.InteractionEnded += SwitchToGameplayMode;
+
         UpdateInputState();
     }
 
     private void OnDisable()
     {
+        if (targetNpc != null)
+            targetNpc.InteractionEnded -= SwitchToGameplayMode;
+
         if (_interactAction != null)
         {
             _interactAction.Disable();

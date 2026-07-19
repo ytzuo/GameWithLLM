@@ -1,38 +1,25 @@
 <ui:UXML xmlns:ui="UnityEngine.UIElements" xmlns:uie="UnityEditor.UIElements" editor-extension-mode="False">
     <Style src="project://database/Assets/Art/UI/ChatStyle.uss?fileID=7433441132597879392&amp;guid=08712ffda0bd7a447926e1fc125a3a90&amp;type=3#ChatStyle"/>
     <ui:VisualElement name="chat-root" class="chat-root">
-        <ui:ScrollView name="chat-scroll" mode="Vertical" class="chat-scroll">
-            <ui:VisualElement class="message-system">
-                <ui:Label text="2026-07-09 17:00 游戏开始" class="text-system"/>
-            </ui:VisualElement>
-            <ui:VisualElement class="message-row message-opponent">
-                <ui:VisualElement class="avatar avatar-opponent"/>
-                <ui:VisualElement class="bubble bubble-opponent">
-                    <ui:Label text="你好！测试一下普通长度的消息。" class="text-message text-opponent"/>
+        <ui:VisualElement class="chat-panel">
+            <ui:VisualElement class="chat-header">
+                <ui:VisualElement class="chat-heading">
+                    <ui:Label text="NPC 对话" class="chat-title"/>
+                    <ui:Label text="和角色自然交流，也可以让它执行游戏内行动" class="chat-subtitle"/>
                 </ui:VisualElement>
+                <ui:Button name="close-button" text="×" tooltip="关闭对话（Esc）" class="close-button"/>
             </ui:VisualElement>
-            <ui:VisualElement class="message-row message-opponent">
-                <ui:VisualElement class="avatar avatar-opponent"/>
-                <ui:VisualElement class="bubble bubble-opponent">
-                    <ui:Label text="这是一条非常长的消息，用来测试当消息长度超过最大限制时是否会自动换行，并且文本内容原点对齐在左侧。" class="text-message text-opponent"/>
+            <ui:ScrollView name="chat-scroll" mode="Vertical" class="chat-scroll"/>
+            <ui:VisualElement name="input-container" class="input-container">
+                <ui:VisualElement class="input-wrapper">
+                    <ui:TextField name="chat-input" value="" multiline="true" max-length="1000" class="chat-input"/>
+                    <ui:Label name="chat-placeholder" text="输入消息…" picking-mode="Ignore" class="chat-placeholder"/>
                 </ui:VisualElement>
+                <ui:Button name="send-button" text="发送" class="send-button"/>
             </ui:VisualElement>
-            <ui:VisualElement class="message-row message-player">
-                <ui:VisualElement class="avatar avatar-player"/>
-                <ui:VisualElement class="bubble bubble-player">
-                    <ui:Label text="收到，正在测试！" class="text-message text-player"/>
-                </ui:VisualElement>
-            </ui:VisualElement>
-            <ui:VisualElement class="message-row message-player">
-                <ui:VisualElement class="avatar avatar-player"/>
-                <ui:VisualElement class="bubble bubble-player">
-                    <ui:Label text="这也是一条非常长的消息，用于测试气泡的最大宽度是否与对方完全一致。如果没有达到最大宽度，气泡会根据文字缩放；达到后会自动换行，且文本原点在左侧。" class="text-message text-player"/>
-                </ui:VisualElement>
-            </ui:VisualElement>
-        </ui:ScrollView>
-        <ui:VisualElement name="input-container" class="input-container">
-            <ui:VisualElement class="input-wrapper">
-                <ui:TextField name="chat-input" value="" class="chat-input"/>
+            <ui:VisualElement class="input-meta">
+                <ui:Label text="Enter 发送  ·  Shift+Enter 换行  ·  Esc 关闭" class="input-hint"/>
+                <ui:Label name="character-count" text="0 / 1000" class="character-count"/>
             </ui:VisualElement>
         </ui:VisualElement>
     </ui:VisualElement>

@@ -3,7 +3,7 @@
 
     <!-- 对方消息模板：头像在左，气泡在右 -->
     <ui:VisualElement class="message-row message-opponent">
-        <ui:VisualElement class="avatar avatar-opponent" />
+        <ui:VisualElement class="avatar avatar-opponent"><ui:Label text="NPC" class="avatar-label" /></ui:VisualElement>
         <ui:VisualElement class="bubble bubble-opponent">
             <!-- 名称为 message-text，便于在脚本中通过 Q<Label>("message-text") 查找并赋值 -->
             <ui:Label name="message-text" text="对方消息示例" class="text-message text-opponent" />

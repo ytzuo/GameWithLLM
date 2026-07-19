@@ -3,7 +3,7 @@
 
     <!-- 玩家消息模板：头像在右，气泡在左（row-reverse） -->
     <ui:VisualElement class="message-row message-player">
-        <ui:VisualElement class="avatar avatar-player" />
+        <ui:VisualElement class="avatar avatar-player"><ui:Label text="你" class="avatar-label" /></ui:VisualElement>
         <ui:VisualElement class="bubble bubble-player">
             <!-- 名称为 message-text，便于在脚本中通过 Q<Label>("message-text") 查找并赋值 -->
             <ui:Label name="message-text" text="玩家消息示例" class="text-message text-player" />

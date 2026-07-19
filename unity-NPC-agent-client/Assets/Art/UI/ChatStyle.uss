@@ -1,188 +1,318 @@
-/* 根节点：75%不透明度的黑色背景（rgba 0,0,0,0.75） */
 .chat-root {
     width: 100%;
     height: 100%;
-    display: flex;
-    flex-direction: column;
-    background-color: rgba(0, 0, 0, 0.75);
-}
-
-/* 聊天滚动区域 */
-.chat-scroll {
-    flex-grow: 1;
-    flex-shrink: 1;
-    padding: 16px;
-}
-
-/* 消息行基础通用样式 */
-.message-row {
-    flex-direction: row;
-    margin-bottom: 20px;
-    width: 100%;
-}
-
-/* 对方消息容器布局（头像在左） */
-.message-opponent {
-    justify-content: flex-start;
-}
-
-/* 玩家消息容器布局（利用 row-reverse 实现头像在右） */
-.message-player {
-    flex-direction: row-reverse;
-}
-
-/* 头像基础样式（增加白色边框以提升高对比度可见性） */
-.avatar {
-    width: 44px;
-    height: 44px;
-    border-radius: 22px;
-    flex-shrink: 0;
-    border-width: 1px;
-    border-color: #FFFFFF;
-}
-
-.avatar-opponent {
-    background-color: #555555;
-}
-
-.avatar-player {
-    background-color: #003399; /* 与玩家气泡相呼应的深蓝色 */
-}
-
-/* 气泡基础样式 */
-.bubble {
-    padding: 10px 14px;
-    border-radius: 8px;
-    max-width: 70%;
-    flex-shrink: 1;
-    /* 高对比度风格边框 */
-    border-width: 1px;
-}
-
-/* 对方气泡：深灰色背景 + 白色边框 */
-.bubble-opponent {
-    background-color: #1A1A1A;
-    border-color: #AAAAAA;
-    margin-left: 12px;
-}
-
-/* 玩家气泡：深蓝色背景 + 亮蓝色/白色边框 */
-.bubble-player {
-    background-color: #002266; /* 深蓝色 */
-    border-color: #4488FF;
-    margin-right: 12px;
-}
-
-/* 消息文本通用样式：纯白色以保证高对比度阅读 */
-.text-message {
-    white-space: normal;
-    font-size: 20px;
-    color: #FFFFFF;
-    margin: 0;
-    padding: 0;
-}
-
-/* 对方文本靠左 */
-.text-opponent {
-    -unity-text-align: upper-left;
-}
-
-/* 玩家文本现在也要求靠左对齐 */
-.text-player {
-    -unity-text-align: upper-left;
-}
-
-/* 系统消息提示块：高对比度的半透明白底 */
-.message-system {
-    align-self: center;
-    background-color: rgba(255, 255, 255, 0.15);
-    border-radius: 6px;
-    padding: 4px 10px;
-    margin-bottom: 20px;
-    border-width: 1px;
-    border-color: rgba(255, 255, 255, 0.3);
-}
-
-/* 系统消息文本 */
-.text-system {
-    font-size: 16px;
-    color: #E0E0E0;
-    -unity-text-align: middle-center;
-    margin: 0;
-    padding: 0;
-}
-
-/* 底部输入区域容器 */
-.input-container {
-    flex-direction: row;
-    padding: 12px;
-    background-color: rgba(26, 26, 26, 0.3);
-    border-top-width: 2px;
-    border-top-color: #1A1A1A;
-    flex-shrink: 0;
     align-items: center;
+    justify-content: center;
+    background-color: rgba(7, 10, 18, 0.82);
 }
 
-.input-wrapper {
+.chat-panel {
+    width: 72%;
+    height: 86%;
+    min-width: 560px;
+    min-height: 520px;
+    max-width: 1080px;
+    max-height: 900px;
+    flex-direction: column;
+    overflow: hidden;
+    background-color: rgba(17, 23, 35, 0.98);
+    border-width: 1px;
+    border-color: rgba(130, 160, 205, 0.45);
+    border-radius: 14px;
+}
+
+.chat-header {
+    height: 76px;
+    flex-shrink: 0;
+    flex-direction: row;
+    align-items: center;
+    padding-left: 22px;
+    padding-right: 14px;
+    background-color: rgba(25, 34, 51, 0.98);
+    border-bottom-width: 1px;
+    border-bottom-color: rgba(130, 160, 205, 0.22);
+}
+
+.chat-heading {
     flex-grow: 1;
     justify-content: center;
 }
 
-/* 输入框本体 */
+.chat-title {
+    color: #F7FAFF;
+    font-size: 22px;
+    -unity-font-style: bold;
+}
+
+.chat-subtitle {
+    margin-top: 3px;
+    color: #94A7C4;
+    font-size: 13px;
+}
+
+.close-button {
+    width: 42px;
+    height: 42px;
+    margin: 0;
+    padding: 0;
+    color: #B9C7DC;
+    background-color: transparent;
+    border-width: 0;
+    border-radius: 8px;
+    font-size: 28px;
+    -unity-font-style: normal;
+}
+
+.close-button:hover {
+    color: #FFFFFF;
+    background-color: rgba(255, 255, 255, 0.10);
+}
+
+.close-button:active {
+    background-color: rgba(255, 255, 255, 0.16);
+}
+
+.chat-scroll {
+    flex-grow: 1;
+    flex-shrink: 1;
+    background-color: rgba(10, 15, 25, 0.52);
+}
+
+.chat-scroll .unity-scroll-view__content-container {
+    padding: 24px 26px 10px 26px;
+}
+
+.message-row {
+    width: 100%;
+    flex-direction: row;
+    align-items: flex-end;
+    margin-bottom: 18px;
+}
+
+.message-opponent {
+    justify-content: flex-start;
+}
+
+.message-player {
+    flex-direction: row-reverse;
+}
+
+.avatar {
+    width: 38px;
+    height: 38px;
+    flex-shrink: 0;
+    align-items: center;
+    justify-content: center;
+    border-width: 1px;
+    border-radius: 19px;
+}
+
+.avatar-opponent {
+    color: #E9F0FF;
+    background-color: #465875;
+    border-color: #7F95B7;
+}
+
+.avatar-player {
+    color: #FFFFFF;
+    background-color: #2563EB;
+    border-color: #6EA1FF;
+}
+
+.avatar-label {
+    color: #FFFFFF;
+    font-size: 12px;
+    -unity-font-style: bold;
+    -unity-text-align: middle-center;
+}
+
+.bubble {
+    max-width: 72%;
+    flex-shrink: 1;
+    padding: 11px 15px;
+    border-width: 1px;
+    border-radius: 12px;
+}
+
+.bubble-opponent {
+    margin-left: 10px;
+    color: #F2F6FC;
+    background-color: #242E3E;
+    border-color: #3D4B61;
+    border-bottom-left-radius: 4px;
+}
+
+.bubble-player {
+    margin-right: 10px;
+    color: #FFFFFF;
+    background-color: #1E56C9;
+    border-color: #3D7AF0;
+    border-bottom-right-radius: 4px;
+}
+
+.text-message {
+    margin: 0;
+    padding: 0;
+    color: #FFFFFF;
+    font-size: 17px;
+    white-space: normal;
+    -unity-text-align: upper-left;
+}
+
+.message-system {
+    align-self: center;
+    margin-bottom: 18px;
+    padding: 5px 11px;
+    background-color: rgba(127, 149, 183, 0.14);
+    border-width: 1px;
+    border-color: rgba(127, 149, 183, 0.24);
+    border-radius: 12px;
+}
+
+.text-system {
+    margin: 0;
+    padding: 0;
+    color: #AAB9CE;
+    font-size: 13px;
+    -unity-text-align: middle-center;
+}
+
+.input-container {
+    min-height: 82px;
+    flex-shrink: 0;
+    flex-direction: row;
+    align-items: flex-end;
+    padding: 14px 18px 8px 18px;
+    background-color: #192233;
+    border-top-width: 1px;
+    border-top-color: rgba(130, 160, 205, 0.20);
+}
+
+.input-wrapper {
+    position: relative;
+    flex-grow: 1;
+    justify-content: center;
+}
+
 .chat-input {
     flex-grow: 1;
     margin: 0;
     padding: 0;
 }
 
-/* 高对比度风格的输入框内部样式 */
 .chat-input > .unity-text-field__input {
-    padding: 15px 15px;
-    border-radius: 5px;
-    background-color: #1A1A1A;
-    color: #FFFFFF;
+    min-height: 52px;
+    max-height: 116px;
+    padding: 13px 15px;
+    color: #F8FAFF;
+    background-color: #0E1522;
     border-width: 1px;
-    border-color: #FFFFFF;
-    font-size: 20px;
-    -unity-text-align: middle-left;
+    border-color: #47566D;
+    border-radius: 9px;
+    font-size: 17px;
+    white-space: normal;
+    -unity-text-align: upper-left;
+    --unity-cursor-color: #74C7FF;
+    --unity-cursor-width: 2px;
+    --unity-selection-color: rgba(54, 143, 255, 0.55);
 }
 
-/* 占位符提示文本样式：高对比度下的灰色 */
+.chat-input:focus > .unity-text-field__input,
+.chat-input > .unity-text-field__input:focus {
+    border-color: #4DA3FF;
+    background-color: #101A2A;
+}
+
 .chat-placeholder {
     position: absolute;
-    left: 14px;
-    color: #AAAAAA;
-    font-size: 20px;
-    -unity-text-align: middle-left;
+    left: 16px;
+    top: 16px;
+    color: #6F809A;
+    font-size: 17px;
 }
 
-/* 1. 垂直滚动条整体容器 */
+.send-button {
+    width: 84px;
+    height: 52px;
+    flex-shrink: 0;
+    margin: 0 0 0 10px;
+    padding: 0;
+    color: #FFFFFF;
+    background-color: #2F75E8;
+    border-width: 1px;
+    border-color: #5E98F3;
+    border-radius: 9px;
+    font-size: 16px;
+    -unity-font-style: bold;
+}
+
+.send-button:hover {
+    background-color: #3D82F0;
+}
+
+.send-button:active {
+    background-color: #205FC8;
+}
+
+.send-button:disabled {
+    color: #718098;
+    background-color: #263247;
+    border-color: #344158;
+}
+
+.input-meta {
+    height: 28px;
+    flex-shrink: 0;
+    flex-direction: row;
+    align-items: flex-start;
+    padding-left: 20px;
+    padding-right: 20px;
+    background-color: #192233;
+}
+
+.input-hint {
+    flex-grow: 1;
+    color: #72839D;
+    font-size: 12px;
+}
+
+.character-count {
+    color: #72839D;
+    font-size: 12px;
+    -unity-text-align: upper-right;
+}
+
+.character-count-warning {
+    color: #F6B860;
+}
+
 .chat-scroll .unity-scroll-view__vertical-scroller {
-    width: 5px; /* 粗细减半（Unity默认一般为14px左右） */
-    background-color: transparent; /* 移除滚动条区域的背景 */
+    width: 7px;
+    margin: 6px 4px 6px 2px;
+    background-color: transparent;
     border-width: 0;
-    margin-left: 4px;
 }
 
-/* 2. 彻底隐藏首尾的箭头按钮 */
 .chat-scroll .unity-scroller__low-button,
 .chat-scroll .unity-scroller__high-button {
     display: none;
 }
 
-/* 3. 彻底隐藏整个滚动条的槽/轨道 (Tracker) */
 .chat-scroll .unity-base-slider__tracker {
     background-color: transparent;
     border-width: 0;
 }
 
-/* 4. 自定义滑块 (Dragger) 样式 */
 .chat-scroll .unity-base-slider__dragger {
-    background-color: rgba(150, 150, 150, 0.5); /* 半透明灰色 */
-    border-width: 0;
-    border-radius: 3px; /* 胶囊体形状，更符合现代审美 */
-    /* 撑满外层变细后的容器 */
     left: 0;
     right: 0;
     width: 100%;
+    min-height: 28px;
+    background-color: rgba(132, 151, 180, 0.48);
+    border-width: 0;
+    border-radius: 4px;
+}
+
+.chat-scroll .unity-base-slider__dragger:hover {
+    background-color: rgba(156, 179, 214, 0.72);
 }

@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Net.Http;
@@ -298,7 +298,7 @@ public class McpAsyncClient : Singleton<McpAsyncClient>
                     try
                     {
                         if (!string.IsNullOrEmpty(toolResult))
-                            ChatViewModel.Instance.AddSystemMessage(toolResult);
+                            ChatViewModel.Instance.AddSystemMessage(FormatToolResultForDisplay(toolResult));
                     }
                     catch (Exception ex)
                     {
@@ -334,6 +334,24 @@ public class McpAsyncClient : Singleton<McpAsyncClient>
 
     
     // 6. 发送大模型请求 (HTTP) 
+    private static string FormatToolResultForDisplay(string toolResult)
+    {
+        try
+        {
+            JObject result = JObject.Parse(toolResult);
+            bool isError = result.Value<bool?>("isError") ?? false;
+            string text = result["content"]?.First?["text"]?.Value<string>();
+
+            if (string.IsNullOrWhiteSpace(text))
+                return isError ? "行动执行失败。" : "行动已完成。";
+
+            return isError ? $"行动失败：{text}" : text;
+        }
+        catch (JsonException)
+        {
+            return toolResult;
+        }
+    }
     private async Task<LlmResponse> SendLlmRequestAsync(List<LlmMessage> messages)
     {
         Debug.Log($"[MCP Client] SendLlmRequestAsync");

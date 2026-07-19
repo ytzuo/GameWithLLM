@@ -278,5 +278,12 @@ func toolOutcome(response jsonRPCMessage) string {
 	if response.Error != nil {
 		return "unity_error"
 	}
+
+	var result struct {
+		IsError bool `json:"isError"`
+	}
+	if len(response.Result) > 0 && json.Unmarshal(response.Result, &result) == nil && result.IsError {
+		return "tool_error"
+	}
 	return "success"
 }

@@ -1,4 +1,4 @@
-﻿using UnityEngine;
+using UnityEngine;
 using UnityEngine.UIElements;
 
 public abstract class BaseWindow
@@ -54,10 +54,10 @@ public abstract class BaseWindow
     /// </summary>
     public void Close()
     {
-        if (RootElement.parent != null)
-        {
-            RootElement.RemoveFromHierarchy();
-        }
+        if (!IsOpen)
+            return;
+
+        RootElement?.RemoveFromHierarchy();
         IsOpen = false;
         OnClose();
     }
