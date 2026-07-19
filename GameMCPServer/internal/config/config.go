@@ -44,19 +44,15 @@ func Load() Config {
 	values := loadDotEnvFiles()
 	timeoutSeconds := intValue("UNITY_TOOL_TIMEOUT_SECONDS", values, defaultToolTimeoutSeconds)
 	llmTimeoutSeconds := intValue("LLM_REQUEST_TIMEOUT_SECONDS", values, defaultLLMTimeoutSeconds)
-	apiKey := stringValue("LLM_API_KEY", values, "")
-	if apiKey == "" {
-		apiKey = stringValue("OPENAI_API_KEY", values, "")
-	}
 
 	return Config{
-		ServerAddr:              stringValue("MCP_SERVER_ADDR", values, defaultServerAddr),
-		BaseURL:                 stringValue("MCP_BASE_URL", values, defaultBaseURL),
+		ServerAddr:              stringValue("AGENT_HOST_ADDR", values, defaultServerAddr),
+		BaseURL:                 stringValue("AGENT_HOST_BASE_URL", values, defaultBaseURL),
 		UnityJSONRPCWSURL:       stringValue("UNITY_JSONRPC_WS_URL", values, defaultUnityJSONRPCWSURL),
 		UnityToolTimeout:        time.Duration(timeoutSeconds) * time.Second,
 		UnityToolTimeoutSecond:  timeoutSeconds,
 		LLMAPIURL:               stringValue("LLM_API_URL", values, defaultLLMAPIURL),
-		LLMAPIKey:               apiKey,
+		LLMAPIKey:               stringValue("LLM_API_KEY", values, ""),
 		LLMModel:                stringValue("LLM_MODEL", values, defaultLLMModel),
 		LLMRequestTimeout:       time.Duration(llmTimeoutSeconds) * time.Second,
 		LLMRequestTimeoutSecond: llmTimeoutSeconds,

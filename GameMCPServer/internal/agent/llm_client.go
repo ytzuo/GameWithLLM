@@ -43,7 +43,7 @@ func (c *OpenAICompatibleClient) Complete(ctx context.Context, request Completio
 		return nil, fmt.Errorf("LLM_API_URL is not configured")
 	}
 	if c.apiKey == "" {
-		return nil, fmt.Errorf("LLM_API_KEY or OPENAI_API_KEY is not configured")
+		return nil, fmt.Errorf("LLM_API_KEY is not configured")
 	}
 
 	model := request.Model

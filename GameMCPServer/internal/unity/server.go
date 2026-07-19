@@ -51,7 +51,7 @@ func newJSONRPCServer(timeout time.Duration, llm agent.LLMClient, model string, 
 
 // HandleRoot 返回普通 HTTP 运行提示；WebSocket 只允许使用 /unity/ws。
 func (s *JSONRPCServer) HandleRoot(w http.ResponseWriter, _ *http.Request) {
-	_, _ = w.Write([]byte("Game MCP Server is running!"))
+	_, _ = w.Write([]byte("Game Agent Host is running!"))
 }
 
 // HandleWebSocket 完成 WebSocket 升级并启动单连接会话循环。

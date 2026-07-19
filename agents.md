@@ -1,245 +1,150 @@
 # agents.md
 
-## 项目总览
+## 1. 项目目标
 
-这个仓库是一个 Unity + Go 的轻量 monorepo，目标是把“LLM 对话 / tool_calls”安全地映射为 Unity 里 NPC 的实际行为。
+本仓库实现一个 Unity + Go 的 NPC Agent 系统：玩家在 Unity 中发起对话，Go Agent Host 调用大模型并决定是否执行工具，Unity 在主线程执行真实游戏行为并返回结果。
 
-整体分成两部分：
+代码目录：
 
-| 部分 | 职责 |
+| 目录 | 当前职责 |
 |---|---|
-| `GameMCPServer` | Go 侧宿主服务，负责协议入口、工具声明、请求校验、WebSocket 转发、结果回传 |
-| `unity-NPC-agent-client` | Unity 侧客户端，负责连接宿主、调用 LLM、接收工具命令、在主线程执行 NPC 行为 |
+| `GameMCPServer` | Go Agent Host：LLM、Session、工具策略、参数校验、Unity 注册与命令调度 |
+| `unity-NPC-agent-client` | Unity 执行端：UI、NPC 生命周期、运行时能力声明、主线程游戏行为 |
 
----
+`ARCHITECTURE.md` 是架构事实源。代码与文档冲突时，应先核对实现和测试，再同步更新该文档。
 
-## 1. GameMCPServer
+## 2. 不可破坏的边界
 
-### 1.1 角色定位
+- LLM API Key、模型请求、对话历史和 tool loop 只存在于 Go。
+- Unity 不得直接请求 LLM，也不得读取任何 LLM Key。
+- Go 不直接访问 Unity 对象或推断 GameObject 的最终状态。
+- Unity API 只能在 Unity 主线程执行。
+- 工具参数在网络协议中必须是 JSON 对象，禁止二次编码为 JSON 字符串。
+- 游戏业务失败使用 `{ok,errorCode,message}`；JSON-RPC 信封或方法错误使用 JSON-RPC error。
+- 工具 Schema 的实际能力来源只有 Unity 运行时注册；Go 根据 Session/NPC/策略筛选后暴露给模型。
+- 当前对话存储是内存实现。不得自行增加数据库、TTL、长期记忆或恢复机制。
 
-`GameMCPServer` 是独立运行的 Go 服务，定位为：
+## 3. 唯一有效协议
 
-- MCP 风格的工具宿主
-- Unity 命令转发网关
-- 请求-响应追踪节点
+唯一 Unity WebSocket 入口：
 
-它不直接操作 Unity 对象，只通过 JSON-RPC + WebSocket 把工具调用发给 Unity。
+```text
+/unity/ws
+```
 
-### 1.2 启动与配置
+Unity 发往 Go：
 
-入口在 `GameMCPServer/cmd/server/main.go`：
+- `unity.register`
+- `unity.npc.changed`
+- `unity.tools.changed`
+- `conversation.start`
+- `player.message`
+- `conversation.end`
 
-- 读取配置：`internal/config/config.go`
-- 注册路由：`internal/handler/router.go`
-- 启动 HTTP 服务：显式 `http.Server`，支持超时、Signal 监听和优雅关闭
+Go 发往 Unity：
 
-配置来源优先级：
+- `unity.tool.execute`
+- `unity.tool.cancel`
+- `assistant.status`
 
-1. 进程环境变量
-2. 根目录 `.env.local`
-3. 根目录 `.env`
-4. 默认值
+禁止重新引入：
 
-常用变量：
+- `/ws` 或根路径 WebSocket Upgrade
+- `tools/list` / `tools/call` 环回协议
+- `protocol=legacy`
+- Unity 侧 LLM DTO、HttpClient、API Key 或本地对话历史
+- `OPENAI_API_KEY`、`MCP_SERVER_ADDR`、`MCP_BASE_URL` 等旧配置名称
 
-- `MCP_SERVER_ADDR`
-- `MCP_BASE_URL`
+`protocolVersion: 1` 是当前内部协议版本，不代表兼容旧实现。服务端只接受当前版本。
+
+## 4. Go 代码地图
+
+| 路径 | 职责 |
+|---|---|
+| `cmd/server/main.go` | 进程入口、Signal、HTTP 生命周期与优雅关闭 |
+| `internal/config/config.go` | 环境变量和根目录 dotenv 配置 |
+| `internal/handler/router.go` | `/unity/ws`、`/health` 和精确根路径路由 |
+| `internal/agent/llm_client.go` | OpenAI-compatible Chat Completions 客户端 |
+| `internal/agent/conversation.go` | 对话编排、tool loop、最大轮数 |
+| `internal/agent/session*.go` | Session 模型与内存存储 |
+| `internal/tools/catalog.go` | 模型可见工具结构 |
+| `internal/tools/validator.go` | JSON Schema 参数校验 |
+| `internal/tools/policy.go` | 工具调用策略 |
+| `internal/unity/protocol.go` | 内部 JSON-RPC DTO |
+| `internal/unity/registry.go` | Unity 实例、NPC 和能力快照 |
+| `internal/unity/tool_executor.go` | Unity 工具执行、超时和错误映射 |
+| `internal/unity/session.go` | 单连接读循环、pending、对话与执行路由 |
+| `internal/unity/server.go` | WebSocket 接入、连接追踪和关闭 |
+
+## 5. Unity 代码地图
+
+| 路径 | 职责 |
+|---|---|
+| `Assets/Scripts/Networking/AgentHostClient.cs` | Unity 场景门面、会话创建、玩家消息与 UI 回调 |
+| `Assets/Scripts/Networking/UnityGatewayClient.cs` | WebSocket、注册、重连、pending、协议收发 |
+| `Assets/Scripts/Networking/UnityGatewayProtocol.cs` | 当前协议 DTO 和方法常量 |
+| `Assets/Scripts/CommandDispatcher/ToolsRegistry.cs` | 运行时工具 Schema 注册与快照 |
+| `Assets/Scripts/CommandDispatcher/CommandDispatcher.cs` | 网络命令到 NPC 的主线程路由 |
+| `Assets/Scripts/CommandDispatcher/GameToolWrapper.cs` | 参数反序列化、Validate 和异常隔离 |
+| `Assets/Scripts/Models/ToolArgsBase.cs` | 工具参数与稳定执行结果类型 |
+| `Assets/Scripts/Models/Models.cs` | `UnityToolCommand` DTO |
+| `Assets/Scripts/GameLogic/NpcEntity.cs` | NPC 队列、NavMesh 行为与结果回传 |
+| `Assets/Scripts/UIManager/*` | 对话框展示与输入体验 |
+
+移动或重命名 Unity 资源时必须同时移动 `.meta` 文件并保留 GUID，避免场景引用丢失。
+
+## 6. 配置
+
+Go Agent Host：
+
+- `AGENT_HOST_ADDR`
+- `AGENT_HOST_BASE_URL`
 - `UNITY_JSONRPC_WS_URL`
 - `UNITY_TOOL_TIMEOUT_SECONDS`
+- `LLM_API_URL`
+- `LLM_API_KEY`
+- `LLM_MODEL`
+- `LLM_REQUEST_TIMEOUT_SECONDS`
+- `LLM_MAX_TOOL_ROUNDS`
 
-### 1.3 对外接口
+Unity：
 
-当前代码实现了四个入口：
+- `UNITY_JSONRPC_WS_URL`
+- `UNITY_INSTANCE_ID`
+- `PLAYER_ID`
 
-- `/unity/ws`：正式 WebSocket 入口
-- `/ws`：迁移期兼容入口，会输出弃用日志
-- `/`：普通请求返回运行提示；迁移期仍兼容 WebSocket 升级并输出弃用日志
-- `/health`：健康检查
+优先级：进程环境变量 > `.env.local` > `.env` > 默认值。禁止提交真实密钥。
 
-### 1.4 协议实现
+## 7. 开发规则
 
-服务端使用 `github.com/coder/websocket` 承担 WebSocket 协议，业务层保留轻量 JSON-RPC 实现，核心文件在 `internal/unity/`：
+- 网络线程不得调用 Unity API；只向线程安全队列投递命令或 UI 回调。
+- 所有 WebSocket 写入必须经过发送锁。
+- pending 请求必须支持超时、取消、断线清理和重复响应隔离。
+- 新工具必须先在 Unity 注册 Schema 和执行逻辑，再由 Go 动态发现；禁止在 Go 硬编码一份重复 Schema。
+- 日志只记录事件、ID、NPC、工具、长度、耗时和结果，不记录玩家正文、模型回复全文或密钥。
+- 不为未来功能预建兼容分支。确有版本升级时，先更新 `ARCHITECTURE.md` 并明确迁移和删除日期。
 
-- `protocol.go`：JSON-RPC 消息结构
-- `session.go`：会话循环、pending 请求匹配、超时控制
-- `tools.go`：工具声明
-- `server.go`：WebSocket / 根路径入口处理
+## 8. 验证
 
-会话模型：
+Go 修改至少运行：
 
-- 每个连接维护一个 `jsonRPCSession`
-- `tools/list` 直接返回工具表
-- `tools/call` 校验 `npcId`、工具名和参数后转发
-- 结果通过同一个 `id` 对应回传
+```text
+cd GameMCPServer
+go test ./...
+go vet ./...
+go test -race ./...
+```
 
-### 1.5 当前工具
+协议修改还要运行：
 
-当前暴露的工具只有一个：
+```text
+node GameMCPServer/test_mcp.js --start-server
+```
 
-- `game_npc_move`
+Unity 修改必须完成 C# 编译检查，并在 `SampleScene` 验证：
 
-参数 schema：
-
-- `targetLandmark`
-- 枚举值：`warehouse`、`gate`
-
-### 1.6 设计特点
-
-- 只负责协议与转发，不负责游戏逻辑
-- 用 `id` 追踪请求和响应
-- 有超时保护
-- WebSocket 握手、分片和 Ping/Pong 由成熟库处理
-- 单条消息上限为 1 MiB
-- 服务退出时使用标准关闭码结束活动连接
-- 工具 schema 与 Unity 侧保持一致
-
----
-
-## 2. unity-NPC-agent-client
-
-### 2.1 角色定位
-
-`unity-NPC-agent-client` 是 Unity 侧执行端，负责：
-
-- 读取根目录配置
-- 连接宿主 WebSocket
-- 向 LLM 发起聊天请求
-- 接收 `tools/list` / `tools/call`
-- 把命令投递到主线程 NPC
-- 把执行结果回传给宿主
-
-### 2.2 核心运行入口
-
-核心脚本是 `Assets/Scripts/McpClient/McpAsyncClient.cs`：
-
-- `Start()` 时加载 `.env` / `.env.local`
-- 建立 `ClientWebSocket`
-- 初始化 `HttpClient`
-- 持续接收宿主消息
-
-它同时承担：
-
-- LLM 对话循环
-- MCP 工具调用链路
-- WebSocket 请求/响应匹配
-
-### 2.3 主要模块
-
-| 模块 | 文件 | 职责 |
-|---|---|---|
-| 网络与会话 | `McpAsyncClient.cs` | 连接宿主、收发 JSON、驱动 LLM 会话 |
-| 工具注册 | `CommandDispatcher/ToolsRegistry.cs` | 注册工具、输出给宿主/LLM 的 schema |
-| 命令路由 | `CommandDispatcher/CommandDispatcher.cs` | 把网络消息按 `npcId` 投递到对应 NPC |
-| NPC 实体 | `GameLogic/NpcEntity.cs` | 主线程消费命令并执行行为 |
-| 参数校验 | `CommandDispatcher/McpToolWrapper.cs` | JSON 反序列化、Validate、异常隔离 |
-| 工具参数 | `GameLogic/McpToolArgs/MoveArgs.cs` | `game_npc_move` 的强类型参数 |
-| 数据契约 | `Models/Models.cs` | LLM 消息、tool call、response DTO |
-| 历史管理 | `HistoryManager/*` | NPC 对话历史的读写接口与文件实现 |
-| 单例基类 | `Tools/Singleton.cs` | 统一单例模式 |
-| 共享状态 | `SharedDataInstance.cs` | 持久化全局数据容器 |
-
-### 2.4 工具注册与发现
-
-`ToolsRegistry` 是 Unity 侧的工具中心，负责：
-
-- 注册工具名
-- 保存 description 和 JSON Schema
-- 输出给宿主的 `tools/list`
-- 输出给 LLM 的 `tools`
-
-当前注册的工具是：
-
-- `game_npc_move`
-
-### 2.5 NPC 执行流程
-
-`NpcEntity` 是实际执行者：
-
-1. `Start()` 时向 `CommandDispatcher` 注册自己
-2. 收到命令后进入私有队列
-3. `Update()` 中消费队列
-4. 使用 `McpToolWrapper<MoveArgs>` 做参数校验和异常隔离
-5. 调用 `NavMeshAgent.SetDestination`
-6. 通过 `McpAsyncClient.SendMcpResponseAsync()` 回传结果
-
-### 2.6 对话与 LLM 循环
-
-`McpAsyncClient` 内部的典型流程是：
-
-1. 玩家对某个 NPC 发起交互
-2. 组装 `LlmMessage` 历史
-3. 调用 OpenAI Chat Completions
-4. 若模型返回 `tool_calls`，就发给宿主
-5. 等待宿主返回工具结果
-6. 把结果塞回对话上下文
-7. 继续请求 LLM，直到生成最终回复
-
-### 2.7 历史记录
-
-历史系统是可替换的：
-
-- `HistoryManager` 负责统一入口
-- `FileHistoryProvider` 默认把每个 NPC 的对话保存在 `Application.persistentDataPath/npc_history/<npcId>.json`
-
-### 2.8 关键约束
-
-- 网络线程不直接操作 Unity API
-- 所有游戏对象操作留在主线程
-- 命令与结果通过 `transactionId` / `callId` 对应
-- 参数必须先过 `Validate()`
-
----
-
-## 3. 两部分如何协作
-
-完整链路是：
-
-1. 玩家在 Unity 里和某个 NPC 交互
-2. Unity 侧把对话发给 LLM
-3. LLM 返回 `tool_calls`
-4. Unity 侧把工具调用发给 `GameMCPServer`
-5. `GameMCPServer` 校验后转发回 Unity
-6. Unity 主线程里的 NPC 执行行为
-7. Unity 把执行结果返回给 `GameMCPServer`
-8. 结果再回到 LLM，生成最终回复
-
----
-
-## 4. 文件级关注点
-
-### `GameMCPServer`
-
-- `cmd/server/main.go`
-- `internal/config/config.go`
-- `internal/handler/router.go`
-- `internal/handler/health.go`
-- `internal/unity/server.go`
-- `internal/unity/session.go`
-- `internal/unity/protocol.go`
-- `internal/unity/tools.go`
-
-### `unity-NPC-agent-client`
-
-- `Assets/Scripts/McpClient/McpAsyncClient.cs`
-- `Assets/Scripts/CommandDispatcher/CommandDispatcher.cs`
-- `Assets/Scripts/CommandDispatcher/ToolsRegistry.cs`
-- `Assets/Scripts/CommandDispatcher/McpToolWrapper.cs`
-- `Assets/Scripts/GameLogic/NpcEntity.cs`
-- `Assets/Scripts/GameLogic/McpToolArgs/MoveArgs.cs`
-- `Assets/Scripts/HistoryManager/HistoryManager.cs`
-- `Assets/Scripts/HistoryManager/FileHistoryProvider.cs`
-- `Assets/Scripts/Models/Models.cs`
-- `Assets/Scripts/SharedDataInstance.cs`
-- `Assets/Scripts/Tools/Singleton.cs`
-
----
-
-## 5. 现状备注
-
-仓库里的设计文档描述了更完整的 MCP / Unity 交互蓝图；当前代码已经跑通的是一个更轻量的版本，重点是：
-
-- WebSocket JSON-RPC 通道
-- `tools/list` / `tools/call`
-- 单个 `game_npc_move` 工具
-- Unity 主线程安全执行
-- Go 侧 WebSocket 已切换到 `coder/websocket`，正式入口为 `/unity/ws`
+1. Unity 注册成功。
+2. 普通对话能显示最终回复。
+3. `game_npc_move` 能到达 `warehouse` 和 `gate`。
+4. Go 重启后 Unity 能重连并重新注册。
+5. Unity Console 无编译错误、Missing Script 或协议解析异常。

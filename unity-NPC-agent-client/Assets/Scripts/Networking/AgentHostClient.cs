@@ -5,12 +5,10 @@ using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
 using UnityEngine;
-using UnityEngine.Serialization;
 
 public class AgentHostClient : Singleton<AgentHostClient>
 {
     [Header("Gateway 配置")]
-    [FormerlySerializedAs("mcpHostWsUrl")]
     public string gatewayWsUrl = "ws://127.0.0.1:8080/unity/ws";
     public string unityInstanceId = "local-game-1";
     public string playerId = "local-player-1";

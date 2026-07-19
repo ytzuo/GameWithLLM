@@ -32,6 +32,6 @@ func RegisterRoutesWithConfig(mux *http.ServeMux, cfg config.Config) *unity.JSON
 func registerRoutes(mux *http.ServeMux, jsonRPCServer *unity.JSONRPCServer) *unity.JSONRPCServer {
 	mux.HandleFunc("/unity/ws", jsonRPCServer.HandleWebSocket)
 	mux.HandleFunc("/health", handleHealth)
-	mux.HandleFunc("/", jsonRPCServer.HandleRoot)
+	mux.HandleFunc("/{$}", jsonRPCServer.HandleRoot)
 	return jsonRPCServer
 }

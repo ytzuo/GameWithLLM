@@ -12,7 +12,7 @@
 const path = require("path");
 const { spawn } = require("child_process");
 
-const BASE_URL = process.env.MCP_BASE_URL || "http://127.0.0.1:8080";
+const BASE_URL = process.env.AGENT_HOST_BASE_URL || "http://127.0.0.1:8080";
 const WS_URL = process.env.UNITY_JSONRPC_WS_URL ||
   `${BASE_URL.replace(/^http:/, "ws:").replace(/^https:/, "wss:")}/unity/ws`;
 const TIMEOUT_MS = 30000;
@@ -41,6 +41,7 @@ function startServer() {
     stdio: ["ignore", "pipe", "pipe"],
     shell: false,
     windowsHide: true,
+    cwd: __dirname,
     env: { ...process.env, GOCACHE: process.env.GOCACHE || path.join(__dirname, "..", ".cache", "go-build") },
   });
   proc.stdout.on("data", (data) => process.stdout.write(`[server-out] ${data}`));
@@ -129,7 +130,7 @@ async function runProtocolTests() {
     });
     const registered = await ws.read();
     console.log("  recv", JSON.stringify(registered));
-    assert(registered.id === "register-1", "连接后首条服务端消息是注册响应，不再发送旧 tools/list");
+    assert(registered.id === "register-1", "连接后首条服务端消息是注册响应");
     assert(registered?.result?.accepted === true, "unity.register 注册成功");
     assert(registered?.result?.protocolVersion === 1, "服务端确认内部协议版本 1");
 
@@ -149,12 +150,6 @@ async function runProtocolTests() {
     console.log("  recv", JSON.stringify(ended));
     assert(ended?.result?.ok === true, "Go Agent Host 正常结束对话 Session");
 
-    for (const [id, method] of [["removed-list", "tools/list"], ["removed-call", "tools/call"]]) {
-      ws.send({ jsonrpc: "2.0", id, method, params: {} });
-      const rejected = await ws.read();
-      console.log("  recv", JSON.stringify(rejected));
-      assert(rejected?.error?.code === -32601, `${method} 旧入口已删除`);
-    }
   } finally {
     ws.close();
   }

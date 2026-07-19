@@ -26,6 +26,10 @@ func TestRegisterRoutesWithTimeout_BitsUT(t *testing.T) {
 	defer response.Body.Close()
 	assert.Equal(t, http.StatusOK, response.StatusCode)
 
+	removedResponse, err := http.Get(httpServer.URL + "/ws")
+	require.NoError(t, err)
+	defer removedResponse.Body.Close()
+	assert.Equal(t, http.StatusNotFound, removedResponse.StatusCode)
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
 	conn, _, err := websocket.Dial(ctx, "ws"+strings.TrimPrefix(httpServer.URL, "http")+"/unity/ws", nil)

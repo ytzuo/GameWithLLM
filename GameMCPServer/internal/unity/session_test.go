@@ -39,27 +39,6 @@ func TestJSONRPCSessionReadLoopStartsWithUnityRegistration_BitsUT(t *testing.T) 
 	waitForDone(t, done)
 }
 
-func TestJSONRPCSessionRejectsRemovedLegacyToolMethods_BitsUT(t *testing.T) {
-	session, conn := newTestSession(time.Second)
-	done := make(chan struct{})
-	go func() {
-		defer close(done)
-		session.readLoop()
-	}()
-
-	for index, method := range []string{"tools/list", "tools/call"} {
-		id, err := json.Marshal(index + 1)
-		require.NoError(t, err)
-		conn.reads <- fakeRead{msg: jsonRPCMessage{JSONRPC: jsonRPCVersion, ID: id, Method: method}}
-		response := mustReceiveMessage(t, conn.writes)
-		require.NotNil(t, response.Error)
-		assert.Equal(t, -32601, response.Error.Code)
-	}
-
-	stopReadLoop(conn)
-	waitForDone(t, done)
-}
-
 func TestJSONRPCSessionCompleteDoesNotBlockOnDuplicateResponse_BitsUT(t *testing.T) {
 	session, _ := newTestSession(time.Second)
 	defer session.cancel()

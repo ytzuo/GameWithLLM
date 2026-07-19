@@ -22,7 +22,7 @@ func main() {
 	defer stop()
 
 	if err := run(ctx, cfg); err != nil {
-		log.Fatalf("Game MCP Server stopped with error: %v", err)
+		log.Fatalf("Game Agent Host stopped with error: %v", err)
 	}
 }
 

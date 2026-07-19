@@ -26,7 +26,7 @@ func TestJSONRPCServerHandleRoot_BitsUT(t *testing.T) {
 	recorder := httptest.NewRecorder()
 	server.HandleRoot(recorder, httptest.NewRequest(http.MethodGet, "/", nil))
 	assert.Equal(t, http.StatusOK, recorder.Code)
-	assert.Equal(t, "Game MCP Server is running!", recorder.Body.String())
+	assert.Equal(t, "Game Agent Host is running!", recorder.Body.String())
 }
 
 func TestJSONRPCServerHandleWebSocketRejectsPlainHTTP_BitsUT(t *testing.T) {
