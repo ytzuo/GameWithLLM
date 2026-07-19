@@ -1,0 +1,4 @@
+{
+    "dotnet.preferCSharpExtension": true,
+    "diffEditor.codeLens": true
+}

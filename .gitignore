@@ -6,3 +6,5 @@
 .agents
 
 .idea
+*.meta
+unity-NPC-agent-client/UIElementsSchema

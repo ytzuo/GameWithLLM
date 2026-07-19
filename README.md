@@ -1,6 +1,8 @@
 # Game MCP Monorepo
 
 本仓库是 Unity 客户端和 Go MCP 宿主服务器的轻量 monorepo。
+关于go服务器，请看GameMCPServer/docs/
+关于客户端，请看unity-NPC-agent-client/README.md
 
 ## 目录结构
 
