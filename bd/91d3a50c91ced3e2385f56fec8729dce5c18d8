@@ -1,0 +1,45 @@
+.env.example
+  s_33ee6d92b39358::t_a2fcd1c3edfd86 4
+GameMCPServer/cmd/server/main.go
+  s_33ee6d92b39358::t_bf7a11288f5431 4-6,9-12,21-29,31-37,43-75,77
+GameMCPServer/go.mod
+  s_33ee6d92b39358::t_4fc836e7a35d7a 4-14
+GameMCPServer/go.sum
+  s_33ee6d92b39358::t_9515ac27ad9206 1-12
+GameMCPServer/internal/config/config.go
+  s_33ee6d92b39358::t_d52f450742edd3 18
+GameMCPServer/internal/handler/router.go
+  s_33ee6d92b39358::t_81212c2e1d1463 5,14,18,21-26,29
+GameMCPServer/internal/handler/router_test.go
+  s_33ee6d92b39358::t_0253f78c429811 1-48
+GameMCPServer/internal/unity/session.go
+  s_33ee6d92b39358::t_9bad65720eb071 4,12-16,19-21,29-38,41,43-44,96-99,146-147,167-171,218
+GameMCPServer/internal/unity/test_helpers_test.go
+  s_33ee6d92b39358::t_306ec928d234d0 1-77
+GameMCPServer/internal/unity/tools.go
+  s_33ee6d92b39358::t_7f2e05fd855420 3-4,10,26-34
+GameMCPServer/internal/unity/tools_test.go
+  s_33ee6d92b39358::t_3c84a777d5ed99 1-27
+docs/Unity与Go项目启动说明.md
+  s_33ee6d92b39358::t_b04faef7d6f915 75,118,124,175
+unity-NPC-agent-client/Assets/Scripts/McpClient/McpAsyncClient.cs
+  s_33ee6d92b39358::t_cc186847b3f1f8 16
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "bd91d3a50c91ced3e2385f56fec8729dce5c18d8",
+  "prompts": {},
+  "sessions": {
+    "s_33ee6d92b39358": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f72f4-238b-7473-833f-dba7ab47a9e7",
+        "model": "unknown"
+      },
+      "human_author": "satenyang <satenyang@outlook.com>"
+    }
+  },
+  "attestation_metadata": {},
+  "remote_transcripts": {}
+}
