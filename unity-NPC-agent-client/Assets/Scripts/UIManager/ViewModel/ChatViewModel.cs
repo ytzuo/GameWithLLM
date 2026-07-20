@@ -4,12 +4,15 @@ using UnityEngine;
 
 /*
  ChatViewModel 的职责：
- - 保存聊天记录（MessageHistory）
+ - 保存每个 NPC 独立的聊天记录（per-NPC histories）
+ - 管理 NPC 列表和当前活跃 NPC
  - 对外通过事件通知 UI（与 ChatWindow.AddMessageToUI 的签名兼容）
- - 处理来自 UI 的输入（把玩家输入分发到Go Agent Host 发送到会话层）
+ - 处理来自 UI 的输入（把玩家输入分发到 Agent Host 会话层）
 
  说明：项目中存在 ChatWindow.AddMessageToUI(ChatWindow.Role, string)，
  因此这里的事件使用相同签名 Action<ChatWindow.Role, string> 方便直接订阅。
+ 多 NPC 支持：OnMessageAdded 只针对当前活跃 NPC 触发，切换 NPC 时通过
+ OnActiveNpcChanged 通知 UI 刷新整个历史。
 */
 public class ChatViewModel
 {
@@ -34,33 +37,122 @@ public class ChatViewModel
 		}
 	}
 
-	// 保留最近会话的消息历史（简单实现，调用方可自行裁剪）
-	private readonly List<Message> _messageHistory = new List<Message>();
-	public IReadOnlyList<Message> MessageHistory
+	// ── 多 NPC 状态 ────────────────────────────────────────
+
+	private readonly Dictionary<string, List<Message>> _npcHistories =
+		new Dictionary<string, List<Message>>();
+	private List<string> _npcIds = new List<string>();
+	private string _activeNpcId;
+
+	/// <summary>
+	/// 当前活跃的 NPC ID（null 表示尚未选择）
+	/// </summary>
+	public string ActiveNpcId
 	{
 		get
 		{
-			lock (_lock)
-			{
-				return _messageHistory.AsReadOnly();
-			}
+			lock (_lock) return _activeNpcId;
 		}
 	}
 
-	// 与 ChatWindow.AddMessageToUI 签名兼容，UI 层可直接订阅
+	/// <summary>
+	/// 当前已知的 NPC ID 列表
+	/// </summary>
+	public IReadOnlyList<string> NpcIds
+	{
+		get
+		{
+			lock (_lock) return _npcIds.AsReadOnly();
+		}
+	}
+
+	// ── 事件 ───────────────────────────────────────────────
+
+	/// <summary>
+	/// 与 ChatWindow.AddMessageToUI 签名兼容，UI 层可直接订阅。
+	/// 仅针对当前活跃 NPC 触发。
+	/// </summary>
 	public event Action<ChatWindow.Role, string> OnMessageAdded;
 
-	// 公共 API：添加玩家消息（会触发事件并尝试提交到 Agent Host 会话层）
+	/// <summary>
+	/// NPC 列表发生变化时触发（新增/移除 NPC）
+	/// </summary>
+	public event Action<List<string>> OnNpcListChanged;
+
+	/// <summary>
+	/// 活跃 NPC 切换时触发，UI 应清空聊天区域并重新加载历史。
+	/// </summary>
+	public event Action<string> OnActiveNpcChanged;
+
+	// ── NPC 列表管理 ───────────────────────────────────────
+
+	/// <summary>
+	/// 由 PlayerMock 调用，设置当前场景中的 NPC 列表。
+	/// </summary>
+	public void SetNpcList(List<string> npcIds)
+	{
+		if (npcIds == null) npcIds = new List<string>();
+
+		lock (_lock)
+		{
+			_npcIds = new List<string>(npcIds);
+		}
+
+		try { OnNpcListChanged?.Invoke(new List<string>(npcIds)); }
+		catch (Exception e) { Debug.LogWarning($"ChatViewModel: OnNpcListChanged error: {e.Message}"); }
+	}
+
+	/// <summary>
+	/// 切换活跃 NPC。若 NPC 不存在则忽略。
+	/// </summary>
+	public void SelectNpc(string npcId)
+	{
+		if (string.IsNullOrWhiteSpace(npcId)) return;
+
+		lock (_lock)
+		{
+			if (!_npcIds.Contains(npcId))
+			{
+				Debug.LogWarning($"ChatViewModel: NPC '{npcId}' is not in the known NPC list.");
+				return;
+			}
+			if (_activeNpcId == npcId) return;
+			_activeNpcId = npcId;
+		}
+
+		// 通知 AgentHostClient 创建/复用该 NPC 的会话
+		try
+		{
+			AgentHostClient.Instance.OnPlayerInteractWithNpc(npcId);
+		}
+		catch (Exception e)
+		{
+			Debug.LogWarning($"ChatViewModel: failed to notify AgentHostClient: {e.Message}");
+		}
+
+		try { OnActiveNpcChanged?.Invoke(npcId); }
+		catch (Exception e) { Debug.LogWarning($"ChatViewModel: OnActiveNpcChanged error: {e.Message}"); }
+	}
+
+	// ── 公共 API：添加消息 ─────────────────────────────────
+
+	/// <summary>
+	/// 添加一条玩家消息到当前活跃 NPC 的历史中。
+	/// </summary>
 	public void AddPlayerMessage(string text)
 	{
 		if (string.IsNullOrWhiteSpace(text)) return;
-		var msg = new Message(ChatWindow.Role.Player, text);
-		AddToHistoryAndNotify(msg);
+		string npcId;
+		lock (_lock) npcId = _activeNpcId;
+		if (string.IsNullOrWhiteSpace(npcId)) return;
 
-		// 将玩家输入提交到会话层（如果 AgentHostClient 可用）
+		var msg = new Message(ChatWindow.Role.Player, text);
+		AddToHistory(npcId, msg);
+		Notify(msg.Role, msg.Text);
+
+		// 将玩家输入提交到会话层
 		try
 		{
-			// AgentHostClient 是项目中的单例客户端，用于将玩家输入转发给会话任务
 			AgentHostClient.Instance.SubmitPlayerInput(text);
 		}
 		catch (Exception e)
@@ -69,69 +161,109 @@ public class ChatViewModel
 		}
 	}
 
-	public void AddOpponentMessage(string text)
+	/// <summary>
+	/// 添加一条 NPC 回复消息到指定 NPC 的历史中。
+	/// 仅当该 NPC 是当前活跃 NPC 时才通知 UI。
+	/// </summary>
+	public void AddOpponentMessage(string npcId, string text)
 	{
 		if (string.IsNullOrWhiteSpace(text)) return;
+		if (string.IsNullOrWhiteSpace(npcId)) return;
+
 		var msg = new Message(ChatWindow.Role.Opponent, text);
-		AddToHistoryAndNotify(msg);
+		AddToHistory(npcId, msg);
+
+		string activeNpc;
+		lock (_lock) activeNpc = _activeNpcId;
+		if (activeNpc == npcId)
+			Notify(msg.Role, msg.Text);
 	}
 
-	public void AddSystemMessage(string text)
+	/// <summary>
+	/// 添加一条系统消息到指定 NPC 的历史中。
+	/// 仅当该 NPC 是当前活跃 NPC 时才通知 UI。
+	/// </summary>
+	public void AddSystemMessage(string npcId, string text)
 	{
 		if (string.IsNullOrWhiteSpace(text)) return;
+		if (string.IsNullOrWhiteSpace(npcId)) return;
+
 		var msg = new Message(ChatWindow.Role.System, text);
-		AddToHistoryAndNotify(msg);
+		AddToHistory(npcId, msg);
+
+		string activeNpc;
+		lock (_lock) activeNpc = _activeNpcId;
+		if (activeNpc == npcId)
+			Notify(msg.Role, msg.Text);
 	}
 
-	// 清理历史（可选的容量限制/裁剪可由调用方实现）
-	public void ClearHistory()
+	/// <summary>
+	/// 清理活跃 NPC 的历史。
+	/// </summary>
+	public void ClearActiveHistory()
 	{
+		string npcId;
+		lock (_lock) npcId = _activeNpcId;
+		if (string.IsNullOrWhiteSpace(npcId)) return;
+
 		lock (_lock)
 		{
-			_messageHistory.Clear();
+			if (_npcHistories.TryGetValue(npcId, out var list))
+				list.Clear();
 		}
 	}
 
-	// 订阅历史并同步（用于在窗口打开时一次性刷新旧消息）
+	/// <summary>
+	/// 清理所有 NPC 的历史。
+	/// </summary>
+	public void ClearAllHistory()
+	{
+		lock (_lock) _npcHistories.Clear();
+	}
+
+	// ── 历史同步 ───────────────────────────────────────────
+
+	/// <summary>
+	/// 将当前活跃 NPC 的历史一次性推送给 UI（用于窗口打开 / NPC 切换时同步）。
+	/// </summary>
 	public void PopulateExistingHistory(Action<ChatWindow.Role, string> addMessageAction)
 	{
 		if (addMessageAction == null) return;
+		List<Message> history;
 		lock (_lock)
 		{
-			foreach (var m in _messageHistory)
+			string npcId = _activeNpcId;
+			if (string.IsNullOrWhiteSpace(npcId) || !_npcHistories.TryGetValue(npcId, out history))
+				return;
+			history = new List<Message>(history); // snapshot
+		}
+		foreach (var m in history)
+			addMessageAction(m.Role, m.Text);
+	}
+
+	// ── 订阅 / 退订 ────────────────────────────────────────
+
+	public void Subscribe(Action<ChatWindow.Role, string> handler) => OnMessageAdded += handler;
+	public void Unsubscribe(Action<ChatWindow.Role, string> handler) => OnMessageAdded -= handler;
+
+	// ── 内部帮助 ───────────────────────────────────────────
+
+	private void AddToHistory(string npcId, Message msg)
+	{
+		lock (_lock)
+		{
+			if (!_npcHistories.TryGetValue(npcId, out var list))
 			{
-				addMessageAction(m.Role, m.Text);
+				list = new List<Message>();
+				_npcHistories[npcId] = list;
 			}
+			list.Add(msg);
 		}
 	}
 
-	// 订阅/退订的便捷方法
-	public void Subscribe(Action<ChatWindow.Role, string> handler)
+	private void Notify(ChatWindow.Role role, string text)
 	{
-		OnMessageAdded += handler;
-	}
-	public void Unsubscribe(Action<ChatWindow.Role, string> handler)
-	{
-		OnMessageAdded -= handler;
-	}
-
-	// 内部帮助：保存并通知 UI
-	private void AddToHistoryAndNotify(Message msg)
-	{
-		lock (_lock)
-		{
-			_messageHistory.Add(msg);
-		}
-		try
-		{
-			OnMessageAdded?.Invoke(msg.Role, msg.Text);
-		}
-		catch (Exception e)
-		{
-			Debug.LogWarning($"ChatViewModel: exception while notifying OnMessageAdded: {e.Message}");
-		}
+		try { OnMessageAdded?.Invoke(role, text); }
+		catch (Exception e) { Debug.LogWarning($"ChatViewModel: OnMessageAdded error: {e.Message}"); }
 	}
 }
-
-
-

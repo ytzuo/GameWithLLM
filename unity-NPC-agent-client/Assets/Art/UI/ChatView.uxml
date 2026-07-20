@@ -1,10 +1,21 @@
 <ui:UXML xmlns:ui="UnityEngine.UIElements" xmlns:uie="UnityEditor.UIElements" editor-extension-mode="False">
     <Style src="project://database/Assets/Art/UI/ChatStyle.uss?fileID=7433441132597879392&amp;guid=08712ffda0bd7a447926e1fc125a3a90&amp;type=3#ChatStyle"/>
     <ui:VisualElement name="chat-root" class="chat-root">
+        <!-- 左侧 NPC 列表面板 -->
+        <ui:VisualElement name="npc-list-panel" class="npc-list-panel">
+            <ui:VisualElement class="npc-list-header">
+                <ui:Label text="NPC 列表" class="npc-list-title"/>
+            </ui:VisualElement>
+            <ui:ScrollView name="npc-list-scroll" class="npc-list-scroll" mode="Vertical">
+                <ui:VisualElement name="npc-list-container" class="npc-list-container"/>
+            </ui:ScrollView>
+        </ui:VisualElement>
+
+        <!-- 右侧对话面板 -->
         <ui:VisualElement class="chat-panel">
             <ui:VisualElement class="chat-header">
                 <ui:VisualElement class="chat-heading">
-                    <ui:Label text="NPC 对话" class="chat-title"/>
+                    <ui:Label name="chat-title" text="NPC 对话" class="chat-title"/>
                     <ui:Label text="和角色自然交流，也可以让它执行游戏内行动" class="chat-subtitle"/>
                 </ui:VisualElement>
                 <ui:Button name="close-button" text="×" tooltip="关闭对话（Esc）" class="close-button"/>

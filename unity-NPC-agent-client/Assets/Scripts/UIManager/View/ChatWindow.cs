@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.UIElements;
 
@@ -7,19 +8,29 @@ public class ChatWindow : BaseWindow
     public event Action Closed;
     private const int MaxMessageLength = 1000;
 
+    // ── 对话UI ──────────────────────────────────────────────
     private ScrollView _chatScrollView;
     private TextField _chatInput;
     private Button _sendButton;
     private Button _closeButton;
     private Label _placeholder;
     private Label _characterCount;
-    private bool _isSubscribed;
-    private Action<Role, string> _viewModelHandler;
-    private bool _historySynced;
+    private Label _chatTitle;
 
+    // ── NPC 列表UI ──────────────────────────────────────────
+    private VisualElement _npcListContainer;
+    private string _activeNpcId;
+
+    // ── 模板 ────────────────────────────────────────────────
     private VisualTreeAsset _systemMessageTemplate;
     private VisualTreeAsset _playerMessageTemplate;
     private VisualTreeAsset _opponentMessageTemplate;
+
+    // ── ViewModel 订阅 ──────────────────────────────────────
+    private bool _isSubscribed;
+    private Action<Role, string> _viewModelMessageHandler;
+    private Action<List<string>> _viewModelNpcListHandler;
+    private Action<string> _viewModelActiveNpcHandler;
 
     protected override void OnBindElements()
     {
@@ -29,6 +40,8 @@ public class ChatWindow : BaseWindow
         _closeButton = RootElement.Q<Button>("close-button");
         _placeholder = RootElement.Q<Label>("chat-placeholder");
         _characterCount = RootElement.Q<Label>("character-count");
+        _chatTitle = RootElement.Q<Label>("chat-title");
+        _npcListContainer = RootElement.Q<VisualElement>("npc-list-container");
 
         _systemMessageTemplate = Resources.Load<VisualTreeAsset>("UI/Chat/SystemMessage");
         _playerMessageTemplate = Resources.Load<VisualTreeAsset>("UI/Chat/PlayerMessage");
@@ -36,6 +49,8 @@ public class ChatWindow : BaseWindow
 
         if (_chatScrollView == null || _chatInput == null)
             Debug.LogError("ChatWindow: required chat controls are missing from ChatView.uxml.");
+        if (_npcListContainer == null)
+            Debug.LogWarning("ChatWindow: npc-list-container is missing from ChatView.uxml.");
 
         if (_systemMessageTemplate == null || _playerMessageTemplate == null || _opponentMessageTemplate == null)
             Debug.LogWarning("ChatWindow: one or more chat message templates failed to load.");
@@ -58,23 +73,33 @@ public class ChatWindow : BaseWindow
 
     protected override void OnOpen()
     {
-        if (!_historySynced)
-        {
-            _chatScrollView?.Clear();
-            ChatViewModel.Instance.PopulateExistingHistory(RenderMessage);
-            _historySynced = true;
-        }
-
         if (!_isSubscribed)
         {
-            _viewModelHandler = RenderMessage;
-            ChatViewModel.Instance.Subscribe(_viewModelHandler);
+            _viewModelMessageHandler = RenderMessage;
+            _viewModelNpcListHandler = OnNpcListChanged;
+            _viewModelActiveNpcHandler = OnActiveNpcChanged;
+
+            ChatViewModel.Instance.Subscribe(_viewModelMessageHandler);
+            ChatViewModel.Instance.OnNpcListChanged += _viewModelNpcListHandler;
+            ChatViewModel.Instance.OnActiveNpcChanged += _viewModelActiveNpcHandler;
             _isSubscribed = true;
+        }
+
+        // 初始加载 NPC 列表
+        RebuildNpcList(ChatViewModel.Instance.NpcIds);
+
+        // 同步当前活跃 NPC 的历史
+        string activeNpc = ChatViewModel.Instance.ActiveNpcId;
+        if (!string.IsNullOrWhiteSpace(activeNpc))
+        {
+            _activeNpcId = activeNpc;
+            HighlightActiveNpc(activeNpc);
+            UpdateChatTitle(activeNpc);
+            ReloadMessagesForActiveNpc();
         }
 
         RootElement.schedule.Execute(() =>
         {
-            ScrollToLatestMessage();
             _chatInput?.Focus();
         });
     }
@@ -83,9 +108,16 @@ public class ChatWindow : BaseWindow
     {
         if (_isSubscribed)
         {
-            if (_viewModelHandler != null)
-                ChatViewModel.Instance.Unsubscribe(_viewModelHandler);
-            _viewModelHandler = null;
+            if (_viewModelMessageHandler != null)
+                ChatViewModel.Instance.Unsubscribe(_viewModelMessageHandler);
+            if (_viewModelNpcListHandler != null)
+                ChatViewModel.Instance.OnNpcListChanged -= _viewModelNpcListHandler;
+            if (_viewModelActiveNpcHandler != null)
+                ChatViewModel.Instance.OnActiveNpcChanged -= _viewModelActiveNpcHandler;
+
+            _viewModelMessageHandler = null;
+            _viewModelNpcListHandler = null;
+            _viewModelActiveNpcHandler = null;
             _isSubscribed = false;
         }
 
@@ -111,6 +143,84 @@ public class ChatWindow : BaseWindow
         base.OnDestroy();
     }
 
+    // ── NPC 列表 ────────────────────────────────────────────
+
+    private void OnNpcListChanged(List<string> npcIds)
+    {
+        if (_npcListContainer == null) return;
+        RebuildNpcList(npcIds);
+    }
+
+    private void OnActiveNpcChanged(string npcId)
+    {
+        if (string.IsNullOrWhiteSpace(npcId)) return;
+        _activeNpcId = npcId;
+        HighlightActiveNpc(npcId);
+        UpdateChatTitle(npcId);
+        ReloadMessagesForActiveNpc();
+    }
+
+    private void RebuildNpcList(IReadOnlyList<string> npcIds)
+    {
+        if (_npcListContainer == null) return;
+        _npcListContainer.Clear();
+
+        if (npcIds == null || npcIds.Count == 0)
+            return;
+
+        foreach (string npcId in npcIds)
+        {
+            if (string.IsNullOrWhiteSpace(npcId)) continue;
+
+            var item = new Button { text = npcId };
+            item.AddToClassList("npc-list-item");
+            item.userData = npcId;
+
+            if (npcId == _activeNpcId)
+                item.AddToClassList("npc-list-item--active");
+
+            item.clicked += () => OnNpcItemClicked(npcId);
+            _npcListContainer.Add(item);
+        }
+    }
+
+    private void OnNpcItemClicked(string npcId)
+    {
+        ChatViewModel.Instance.SelectNpc(npcId);
+        _chatInput?.Focus();
+    }
+
+    private void HighlightActiveNpc(string activeNpcId)
+    {
+        if (_npcListContainer == null) return;
+        foreach (var child in _npcListContainer.Children())
+        {
+            if (child is Button btn)
+            {
+                string id = btn.userData as string;
+                if (id == activeNpcId)
+                    btn.AddToClassList("npc-list-item--active");
+                else
+                    btn.RemoveFromClassList("npc-list-item--active");
+            }
+        }
+    }
+
+    private void UpdateChatTitle(string npcId)
+    {
+        if (_chatTitle != null)
+            _chatTitle.text = string.IsNullOrWhiteSpace(npcId) ? "NPC 对话" : $"NPC 对话 — {npcId}";
+    }
+
+    private void ReloadMessagesForActiveNpc()
+    {
+        _chatScrollView?.Clear();
+        ChatViewModel.Instance.PopulateExistingHistory(RenderMessage);
+        RootElement.schedule.Execute(() => ScrollToLatestMessage());
+    }
+
+    // ── 输入处理 ────────────────────────────────────────────
+
     private void OnRootKeyDown(KeyDownEvent evt)
     {
         if (evt.keyCode != KeyCode.Escape)
@@ -119,6 +229,7 @@ public class ChatWindow : BaseWindow
         Close();
         evt.StopImmediatePropagation();
     }
+
     private void OnChatInputKeyDown(KeyDownEvent evt)
     {
         if (evt == null)
@@ -161,10 +272,18 @@ public class ChatWindow : BaseWindow
         if (string.IsNullOrEmpty(text))
             return;
 
+        if (string.IsNullOrEmpty(_activeNpcId))
+        {
+            Debug.LogWarning("ChatWindow: 没有活跃 NPC，无法发送消息。");
+            return;
+        }
+
         ChatViewModel.Instance.AddPlayerMessage(text);
         _chatInput.value = string.Empty;
         RootElement.schedule.Execute(() => _chatInput?.Focus());
     }
+
+    // ── 消息渲染 ────────────────────────────────────────────
 
     private void AddMessageFromTemplate(VisualTreeAsset template, string messageText)
     {

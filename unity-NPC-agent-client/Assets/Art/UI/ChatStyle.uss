@@ -1,18 +1,98 @@
 .chat-root {
     width: 100%;
     height: 100%;
-    align-items: center;
-    justify-content: center;
+    flex-direction: row;
     background-color: rgba(7, 10, 18, 0.82);
 }
 
+/* ── 左侧 NPC 列表 ──────────────────────────────────────── */
+
+.npc-list-panel {
+    width: 200px;
+    min-width: 160px;
+    flex-shrink: 0;
+    flex-direction: column;
+    margin: 24px 0 24px 24px;
+    background-color: rgba(17, 23, 35, 0.98);
+    border-width: 1px;
+    border-color: rgba(130, 160, 205, 0.45);
+    border-radius: 14px;
+    overflow: hidden;
+}
+
+.npc-list-header {
+    height: 52px;
+    flex-shrink: 0;
+    align-items: center;
+    padding-left: 16px;
+    padding-right: 16px;
+    background-color: rgba(25, 34, 51, 0.98);
+    border-bottom-width: 1px;
+    border-bottom-color: rgba(130, 160, 205, 0.22);
+}
+
+.npc-list-title {
+    color: #D2DDF0;
+    font-size: 17px;
+    -unity-font-style: bold;
+}
+
+.npc-list-scroll {
+    flex-grow: 1;
+    background-color: rgba(10, 15, 25, 0.52);
+}
+
+.npc-list-scroll .unity-scroll-view__content-container {
+    padding: 8px 10px;
+}
+
+.npc-list-container {
+    flex-direction: column;
+}
+
+.npc-list-item {
+    height: 44px;
+    flex-shrink: 0;
+    flex-direction: row;
+    align-items: center;
+    padding-left: 14px;
+    padding-right: 14px;
+    margin-bottom: 2px;
+    border-radius: 8px;
+    background-color: transparent;
+    border-width: 0;
+    color: #B9C7DC;
+    font-size: 15px;
+    -unity-font-style: normal;
+    -unity-text-align: middle-left;
+    cursor: pointer;
+}
+
+.npc-list-item:hover {
+    background-color: rgba(255, 255, 255, 0.08);
+    color: #EAF0FC;
+}
+
+.npc-list-item--active {
+    background-color: rgba(47, 117, 232, 0.22);
+    color: #FFFFFF;
+    -unity-font-style: bold;
+    border-width: 1px;
+    border-color: rgba(94, 152, 243, 0.45);
+}
+
+.npc-list-item--active:hover {
+    background-color: rgba(47, 117, 232, 0.32);
+}
+
+/* ── 右侧对话面板 ───────────────────────────────────────── */
+
 .chat-panel {
-    width: 72%;
-    height: 86%;
-    min-width: 560px;
+    flex-grow: 1;
+    flex-shrink: 1;
+    margin: 24px 24px 24px 10px;
+    min-width: 480px;
     min-height: 520px;
-    max-width: 1080px;
-    max-height: 900px;
     flex-direction: column;
     overflow: hidden;
     background-color: rgba(17, 23, 35, 0.98);
@@ -296,23 +376,4 @@
 .chat-scroll .unity-scroller__low-button,
 .chat-scroll .unity-scroller__high-button {
     display: none;
-}
-
-.chat-scroll .unity-base-slider__tracker {
-    background-color: transparent;
-    border-width: 0;
-}
-
-.chat-scroll .unity-base-slider__dragger {
-    left: 0;
-    right: 0;
-    width: 100%;
-    min-height: 28px;
-    background-color: rgba(132, 151, 180, 0.48);
-    border-width: 0;
-    border-radius: 4px;
-}
-
-.chat-scroll .unity-base-slider__dragger:hover {
-    background-color: rgba(156, 179, 214, 0.72);
 }

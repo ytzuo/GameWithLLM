@@ -1,4 +1,3 @@
-using System;
 using System.Collections.Concurrent;
 using UnityEngine;
 using UnityEngine.AI;
@@ -15,9 +14,6 @@ public class NpcEntity : MonoBehaviour
     private readonly ConcurrentQueue<UnityToolCommand> _myPrivateQueue = new ConcurrentQueue<UnityToolCommand>();
     private NavMeshAgent _navAgent;
     private NpcState _fsmState = NpcState.Idle;
-    private ChatWindow _chatWindow;
-
-    public event Action InteractionEnded;
 
     public enum NpcState { Idle, Talking, Operating }
 
@@ -28,36 +24,6 @@ public class NpcEntity : MonoBehaviour
 
         if (_navAgent == null)
             Debug.LogError($"[NPC:{npcId}] NavMeshAgent is missing.", this);
-    }
-
-    public void Interact()
-    {
-        try
-        {
-            if (UIManager.Instance == null)
-                return;
-
-            if (_chatWindow == null)
-            {
-                _chatWindow = UIManager.Instance.OpenNewWindow<ChatWindow>();
-                _chatWindow.Closed += OnChatWindowClosed;
-                AgentHostClient.Instance.OnPlayerInteractWithNpc(npcId);
-            }
-            else
-            {
-                UIManager.Instance.ReopenWindow(_chatWindow);
-            }
-        }
-        catch (Exception ex)
-        {
-            Debug.LogWarning($"NpcEntity.Interact failed: {ex.Message}");
-        }
-    }
-
-    public void StopInteract()
-    {
-        _chatWindow?.Close();
-        _fsmState = NpcState.Idle;
     }
 
     public void ReceiveCommand(UnityToolCommand request)
@@ -137,14 +103,8 @@ public class NpcEntity : MonoBehaviour
         return fallback != null ? fallback.transform : null;
     }
 
-    private void OnChatWindowClosed()
-    {
-        InteractionEnded?.Invoke();
-    }
     private void OnDestroy()
     {
-        if (_chatWindow != null)
-            _chatWindow.Closed -= OnChatWindowClosed;
         if (CommandDispatcher.Instance != null)
             CommandDispatcher.Instance.UnregisterNpc(npcId);
     }

@@ -217,12 +217,14 @@ public class AgentHostClient : Singleton<AgentHostClient>
 
     private void EnqueueOpponentMessage(string text)
     {
-        _mainThreadActions.Enqueue(() => ChatViewModel.Instance.AddOpponentMessage(text));
+        string npcId = _activeNpcId;
+        _mainThreadActions.Enqueue(() => ChatViewModel.Instance.AddOpponentMessage(npcId, text));
     }
 
     private void EnqueueSystemMessage(string text)
     {
-        _mainThreadActions.Enqueue(() => ChatViewModel.Instance.AddSystemMessage(text));
+        string npcId = _activeNpcId;
+        _mainThreadActions.Enqueue(() => ChatViewModel.Instance.AddSystemMessage(npcId, text));
     }
 
     private static void OnGatewayInfo(string message) => Debug.Log($"[Unity Gateway] {message}");
