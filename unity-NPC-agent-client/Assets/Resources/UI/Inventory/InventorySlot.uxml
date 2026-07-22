@@ -1,0 +1,8 @@
+<ui:UXML xmlns:ui="UnityEngine.UIElements">
+    <Style src="../../../Art/UI/InventoryStyle.uss" />
+    <ui:VisualElement name="slot-root" class="inv-slot">
+        <ui:VisualElement name="slot-icon" class="inv-slot-icon" />
+        <ui:Label name="slot-quantity" class="inv-slot-quantity inv-slot-quantity--hidden" text="" />
+        <ui:VisualElement name="slot-highlight" class="inv-slot-highlight" />
+    </ui:VisualElement>
+</ui:UXML>

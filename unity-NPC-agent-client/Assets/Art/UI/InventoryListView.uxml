@@ -1,0 +1,19 @@
+<ui:UXML xmlns:ui="UnityEngine.UIElements">
+    <Style src="project://database/Assets/Art/UI/InventoryStyle.uss" />
+    <ui:VisualElement name="inv-list-root" class="inv-list-root">
+        <ui:VisualElement class="inv-list-panel">
+            
+            <!-- Header -->
+            <ui:VisualElement class="inv-list-header">
+                <ui:Label name="inv-list-title" class="inv-list-title" text="容器列表" />
+                <ui:Label name="inv-list-subtitle" class="inv-list-subtitle" text="选择要交互的容器" />
+            </ui:VisualElement>
+            
+            <!-- Scrollable list -->
+            <ui:ScrollView name="inv-list-scroll" class="inv-list-scroll" mode="Vertical">
+                <ui:VisualElement name="inv-list-container" class="inv-list-container" />
+            </ui:ScrollView>
+            
+        </ui:VisualElement>
+    </ui:VisualElement>
+</ui:UXML>

@@ -1,0 +1,20 @@
+<ui:UXML xmlns:ui="UnityEngine.UIElements">
+    <Style src="project://database/Assets/Art/UI/InventoryStyle.uss" />
+    <ui:VisualElement name="inv-root" class="inv-root">
+        <ui:VisualElement name="inv-container" class="inv-container">
+            
+            <ui:VisualElement name="inv-panel" class="inv-panel">
+                <ui:VisualElement class="inv-panel-header">
+                    <ui:Label name="inv-panel-title" class="inv-panel-title" text="物品栏" />
+                </ui:VisualElement>
+                
+                <ui:Label name="inv-section-label-1" class="inv-section-label" text="玩家物品" />
+                <ui:ScrollView name="inv-holder-1-scroll" class="inv-holder-scroll" mode="Vertical">
+                    <ui:VisualElement name="inv-grid-1" class="inv-grid" />
+                </ui:ScrollView>
+                
+            </ui:VisualElement>
+
+        </ui:VisualElement>
+    </ui:VisualElement>
+</ui:UXML>

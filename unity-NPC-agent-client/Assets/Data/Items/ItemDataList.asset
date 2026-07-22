@@ -1,0 +1,35 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 2c0a4a6dc58b433691b85c491793aa2b, type: 3}
+  m_Name: ItemDataList
+  m_EditorClassIdentifier: Assembly-CSharp::ItemList
+  items:
+  - ItemId: 0
+    ItemName: Rock
+    Icon: {fileID: 21300000, guid: cc7283ca141790b46a3cf0ca7f1e1f2d, type: 3}
+    Description: Rock And Roll
+    MaxStackSize: 64
+  - ItemId: 1
+    ItemName: Wood
+    Icon: {fileID: 21300000, guid: 06bbbff6f8fb6e34794244d621ec1393, type: 3}
+    Description: WestWood
+    MaxStackSize: 64
+  - ItemId: 2
+    ItemName: Axe
+    Icon: {fileID: 21300000, guid: 179748bc960fec84699df8a476b4e9bd, type: 3}
+    Description: 0.9attack speed
+    MaxStackSize: 1
+  - ItemId: 3
+    ItemName: Helmet
+    Icon: {fileID: 21300000, guid: 9856b30bc0330b2478759312173bfd71, type: 3}
+    Description: Head,Eyes
+    MaxStackSize: 1

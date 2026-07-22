@@ -205,13 +205,13 @@ Transform:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 330585543}
   serializedVersion: 2
-  m_LocalRotation: {x: -0.12054093, y: 0.38870484, z: -0.051375203, w: -0.9119973}
-  m_LocalPosition: {x: 7.0883703, y: 2.1677763, z: -11.736619}
+  m_LocalRotation: {x: 0.21045864, y: -0.40672135, z: 0.09686467, w: 0.8836867}
+  m_LocalPosition: {x: 7, y: 3.85, z: -10.84}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 0}
-  m_LocalEulerAnglesHint: {x: 31.912, y: 0, z: 0}
+  m_LocalEulerAnglesHint: {x: 26.792, y: -49.429, z: 0}
 --- !u!114 &330585547
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -270,8 +270,9 @@ GameObject:
   - component: {fileID: 404743345}
   - component: {fileID: 404743344}
   - component: {fileID: 404743343}
+  - component: {fileID: 404743349}
   m_Layer: 0
-  m_Name: npcEntity2
+  m_Name: Alice_001
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -403,12 +404,26 @@ Transform:
   m_GameObject: {fileID: 404743342}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 3.94, y: 0.704, z: -7.42}
+  m_LocalPosition: {x: 3.63, y: 0.704, z: -8.01}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &404743349
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 404743342}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: ce8e89e9c5049814794df304a0a815b4, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::InventoryComponent
+  _slots: []
+  _maxSlots: 21
 --- !u!1 &410087039
 GameObject:
   m_ObjectHideFlags: 0
@@ -607,6 +622,14 @@ MonoBehaviour:
   serializedUiConfigs:
   - WindowName: ChatWindow
     uxmlAsset: {fileID: 9197481963319205126, guid: 75a50981d1250fa4097aa6e0555ca3ff, type: 3}
+  - WindowName: InventoryListWindow
+    uxmlAsset: {fileID: 9197481963319205126, guid: e1c15da8f79f8194397a91fa6b0913c6, type: 3}
+  - WindowName: InventoryInteractWindow
+    uxmlAsset: {fileID: 9197481963319205126, guid: 8a6003b8ff97441084d4857f7617ecb5, type: 3}
+  - WindowName: InventoryWindow
+    uxmlAsset: {fileID: 9197481963319205126, guid: 5a071f35b8c8ecb46b8ffdc7e611fda2, type: 3}
+  - WindowName: ItemDispenserWindow
+    uxmlAsset: {fileID: 9197481963319205126, guid: 0b95635808ffd644bb406cb01565ed81, type: 3}
 --- !u!1 &614615628
 GameObject:
   m_ObjectHideFlags: 0
@@ -621,8 +644,9 @@ GameObject:
   - component: {fileID: 614615630}
   - component: {fileID: 614615629}
   - component: {fileID: 614615634}
+  - component: {fileID: 614615635}
   m_Layer: 0
-  m_Name: npcEntity1
+  m_Name: Ryan_001
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -739,7 +763,7 @@ Transform:
   m_GameObject: {fileID: 614615628}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: -2.51, y: 0.704, z: -3.22}
+  m_LocalPosition: {x: -2.95, y: 0.704, z: -2.48}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -760,6 +784,20 @@ MonoBehaviour:
   npcId: Ryan_001
   warehouseLandmark: {fileID: 1832316566}
   gateLandmark: {fileID: 1011640608}
+--- !u!114 &614615635
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 614615628}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: ce8e89e9c5049814794df304a0a815b4, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::InventoryComponent
+  _slots: []
+  _maxSlots: 21
 --- !u!1 &832575517
 GameObject:
   m_ObjectHideFlags: 0
@@ -915,7 +953,7 @@ Transform:
   m_GameObject: {fileID: 1011640604}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 4.272, y: 0.597, z: -0.55}
+  m_LocalPosition: {x: 3.44, y: 0.597, z: -1.58}
   m_LocalScale: {x: 0.175, y: 2.4219, z: 1.3181}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -1042,6 +1080,7 @@ GameObject:
   m_Component:
   - component: {fileID: 1621335201}
   - component: {fileID: 1621335202}
+  - component: {fileID: 1621335203}
   m_Layer: 0
   m_Name: playerMock
   m_TagString: Untagged
@@ -1079,6 +1118,21 @@ MonoBehaviour:
   npcEntities:
   - {fileID: 614615634}
   - {fileID: 404743343}
+  itemDataList: {fileID: 11400000, guid: ca82c80f535b2c24f9300d66adec8a18, type: 2}
+--- !u!114 &1621335203
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1621335199}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: ce8e89e9c5049814794df304a0a815b4, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::InventoryComponent
+  _slots: []
+  _maxSlots: 21
 --- !u!1 &1832316562
 GameObject:
   m_ObjectHideFlags: 0
