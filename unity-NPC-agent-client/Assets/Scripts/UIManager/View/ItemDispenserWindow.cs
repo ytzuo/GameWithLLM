@@ -133,14 +133,10 @@ public class ItemDispenserWindow : BaseWindow
         _containerList.Clear();
 
         var containers = InventoryViewModel.Instance.GetAllContainers();
-        var playerInv = InventoryViewModel.Instance.PlayerInventory;
 
         bool hasAny = false;
         foreach (var (component, name) in containers)
         {
-            // 跳过玩家物品栏
-            if (component == playerInv) continue;
-
             hasAny = true;
 
             var itemElement = new VisualElement();

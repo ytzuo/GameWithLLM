@@ -88,34 +88,32 @@ public class InventoryInteractWindow : BaseWindow
     /// <param name="targetName">目标容器显示名称。</param>
     public void SetInventories(InventoryComponent player, InventoryComponent target, string targetName)
     {
-        // ── 处理目标物品栏 ──
-        if (_targetInventory != target)
+        bool targetChanged = _targetInventory != target;
+        bool playerChanged = _playerInventory != player;
+
+        // 先解绑旧引用，再一次性更新交互双方。格子点击回调会同时捕获双方引用，
+        // 因此不能在另一方尚未赋值时提前刷新任意一侧。
+        if (IsOpen)
         {
-            if (IsOpen && _targetInventory != null)
+            if (targetChanged && _targetInventory != null)
                 UnsubscribeFromTargetInventory();
-
-            _targetInventory = target;
-
-            if (IsOpen && _targetInventory != null)
-            {
-                SubscribeToTargetInventory();
-                RefreshTargetGrid();
-            }
+            if (playerChanged && _playerInventory != null)
+                UnsubscribeFromPlayerInventory();
         }
 
-        // ── 处理玩家物品栏 ──
-        if (_playerInventory != player)
+        _targetInventory = target;
+        _playerInventory = player;
+
+        if (IsOpen)
         {
-            if (IsOpen && _playerInventory != null)
-                UnsubscribeFromPlayerInventory();
-
-            _playerInventory = player;
-
-            if (IsOpen && _playerInventory != null)
-            {
+            if (targetChanged && _targetInventory != null)
+                SubscribeToTargetInventory();
+            if (playerChanged && _playerInventory != null)
                 SubscribeToPlayerInventory();
-                RefreshPlayerGrid();
-            }
+
+            // 两侧都在引用更新后重建，确保 Shift+Click 回调持有当前交互对象。
+            RefreshTargetGrid();
+            RefreshPlayerGrid();
         }
 
         // ── 更新标题 ──
