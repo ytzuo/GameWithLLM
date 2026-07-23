@@ -136,9 +136,9 @@ node GameMCPServer/test_mcp.js --start-server
 
 ### 给项目添加新工具
 
-1. 在 Unity `ToolsRegistry` 中注册工具 Schema
-2. 在 `CommandDispatcher` 中实现执行逻辑
-3. 重启 Unity，Go 会通过 `unity.register` 动态发现新工具
+1. 创建继承 `ToolArgsBase` 的参数类型并实现 `Validate`
+2. 创建带 `[NpcTool]` 和 `[Preserve]` 的 `NpcTool<TArgs>` 工具类，在类中声明名称、描述、Schema 和执行适配
+3. 工具会在 Unity 启动时通过反射自动注册；连接建立后，Go 通过 `unity.register` 动态发现工具
 
 > **禁止**在 Go 侧硬编码重复的 Schema。工具能力的唯一来源是 Unity 运行时注册。
 

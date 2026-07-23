@@ -65,20 +65,16 @@ public class CommandDispatcher : Singleton<CommandDispatcher>
             else
             {
                 Debug.LogWarning($"[Router] 收到 {request.NpcId} 的命令，但该 NPC 实体不存在。");
+                if (!string.IsNullOrEmpty(request.RequestId))
+                {
+                    _ = AgentHostClient.Instance.SendToolResponseAsync(
+                        request.RequestId,
+                        $"NPC '{request.NpcId}' 未注册或已离线。",
+                        true,
+                        "NPC_NOT_FOUND");
+                }
             }
         }
     }
 
-    protected override void Init()
-    {
-        base.Init();
-        string moveArgsSchema = @"{""type"": ""object"",
-          ""properties"": {
-            ""targetLandmark"": { ""type"": ""string"", ""enum"": [""warehouse"", ""gate""], ""description"": ""目标地标名称"" }
-          },
-          ""required"": [""targetLandmark""]
-        }";
-
-        ToolsRegistry.Instance.RegisterTool("game_npc_move", moveArgsSchema, "使 NPC 前往指定地标 (warehouse|gate)");
-    }
 }

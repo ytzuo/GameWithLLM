@@ -23,11 +23,26 @@ Unity 是游戏世界和行为结果的权威来源，主要包含：
 
 - `AgentHostClient`：连接对话 UI 与 Go Agent Host。
 - `UnityGatewayClient`：负责 WebSocket 连接、注册、重连和协议收发。
-- `ToolsRegistry`：声明当前实际可执行的工具及其 Schema。
-- `CommandDispatcher`：把网络命令投递到目标 NPC 的主线程队列。
+- `NpcTool<TArgs>`：单个工具的扩展点，在独立类中集中声明名称、描述、Schema 和执行适配。
+- `NpcToolDiscovery`：启动时通过 `[NpcTool]` 反射发现工具类；具体工具使用 `[Preserve]` 防止 IL2CPP 裁剪。
+- `ToolsRegistry`：保存已发现工具的运行时目录，同时提供 Gateway 能力快照和按名称执行。
+- `CommandDispatcher`：把网络命令投递到目标 NPC 的主线程队列，不包含具体工具分支。
 - `NpcEntity`：调用 NavMesh 等 Unity API 执行行为，并返回稳定的工具结果。
 
 Unity 不直接调用 LLM，不保存 LLM API Key，也不维护模型对话历史。
+
+### Unity 工具扩展模型
+
+工具使用“独立工具类 + 反射发现”的扩展模型：
+
+1. 参数类型继承 `ToolArgsBase`，负责贴近游戏规则的运行时校验。
+2. 工具类继承 `NpcTool<TArgs>`，并使用 `[NpcTool]` 标记。
+3. 工具类集中提供名称、描述、JSON Schema 和到 NPC 领域行为的执行适配。
+4. `NpcToolDiscovery` 在 `ToolsRegistry` 初始化时扫描并注册工具；扫描和注册只发生在主线程初始化阶段。
+5. `ToolsRegistry` 将相同的工具对象用于能力声明和实际执行，避免 Schema 注册与名称分发分离。
+6. `NpcEntity` 从自己的主线程队列取出命令后，通过 `ToolsRegistry` 执行，并统一返回 `{ok,errorCode,message}`。
+
+反射发现的工具必须拥有公共无参构造函数，并标记 Unity `Preserve`，避免 IL2CPP 构建裁剪。工具能力仍然以 Unity 运行时注册为唯一来源，Go 不保存重复 Schema。
 
 ## 核心交互链路
 
