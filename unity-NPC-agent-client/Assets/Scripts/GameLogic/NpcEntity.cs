@@ -7,10 +7,6 @@ public class NpcEntity : MonoBehaviour
 {
     public string npcId;
 
-    [Header("Movement landmarks")]
-    [SerializeField] private Transform warehouseLandmark;
-    [SerializeField] private Transform gateLandmark;
-
     [Header("Inventory tools")]
     [SerializeField, Min(0f)] private float inventoryInteractionRange = 3f;
 
@@ -86,9 +82,7 @@ public class NpcEntity : MonoBehaviour
         if (!_navAgent.isOnNavMesh)
             throw new ToolExecutionException("NPC_NOT_ON_NAVMESH", $"NPC '{npcId}' 当前不在 NavMesh 上。");
 
-        Transform landmark = ResolveLandmark(args.targetLandmark);
-        if (landmark == null)
-            throw new ToolExecutionException("LANDMARK_NOT_FOUND", $"场景中未配置地标 '{args.targetLandmark}'。");
+        Transform landmark = NpcTargetSupport.ResolveUniqueTarget(args.targetLandmark).transform;
 
         if (!NavMesh.SamplePosition(landmark.position, out NavMeshHit hit, 2f, NavMesh.AllAreas))
             throw new ToolExecutionException("LANDMARK_NOT_ON_NAVMESH", $"地标 '{args.targetLandmark}' 附近没有可行走的 NavMesh。");
@@ -98,22 +92,6 @@ public class NpcEntity : MonoBehaviour
 
         _fsmState = NpcState.Operating;
         return $"NPC 已开始前往 {args.targetLandmark}";
-    }
-
-    private Transform ResolveLandmark(string landmarkName)
-    {
-        Transform configured = landmarkName switch
-        {
-            "warehouse" => warehouseLandmark,
-            "gate" => gateLandmark,
-            _ => null
-        };
-
-        if (configured != null)
-            return configured;
-
-        GameObject fallback = GameObject.Find(landmarkName);
-        return fallback != null ? fallback.transform : null;
     }
 
     private void OnDestroy()
