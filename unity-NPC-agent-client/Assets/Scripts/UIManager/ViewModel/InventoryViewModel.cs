@@ -57,6 +57,26 @@ public class InventoryViewModel
     /// </summary>
     public InventoryComponent PlayerInventory { get; set; }
 
+    /// <summary>
+    /// 当前游戏使用的物品静态数据表，由场景入口 PlayerMock 设置。
+    /// </summary>
+    public ItemDataList ItemCatalog { get; private set; }
+
+    public void SetItemCatalog(ItemDataList catalog)
+    {
+        lock (_lock)
+            ItemCatalog = catalog;
+    }
+
+    public void ClearItemCatalog(ItemDataList catalog)
+    {
+        lock (_lock)
+        {
+            if (ItemCatalog == catalog)
+                ItemCatalog = null;
+        }
+    }
+
     // ── 注册 / 注销 ──────────────────────────────────────
 
     /// <summary>

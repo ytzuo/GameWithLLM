@@ -9,10 +9,16 @@ public class InventoryComponent : MonoBehaviour
 {
     // ── Fields ──
 
+    [SerializeField, Tooltip("工具和游戏逻辑使用的稳定容器标识；留空时使用 GameObject 名称。")]
+    private string _containerId;
     [SerializeField] private List<InventorySlot> _slots = new List<InventorySlot>();
     [SerializeField] private int _maxSlots = 21;
 
     // ── Properties ──
+
+    /// <summary>容器稳定标识；未显式配置时回退到 GameObject 名称。</summary>
+    public string ContainerId =>
+        string.IsNullOrWhiteSpace(_containerId) ? gameObject.name : _containerId.Trim();
 
     /// <summary>物品栏最大格子数。</summary>
     public int MaxSlots { get; private set; }
@@ -538,6 +544,33 @@ public class InventoryComponent : MonoBehaviour
         // ── 添加到目标物品栏（此时已确保空间足够，不会部分丢失） ──
         target.AddItem(item, quantity);
         return true;
+    }
+
+    /// <summary>
+    /// 按物品类型将指定数量从当前物品栏原子转移到目标物品栏。
+    /// 转移前会完整检查源数量和目标容量，不执行部分转移。
+    /// </summary>
+    public bool TransferItemTo(InventoryComponent target, ItemData item, int quantity = 1)
+    {
+        if (target == null || target == this || item == null || quantity <= 0)
+            return false;
+        if (!HasItem(item, quantity))
+            return false;
+        if (!target.CanAddItem(item, quantity))
+            return false;
+        if (!RemoveItem(item, quantity))
+            return false;
+
+        if (target.AddItem(item, quantity))
+            return true;
+
+        // 目标在预检查后仍失败时恢复源物品，避免无声丢失。
+        if (!AddItem(item, quantity))
+        {
+            Debug.LogError(
+                $"TransferItemTo: 转移 '{item.ItemName}' 失败且无法回滚 {quantity} 个物品。");
+        }
+        return false;
     }
 
     // ── Utilities ──

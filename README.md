@@ -90,6 +90,9 @@ Unity 会自动连接 Go Agent Host 并完成注册。之后在场景中与 NPC 
 
 - 普通闲聊 — 模型直接回复文本
 - `让 NPC 移动到 warehouse` — 触发 `game_npc_move` 工具调用，NPC 会沿 NavMesh 移动到仓库
+- `你背包里有什么` — 触发 `game_inventory_get_self`
+- `查看附近 Alice_001 的背包` — 在交互距离内触发 `game_inventory_get_container`
+- `把 1 个 Rock 放进附近的 Alice_001` — 触发 `game_inventory_put_item`
 
 ## 配置参考
 

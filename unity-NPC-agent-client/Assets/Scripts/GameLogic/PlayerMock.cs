@@ -65,6 +65,9 @@ public class PlayerMock : MonoBehaviour
 
         if (npcEntities == null)
             npcEntities = new List<NpcEntity>();
+
+        InventoryViewModel.Instance.SetItemCatalog(itemDataList);
+        InventoryViewModel.Instance.PlayerInventory = GetComponent<InventoryComponent>();
     }
 
     private void OnEnable()
@@ -91,6 +94,8 @@ public class PlayerMock : MonoBehaviour
 
     private void OnDestroy()
     {
+        InventoryViewModel.Instance.ClearItemCatalog(itemDataList);
+
         if (_interactAction != null)
         {
             _interactAction.performed -= _onInteract;

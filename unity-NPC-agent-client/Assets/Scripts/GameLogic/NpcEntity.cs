@@ -11,11 +11,16 @@ public class NpcEntity : MonoBehaviour
     [SerializeField] private Transform warehouseLandmark;
     [SerializeField] private Transform gateLandmark;
 
+    [Header("Inventory tools")]
+    [SerializeField, Min(0f)] private float inventoryInteractionRange = 3f;
+
     private readonly ConcurrentQueue<UnityToolCommand> _myPrivateQueue = new ConcurrentQueue<UnityToolCommand>();
     private NavMeshAgent _navAgent;
     private NpcState _fsmState = NpcState.Idle;
 
     public enum NpcState { Idle, Talking, Operating }
+
+    internal float InventoryInteractionRange => inventoryInteractionRange;
 
     private void Start()
     {

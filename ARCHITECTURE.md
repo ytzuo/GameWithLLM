@@ -28,6 +28,8 @@ Unity 是游戏世界和行为结果的权威来源，主要包含：
 - `ToolsRegistry`：保存已发现工具的运行时目录，同时提供 Gateway 能力快照和按名称执行。
 - `CommandDispatcher`：把网络命令投递到目标 NPC 的主线程队列，不包含具体工具分支。
 - `NpcEntity`：调用 NavMesh 等 Unity API 执行行为，并返回稳定的工具结果。
+- `InventoryComponent`：物品容器的权威状态和原子转移逻辑；`containerId` 未配置时回退到 GameObject 名称。
+- `InventoryViewModel`：维护运行时容器登记、玩家背包引用和当前 `ItemDataList` 静态物品表。
 
 Unity 不直接调用 LLM，不保存 LLM API Key，也不维护模型对话历史。
 
@@ -43,6 +45,21 @@ Unity 不直接调用 LLM，不保存 LLM API Key，也不维护模型对话历�
 6. `NpcEntity` 从自己的主线程队列取出命令后，通过 `ToolsRegistry` 执行，并统一返回 `{ok,errorCode,message}`。
 
 反射发现的工具必须拥有公共无参构造函数，并标记 Unity `Preserve`，避免 IL2CPP 构建裁剪。工具能力仍然以 Unity 运行时注册为唯一来源，Go 不保存重复 Schema。
+
+### NPC 物品栏工具
+
+当前 Unity 运行时声明四个物品栏工具：
+
+| 工具 | 行为 |
+|---|---|
+| `game_inventory_get_item_definitions` | 返回当前 `ItemDataList` 中定义的全部物品种类 |
+| `game_inventory_get_self` | 返回当前对话 NPC 自身背包中的全部物品和数量 |
+| `game_inventory_get_container` | 返回指定近距离容器中的全部物品和数量 |
+| `game_inventory_put_item` | 将 NPC 自身背包中的指定物品原子转移到近距离容器 |
+
+容器查询使用 `InventoryComponent.ContainerId`；如果未在 Inspector 中配置，则使用容器 GameObject 名称。容器名称匹配忽略大小写，但结果必须唯一。远程容器查询和转移都会返回 `CONTAINER_TOO_FAR`，最大距离由目标 NPC 的 `inventoryInteractionRange` 配置，默认值为 3。
+
+物品转移先完整检查 NPC 持有数量和目标容器容量，不允许部分转移。静态物品数据由场景 `PlayerMock.itemDataList` 在启动时发布到运行时物品栏注册表，不从 Go 或 LLM 构造。
 
 ## 核心交互链路
 
