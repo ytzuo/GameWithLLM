@@ -46,7 +46,7 @@
 ### 1. 克隆并配置环境变量
 
 ```bash
-git clone <repo-url> GameWithLLM
+git clone https://github.com/ytzuo/GameWithLLM.git
 cd GameWithLLM
 
 ```
