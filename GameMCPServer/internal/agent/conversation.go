@@ -52,7 +52,7 @@ func (s *Service) StartSession(ctx context.Context, playerID, npcID string) (*Se
 	now := time.Now().UTC()
 	session := &Session{
 		ID: newSessionID(), PlayerID: playerID, NPCID: npcID, UnityInstanceID: instanceID,
-		SystemPrompt: fmt.Sprintf("你是 Unity 游戏中的 NPC %s。根据玩家请求自然回复；需要改变游戏状态时使用提供的工具。", npcID),
+		SystemPrompt: BuildSystemPrompt(npcID),
 		Model:        s.model, CreatedAt: now, LastActiveAt: now,
 	}
 	session.Messages = []Message{{Role: "system", Content: session.SystemPrompt}}
