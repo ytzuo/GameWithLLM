@@ -42,7 +42,7 @@ Unity 不直接调用 LLM，不保存 LLM API Key，也不维护模型对话历�
 3. 工具类集中提供名称、描述、JSON Schema 和到 NPC 领域行为的执行适配。
 4. `NpcToolDiscovery` 在 `ToolsRegistry` 初始化时扫描并注册工具；扫描和注册只发生在主线程初始化阶段。
 5. `ToolsRegistry` 将相同的工具对象用于能力声明和实际执行，避免 Schema 注册与名称分发分离。
-6. `NpcEntity` 从自己的主线程队列取出命令后，通过 `ToolsRegistry` 执行，并统一返回 `{ok,errorCode,message}`。
+6. `NpcEntity` 从自己的主线程队列取出命令后，通过 `ToolsRegistry` 执行。失败结果使用 `{ok:false,errorCode,message}`；成功结果使用 `{ok:true,data?,message?}`，其中结构化数据必须放在 `data`，不得二次编码到字符串。
 
 反射发现的工具必须拥有公共无参构造函数，并标记 Unity `Preserve`，避免 IL2CPP 构建裁剪。工具能力仍然以 Unity 运行时注册为唯一来源，Go 不保存重复 Schema。
 
@@ -135,7 +135,7 @@ Unity 运行时声明 `game_scene_get_npc_targets`，用于查询当前已加载
 | `UnityGatewayRegistration` | `ProtocolVersion`, `InstanceId`, `Tools(List)`, `Npcs(List)` | 注册时提交的完整能力快照 |
 | `UnityGatewayToolExecuteParams` | `NpcId`, `Tool`, `Arguments(JObject)` | 工具执行参数（arguments是JSON对象，非字符串） |
 | `UnityGatewayToolCancelParams` | `RequestId` | 取消工具执行 |
-| `UnityGatewayToolResult` | `Ok`, `ErrorCode`(nullable), `Message` | 工具执行结果（业务层） |
+| `UnityGatewayToolResult` | `Ok`, `ErrorCode`(nullable), `Message`(nullable), `Data(JToken)`(nullable) | 工具执行结果（业务层） |
 | `UnityGatewayConversationStartResult` | `SessionId`, `NpcId` | 对话创建结果 |
 | `UnityGatewayAssistantReply` | `Type`, `SessionId`, `NpcId`, `Text` | 助手文本回复 |
 | `UnityGatewayAssistantStatus` | `Type`, `SessionId`, `Status` | 助手状态推送 |
@@ -169,7 +169,7 @@ Unity 运行时声明 `game_scene_get_npc_targets`，用于查询当前已加载
 | `AssistantDeltaParams` | `Type`, `SessionID`, `Text`, `Reset` | 文本增量推送；Reset撤回当前草稿 |
 | `UnityToolExecuteParams` | `NPCID`, `Tool`, `Arguments` | 工具执行+Validate()检查是JSON对象 |
 | `UnityToolCancelParams` | `RequestID` | 取消 |
-| `ToolResult` | `OK`, `ErrorCode`, `Message` | 工具结果 |
+| `ToolResult` | `OK`, `ErrorCode`, `Message`, `Data` | 工具结果；Data保持原生JSON结构 |
 
 **文件**: `internal/agent/session.go`
 
@@ -277,7 +277,7 @@ sequenceDiagram
     Go-->>Unity: assistant.delta (reset:true)
     Go->>Unity: unity.tool.execute
     Note right of Unity: Unity主线程执行
-    Unity->>Go: {ok,message}
+    Unity->>Go: {ok,data?,message?}
     Go->>LLM: /chat/completions (stream:true)
     LLM-->>Go: SSE text delta
     Go-->>Unity: assistant.delta

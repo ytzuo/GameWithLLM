@@ -53,7 +53,8 @@ public sealed class UnityGatewayToolResult
 {
     [JsonProperty("ok")] public bool Ok;
     [JsonProperty("errorCode", NullValueHandling = NullValueHandling.Ignore)] public string ErrorCode;
-    [JsonProperty("message")] public string Message;
+    [JsonProperty("message", NullValueHandling = NullValueHandling.Ignore)] public string Message;
+    [JsonProperty("data", NullValueHandling = NullValueHandling.Ignore)] public JToken Data;
 }
 [Serializable]
 public sealed class UnityGatewayConversationStartResult

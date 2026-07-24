@@ -32,9 +32,10 @@ type CompletionResult struct {
 }
 
 type ToolExecutionResult struct {
-	OK        bool   `json:"ok"`
-	ErrorCode string `json:"errorCode,omitempty"`
-	Message   string `json:"message"`
+	OK        bool            `json:"ok"`
+	ErrorCode string          `json:"errorCode,omitempty"`
+	Message   string          `json:"message,omitempty"`
+	Data      json.RawMessage `json:"data,omitempty"`
 }
 
 type AssistantStreamEvent struct {

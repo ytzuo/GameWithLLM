@@ -40,5 +40,5 @@ public abstract class NpcTool<TArgs> : INpcTool where TArgs : ToolArgsBase
         return wrapper.Execute(argumentsJson);
     }
 
-    protected abstract string ExecuteCore(NpcToolContext context, TArgs args);
+    protected abstract ToolExecutionResult ExecuteCore(NpcToolContext context, TArgs args);
 }

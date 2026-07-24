@@ -75,7 +75,7 @@ public class NpcEntity : MonoBehaviour
             : $"[NPC:{npcId}] {result.Message}");
 
         if (!string.IsNullOrEmpty(request?.RequestId))
-            _ = AgentHostClient.Instance.SendToolResponseAsync(request.RequestId, result.Message, result.IsError, result.ErrorCode);
+            _ = AgentHostClient.Instance.SendToolResponseAsync(request.RequestId, result.Message, result.IsError, result.ErrorCode, result.Data);
     }
 
     internal string MoveToLandmark(MoveArgs args)

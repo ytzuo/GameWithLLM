@@ -1,4 +1,5 @@
 using System;
+using Newtonsoft.Json.Linq;
 
 public abstract class ToolArgsBase
 {
@@ -18,16 +19,24 @@ public sealed class ToolExecutionException : Exception
 public readonly struct ToolExecutionResult
 {
     public string Message { get; }
+    public JToken Data { get; }
     public bool IsError { get; }
     public string ErrorCode { get; }
 
-    private ToolExecutionResult(string message, bool isError, string errorCode)
+    private ToolExecutionResult(string message, JToken data, bool isError, string errorCode)
     {
         Message = message;
+        Data = data;
         IsError = isError;
         ErrorCode = errorCode;
     }
 
-    public static ToolExecutionResult Success(string message) => new ToolExecutionResult(message, false, null);
-    public static ToolExecutionResult Failure(string errorCode, string message) => new ToolExecutionResult(message, true, errorCode);
+    public static ToolExecutionResult Success(string message) =>
+        new ToolExecutionResult(message, null, false, null);
+
+    public static ToolExecutionResult Success(JToken data, string message = null) =>
+        new ToolExecutionResult(message, data, false, null);
+
+    public static ToolExecutionResult Failure(string errorCode, string message) =>
+        new ToolExecutionResult(message, null, true, errorCode);
 }

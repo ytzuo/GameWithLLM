@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
+using Newtonsoft.Json.Linq;
 using UnityEngine;
 
 public class AgentHostClient : Singleton<AgentHostClient>
@@ -161,7 +162,8 @@ public class AgentHostClient : Singleton<AgentHostClient>
         string requestId,
         string text,
         bool isError = false,
-        string errorCode = null)
+        string errorCode = null,
+        JToken data = null)
     {
         if (string.IsNullOrEmpty(requestId))
             return;
@@ -172,6 +174,7 @@ public class AgentHostClient : Singleton<AgentHostClient>
                 text,
                 isError,
                 errorCode,
+                data,
                 _appCts.Token);
         }
         catch (Exception ex)

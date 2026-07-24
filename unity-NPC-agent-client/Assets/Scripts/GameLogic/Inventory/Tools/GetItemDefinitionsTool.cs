@@ -20,11 +20,11 @@ public sealed class GetItemDefinitionsTool : NpcTool<EmptyInventoryToolArgs>
 
     public override JObject InputSchema => (JObject)Schema.DeepClone();
 
-    protected override string ExecuteCore(
+    protected override ToolExecutionResult ExecuteCore(
         NpcToolContext context,
         EmptyInventoryToolArgs args)
     {
-        return InventoryToolSupport.SerializeItemDefinitions(
-            InventoryToolSupport.RequireItemCatalog());
+        return ToolExecutionResult.Success(InventoryToolSupport.CreateItemDefinitionsData(
+            InventoryToolSupport.RequireItemCatalog()));
     }
 }

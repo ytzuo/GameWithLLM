@@ -27,8 +27,8 @@ public sealed class MoveNpcTool : NpcTool<MoveArgs>
 
     public override JObject InputSchema => (JObject)Schema.DeepClone();
 
-    protected override string ExecuteCore(NpcToolContext context, MoveArgs args)
+    protected override ToolExecutionResult ExecuteCore(NpcToolContext context, MoveArgs args)
     {
-        return context.Npc.MoveToLandmark(args);
+        return ToolExecutionResult.Success(context.Npc.MoveToLandmark(args));
     }
 }

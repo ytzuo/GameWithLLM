@@ -37,5 +37,8 @@ func (r *agentRuntime) Execute(ctx context.Context, instanceID, npcID, tool stri
 	if err != nil {
 		return agent.ToolExecutionResult{}, err
 	}
-	return agent.ToolExecutionResult{OK: result.OK, ErrorCode: result.ErrorCode, Message: result.Message}, nil
+	return agent.ToolExecutionResult{
+		OK: result.OK, ErrorCode: result.ErrorCode, Message: result.Message,
+		Data: append(json.RawMessage(nil), result.Data...),
+	}, nil
 }

@@ -157,9 +157,10 @@ type UnityToolCancelParams struct {
 
 // ToolResult 表示游戏业务结果；协议错误仍通过 JSON-RPC error 返回。
 type ToolResult struct {
-	OK        bool   `json:"ok"`
-	ErrorCode string `json:"errorCode,omitempty"`
-	Message   string `json:"message"`
+	OK        bool            `json:"ok"`
+	ErrorCode string          `json:"errorCode,omitempty"`
+	Message   string          `json:"message,omitempty"`
+	Data      json.RawMessage `json:"data,omitempty"`
 }
 
 func isJSONObject(raw json.RawMessage) bool {

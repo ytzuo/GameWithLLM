@@ -38,6 +38,7 @@ func (l *scriptedLLM) Complete(_ context.Context, request CompletionRequest) (*C
 
 type fakeRuntime struct {
 	executions []ToolCall
+	result     *ToolExecutionResult
 }
 
 func (r *fakeRuntime) Capabilities(npcID string) (string, []gametools.Definition, bool) {
@@ -54,6 +55,9 @@ func (r *fakeRuntime) Capabilities(npcID string) (string, []gametools.Definition
 
 func (r *fakeRuntime) Execute(_ context.Context, _, _, name string, arguments json.RawMessage) (ToolExecutionResult, error) {
 	r.executions = append(r.executions, ToolCall{Name: name, Arguments: arguments})
+	if r.result != nil {
+		return *r.result, nil
+	}
 	return ToolExecutionResult{OK: true, Message: "movement started"}, nil
 }
 
@@ -96,6 +100,26 @@ func TestConversationService_ToolLoopKeepsAtomicPair(t *testing.T) {
 	assert.Equal(t, "assistant", lastMessages[len(lastMessages)-2].Role)
 	assert.Equal(t, "tool", lastMessages[len(lastMessages)-1].Role)
 	assert.Equal(t, "call-1", lastMessages[len(lastMessages)-1].ToolCallID)
+}
+
+func TestConversationService_PreservesStructuredToolResult(t *testing.T) {
+	llm := &scriptedLLM{results: []*CompletionResult{
+		{ToolCalls: []ToolCall{{ID: "call-1", Name: "game_npc_move", Arguments: json.RawMessage(`{"targetLandmark":"gate"}`)}}},
+		{Content: "完成。"},
+	}}
+	runtime := &fakeRuntime{result: &ToolExecutionResult{
+		OK: true, Data: json.RawMessage(`{"target":"gate","distance":1.5}`),
+	}}
+	service := NewConversationService(llm, NewMemorySessionStore(), runtime, "test-model", 3)
+	session, err := service.StartSession(context.Background(), "player", "npc-1")
+	require.NoError(t, err)
+
+	_, err = service.SubmitMessage(context.Background(), session.ID, "去大门")
+	require.NoError(t, err)
+	require.Len(t, llm.requests, 2)
+	messages := llm.requests[1].Messages
+	require.Equal(t, "tool", messages[len(messages)-1].Role)
+	assert.JSONEq(t, `{"ok":true,"data":{"target":"gate","distance":1.5}}`, messages[len(messages)-1].Content)
 }
 
 func TestConversationService_ResetsToolRoundTextBeforeFinalReply(t *testing.T) {

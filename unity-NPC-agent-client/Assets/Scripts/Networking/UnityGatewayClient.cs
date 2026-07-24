@@ -169,6 +169,7 @@ public sealed class UnityGatewayClient : IDisposable
         string message,
         bool isError,
         string errorCode,
+        JToken data,
         CancellationToken cancellationToken)
     {
         if (string.IsNullOrEmpty(requestId))
@@ -178,7 +179,8 @@ public sealed class UnityGatewayClient : IDisposable
         {
             Ok = !isError,
             ErrorCode = isError ? (errorCode ?? "TOOL_EXECUTION_FAILED") : null,
-            Message = message
+            Message = message,
+            Data = data
         };
         return SendJsonAsync(new { jsonrpc = "2.0", id = requestId, result }, cancellationToken);
     }
