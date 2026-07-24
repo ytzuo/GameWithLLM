@@ -201,7 +201,19 @@ func (s *jsonRPCSession) handlePlayerMessage(msg jsonRPCMessage) {
 		Type: "assistant.status", SessionID: params.SessionID, Status: "thinking",
 	})
 	log.Printf("event=player_message_received session_id=%q text_length=%d", params.SessionID, len([]rune(params.Text)))
-	reply, err := s.conversations.SubmitMessage(s.ctx, params.SessionID, params.Text)
+	reply, err := s.conversations.SubmitMessageStream(
+		s.ctx,
+		params.SessionID,
+		params.Text,
+		func(delta string) error {
+			if delta == "" {
+				return nil
+			}
+			return s.writeNotification(methodAssistantDelta, AssistantDeltaParams{
+				Type: "assistant.delta", SessionID: params.SessionID, Text: delta,
+			})
+		},
+	)
 	if err != nil {
 		log.Printf("event=assistant_reply_failed session_id=%q duration_ms=%d error=%q", params.SessionID, time.Since(startedAt).Milliseconds(), err)
 		_ = s.writeError(msg.ID, -32020, err.Error())

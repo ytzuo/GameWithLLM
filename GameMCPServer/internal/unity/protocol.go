@@ -19,6 +19,7 @@ const (
 	methodPlayerMessage     = "player.message"
 	methodConversationEnd   = "conversation.end"
 	methodAssistantStatus   = "assistant.status"
+	methodAssistantDelta    = "assistant.delta"
 )
 
 // jsonRPCMessage 是内部执行通道的 JSON-RPC 2.0 信封。
@@ -121,6 +122,12 @@ type AssistantStatusParams struct {
 	Type      string `json:"type"`
 	SessionID string `json:"sessionId"`
 	Status    string `json:"status"`
+}
+
+type AssistantDeltaParams struct {
+	Type      string `json:"type"`
+	SessionID string `json:"sessionId"`
+	Text      string `json:"text"`
 }
 
 // UnityToolExecuteParams 使用对象形式的 arguments，禁止 JSON 字符串二次编码。

@@ -20,9 +20,10 @@ type ToolCall struct {
 }
 
 type CompletionRequest struct {
-	Model    string
-	Messages []Message
-	Tools    []gametools.Definition
+	Model       string
+	Messages    []Message
+	Tools       []gametools.Definition
+	OnTextDelta func(string) error
 }
 
 type CompletionResult struct {

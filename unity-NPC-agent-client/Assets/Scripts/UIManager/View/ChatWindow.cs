@@ -29,8 +29,10 @@ public class ChatWindow : BaseWindow
     // ── ViewModel 订阅 ──────────────────────────────────────
     private bool _isSubscribed;
     private Action<Role, string> _viewModelMessageHandler;
+    private Action<Role, string> _viewModelMessageUpdatedHandler;
     private Action<List<string>> _viewModelNpcListHandler;
     private Action<string> _viewModelActiveNpcHandler;
+    private Label _latestOpponentMessageLabel;
 
     protected override void OnBindElements()
     {
@@ -76,10 +78,12 @@ public class ChatWindow : BaseWindow
         if (!_isSubscribed)
         {
             _viewModelMessageHandler = RenderMessage;
+            _viewModelMessageUpdatedHandler = UpdateRenderedMessage;
             _viewModelNpcListHandler = OnNpcListChanged;
             _viewModelActiveNpcHandler = OnActiveNpcChanged;
 
             ChatViewModel.Instance.Subscribe(_viewModelMessageHandler);
+            ChatViewModel.Instance.SubscribeToUpdates(_viewModelMessageUpdatedHandler);
             ChatViewModel.Instance.OnNpcListChanged += _viewModelNpcListHandler;
             ChatViewModel.Instance.OnActiveNpcChanged += _viewModelActiveNpcHandler;
             _isSubscribed = true;
@@ -110,12 +114,15 @@ public class ChatWindow : BaseWindow
         {
             if (_viewModelMessageHandler != null)
                 ChatViewModel.Instance.Unsubscribe(_viewModelMessageHandler);
+            if (_viewModelMessageUpdatedHandler != null)
+                ChatViewModel.Instance.UnsubscribeFromUpdates(_viewModelMessageUpdatedHandler);
             if (_viewModelNpcListHandler != null)
                 ChatViewModel.Instance.OnNpcListChanged -= _viewModelNpcListHandler;
             if (_viewModelActiveNpcHandler != null)
                 ChatViewModel.Instance.OnActiveNpcChanged -= _viewModelActiveNpcHandler;
 
             _viewModelMessageHandler = null;
+            _viewModelMessageUpdatedHandler = null;
             _viewModelNpcListHandler = null;
             _viewModelActiveNpcHandler = null;
             _isSubscribed = false;
@@ -215,6 +222,7 @@ public class ChatWindow : BaseWindow
     private void ReloadMessagesForActiveNpc()
     {
         _chatScrollView?.Clear();
+        _latestOpponentMessageLabel = null;
         ChatViewModel.Instance.PopulateExistingHistory(RenderMessage);
         RootElement.schedule.Execute(() => ScrollToLatestMessage());
     }
@@ -285,12 +293,12 @@ public class ChatWindow : BaseWindow
 
     // ── 消息渲染 ────────────────────────────────────────────
 
-    private void AddMessageFromTemplate(VisualTreeAsset template, string messageText)
+    private Label AddMessageFromTemplate(VisualTreeAsset template, string messageText)
     {
         if (template == null || _chatScrollView == null)
         {
             Debug.LogWarning("ChatWindow: cannot render a message because its template or ScrollView is missing.");
-            return;
+            return null;
         }
 
         TemplateContainer container = template.CloneTree();
@@ -298,12 +306,13 @@ public class ChatWindow : BaseWindow
         if (label == null)
         {
             Debug.LogWarning("ChatWindow: message template does not contain a Label.");
-            return;
+            return null;
         }
 
         label.text = messageText;
         _chatScrollView.Add(container);
         container.schedule.Execute(() => _chatScrollView.ScrollTo(container));
+        return label;
     }
 
     private void ScrollToLatestMessage()
@@ -329,11 +338,20 @@ public class ChatWindow : BaseWindow
                 AddMessageFromTemplate(_playerMessageTemplate, message);
                 break;
             case Role.Opponent:
-                AddMessageFromTemplate(_opponentMessageTemplate, message);
+                _latestOpponentMessageLabel = AddMessageFromTemplate(_opponentMessageTemplate, message);
                 break;
             case Role.System:
                 AddMessageFromTemplate(_systemMessageTemplate, message);
                 break;
         }
+    }
+
+    private void UpdateRenderedMessage(Role role, string message)
+    {
+        if (role != Role.Opponent || _latestOpponentMessageLabel == null)
+            return;
+
+        _latestOpponentMessageLabel.text = message;
+        RootElement.schedule.Execute(() => ScrollToLatestMessage());
     }
 }

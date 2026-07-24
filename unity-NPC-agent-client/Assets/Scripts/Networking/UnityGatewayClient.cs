@@ -39,6 +39,7 @@ public sealed class UnityGatewayClient : IDisposable
     public event Action<string> Warning;
     public event Action Registered;
     public event Action<UnityGatewayAssistantStatus> AssistantStatusReceived;
+    public event Action<UnityGatewayAssistantDelta> AssistantDeltaReceived;
 
     public bool IsRegistered => _isRegistered;
 
@@ -325,6 +326,11 @@ public sealed class UnityGatewayClient : IDisposable
                 var status = message["params"]?.ToObject<UnityGatewayAssistantStatus>();
                 if (status != null)
                     AssistantStatusReceived?.Invoke(status);
+                break;
+            case UnityGatewayProtocol.AssistantDeltaMethod:
+                var delta = message["params"]?.ToObject<UnityGatewayAssistantDelta>();
+                if (delta != null)
+                    AssistantDeltaReceived?.Invoke(delta);
                 break;
             default:
                 Warning?.Invoke($"未处理的 Unity Gateway 方法: {method}");

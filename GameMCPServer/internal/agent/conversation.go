@@ -22,6 +22,7 @@ type Runtime interface {
 type ConversationService interface {
 	StartSession(ctx context.Context, playerID, npcID string) (*Session, error)
 	SubmitMessage(ctx context.Context, sessionID, text string) (*AssistantReply, error)
+	SubmitMessageStream(ctx context.Context, sessionID, text string, onTextDelta func(string) error) (*AssistantReply, error)
 	EndSession(ctx context.Context, sessionID string) error
 }
 
@@ -62,6 +63,22 @@ func (s *Service) StartSession(ctx context.Context, playerID, npcID string) (*Se
 }
 
 func (s *Service) SubmitMessage(ctx context.Context, sessionID, text string) (*AssistantReply, error) {
+	return s.submitMessage(ctx, sessionID, text, nil)
+}
+
+func (s *Service) SubmitMessageStream(
+	ctx context.Context,
+	sessionID, text string,
+	onTextDelta func(string) error,
+) (*AssistantReply, error) {
+	return s.submitMessage(ctx, sessionID, text, onTextDelta)
+}
+
+func (s *Service) submitMessage(
+	ctx context.Context,
+	sessionID, text string,
+	onTextDelta func(string) error,
+) (*AssistantReply, error) {
 	if strings.TrimSpace(text) == "" {
 		return nil, fmt.Errorf("message text is required")
 	}
@@ -99,7 +116,8 @@ func (s *Service) SubmitMessage(ctx context.Context, sessionID, text string) (*A
 		llmStartedAt := time.Now()
 		log.Printf("event=llm_request_started session_id=%q npc_id=%q model=%q message_count=%d tool_count=%d tool_round=%d", session.ID, session.NPCID, session.Model, len(session.Messages), len(definitions), toolRounds)
 		completion, err := s.llm.Complete(operationCtx, CompletionRequest{
-			Model: session.Model, Messages: append([]Message(nil), session.Messages...), Tools: definitions,
+			Model: session.Model, Messages: append([]Message(nil), session.Messages...),
+			Tools: definitions, OnTextDelta: onTextDelta,
 		})
 		if err != nil {
 			log.Printf("event=llm_request_completed session_id=%q outcome=error duration_ms=%d error=%q", session.ID, time.Since(llmStartedAt).Milliseconds(), err)

@@ -108,7 +108,7 @@ Unity 运行时声明 `game_scene_get_npc_targets`，用于查询当前已加载
 }
 ```
 
-### 二、协议方法常量（9个）
+### 二、协议方法常量（10个）
 
 | 方法名 | 方向 | 请求/通知 | 含义 |
 |---|---|---|---|
@@ -121,14 +121,15 @@ Unity 运行时声明 `game_scene_get_npc_targets`，用于查询当前已加载
 | `player.message` | Unity→Go | 请求（需id） | 玩家发送消息文本 |
 | `conversation.end` | Unity→Go | 通知（id可选） | 结束对话 |
 | `assistant.status` | Go→Unity | 通知（无id） | Go推送助手状态（如thinking） |
+| `assistant.delta` | Go→Unity | 通知（无id） | Go推送模型生成的文本增量 |
 
-### 三、Unity 端 DTO（7个类/结构）
+### 三、Unity 端 DTO（10个类/结构）
 
 **文件**: `Assets/Scripts/Networking/UnityGatewayProtocol.cs`
 
 | DTO | 字段 | 说明 |
 |---|---|---|
-| `UnityGatewayProtocol` | `Version = 1` | 静态协议常量类，含9个方法字符串 |
+| `UnityGatewayProtocol` | `Version = 1` | 静态协议常量类，含10个方法字符串 |
 | `UnityGatewayToolDefinition` | `Name`, `Description`, `InputSchema(JObject)` | 单个工具定义 |
 | `UnityGatewayRegistration` | `ProtocolVersion`, `InstanceId`, `Tools(List)`, `Npcs(List)` | 注册时提交的完整能力快照 |
 | `UnityGatewayToolExecuteParams` | `NpcId`, `Tool`, `Arguments(JObject)` | 工具执行参数（arguments是JSON对象，非字符串） |
@@ -137,6 +138,7 @@ Unity 运行时声明 `game_scene_get_npc_targets`，用于查询当前已加载
 | `UnityGatewayConversationStartResult` | `SessionId`, `NpcId` | 对话创建结果 |
 | `UnityGatewayAssistantReply` | `Type`, `SessionId`, `NpcId`, `Text` | 助手文本回复 |
 | `UnityGatewayAssistantStatus` | `Type`, `SessionId`, `Status` | 助手状态推送 |
+| `UnityGatewayAssistantDelta` | `Type`, `SessionId`, `Text` | 助手文本增量推送 |
 
 **文件**: `Assets/Scripts/Models/Models.cs`
 
@@ -163,6 +165,7 @@ Unity 运行时声明 `game_scene_get_npc_targets`，用于查询当前已加载
 | `PlayerMessageParams` | `Type`, `SessionID`, `Text` | 玩家消息 |
 | `ConversationEndParams` | `SessionID` | 对话结束 |
 | `AssistantStatusParams` | `Type`, `SessionID`, `Status` | 状态推送 |
+| `AssistantDeltaParams` | `Type`, `SessionID`, `Text` | 文本增量推送 |
 | `UnityToolExecuteParams` | `NPCID`, `Tool`, `Arguments` | 工具执行+Validate()检查是JSON对象 |
 | `UnityToolCancelParams` | `RequestID` | 取消 |
 | `ToolResult` | `OK`, `ErrorCode`, `Message` | 工具结果 |
@@ -225,7 +228,7 @@ Unity 运行时声明 `game_scene_get_npc_targets`，用于查询当前已加载
 ### 八、Go ConversationService
 
 - `StartSession()` - 创建Session，生成system prompt，存储
-- `SubmitMessage()` - 追加user消息，进入tool loop：LLM调用 → 判断tool calls → 调用Runtime.Execute → 追加tool结果 → 循环
+- `SubmitMessageStream()` - 追加user消息，进入tool loop：SSE LLM调用 → 推送文本增量 → 判断tool calls → 调用Runtime.Execute → 追加tool结果 → 循环
 - `EndSession()` - 取消进行中的操作，删除Session
 
 ### 九、Go Tool Loop 流程
@@ -240,7 +243,7 @@ Unity 运行时声明 `game_scene_get_npc_targets`，用于查询当前已加载
 
 **UnityGatewayClient**:
 - `ReceiveLoopAsync()` → `HandleMessageAsync()`
-- 有method → 分发到ToolCallReceived/ToolCancellationReceived/AssistantStatusReceived事件
+- 有method → 分发到ToolCallReceived/ToolCancellationReceived/AssistantStatusReceived/AssistantDeltaReceived事件
 - 无method → `HandleResponseAsync()` → 匹配pending或registration响应
 
 **AgentHostClient**:
@@ -265,14 +268,15 @@ sequenceDiagram
     Note right of Go: 创建Session
     Go->>Unity: {sessionId}
     Unity->>Go: player.message
-    Go->>LLM: /chat/completions
     Go->>Unity: assistant.status (thinking)
+    Go->>LLM: /chat/completions (stream:true)
     LLM->>Go: tool_calls[]
     Go->>Unity: unity.tool.execute
     Note right of Unity: Unity主线程执行
     Unity->>Go: {ok,message}
-    Go->>LLM: /chat/completions
-    LLM->>Go: text reply
+    Go->>LLM: /chat/completions (stream:true)
+    LLM-->>Go: SSE text delta
+    Go-->>Unity: assistant.delta
     Go->>Unity: result{text}
     Unity->>Go: conversation.end
 ```

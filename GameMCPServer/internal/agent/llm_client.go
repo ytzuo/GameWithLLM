@@ -1,12 +1,14 @@
 package agent
 
 import (
+	"bufio"
 	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
+	"sort"
 	"strings"
 	"time"
 )
@@ -50,7 +52,7 @@ func (c *OpenAICompatibleClient) Complete(ctx context.Context, request Completio
 	if model == "" {
 		model = c.model
 	}
-	payload := openAIRequest{Model: model}
+	payload := openAIRequest{Model: model, Stream: true}
 	for _, message := range request.Messages {
 		converted := openAIMessage{Role: message.Role, Content: message.Content, ToolCallID: message.ToolCallID}
 		for _, call := range message.ToolCalls {
@@ -89,12 +91,19 @@ func (c *OpenAICompatibleClient) Complete(ctx context.Context, request Completio
 		return nil, fmt.Errorf("LLM request failed: %w", err)
 	}
 	defer response.Body.Close()
+	if response.StatusCode < 200 || response.StatusCode >= 300 {
+		responseBody, readErr := io.ReadAll(io.LimitReader(response.Body, 4<<20))
+		if readErr != nil {
+			return nil, fmt.Errorf("read LLM error response: %w", readErr)
+		}
+		return nil, fmt.Errorf("LLM returned HTTP %d: %s", response.StatusCode, compactBody(responseBody))
+	}
+	if strings.Contains(strings.ToLower(response.Header.Get("Content-Type")), "text/event-stream") {
+		return decodeOpenAIEventStream(response.Body, request.OnTextDelta)
+	}
 	responseBody, err := io.ReadAll(io.LimitReader(response.Body, 4<<20))
 	if err != nil {
 		return nil, fmt.Errorf("read LLM response: %w", err)
-	}
-	if response.StatusCode < 200 || response.StatusCode >= 300 {
-		return nil, fmt.Errorf("LLM returned HTTP %d: %s", response.StatusCode, compactBody(responseBody))
 	}
 
 	var decoded openAIResponse
@@ -116,6 +125,106 @@ func (c *OpenAICompatibleClient) Complete(ctx context.Context, request Completio
 	return result, nil
 }
 
+func decodeOpenAIEventStream(reader io.Reader, onTextDelta func(string) error) (*CompletionResult, error) {
+	scanner := bufio.NewScanner(reader)
+	scanner.Buffer(make([]byte, 64*1024), 4<<20)
+
+	result := &CompletionResult{}
+	toolCalls := make(map[int]*openAIToolCall)
+	var dataLines []string
+	done := false
+
+	processEvent := func() error {
+		if len(dataLines) == 0 {
+			return nil
+		}
+		data := strings.Join(dataLines, "\n")
+		dataLines = dataLines[:0]
+		if strings.TrimSpace(data) == "[DONE]" {
+			done = true
+			return nil
+		}
+
+		var event openAIStreamResponse
+		if err := json.Unmarshal([]byte(data), &event); err != nil {
+			return fmt.Errorf("decode LLM stream event: %w", err)
+		}
+		if event.Error != nil {
+			return fmt.Errorf("LLM stream error: %s", event.Error.Message)
+		}
+		if len(event.Choices) == 0 {
+			return nil
+		}
+
+		delta := event.Choices[0].Delta
+		if delta.Content != "" {
+			result.Content += delta.Content
+			if onTextDelta != nil {
+				if err := onTextDelta(delta.Content); err != nil {
+					return fmt.Errorf("deliver LLM text delta: %w", err)
+				}
+			}
+		}
+		for _, fragment := range delta.ToolCalls {
+			call := toolCalls[fragment.Index]
+			if call == nil {
+				call = &openAIToolCall{Type: "function"}
+				toolCalls[fragment.Index] = call
+			}
+			call.ID += fragment.ID
+			if fragment.Type != "" {
+				call.Type = fragment.Type
+			}
+			call.Function.Name += fragment.Function.Name
+			call.Function.Arguments += fragment.Function.Arguments
+		}
+		return nil
+	}
+
+	for scanner.Scan() {
+		line := strings.TrimSuffix(scanner.Text(), "\r")
+		if line == "" {
+			if err := processEvent(); err != nil {
+				return nil, err
+			}
+			if done {
+				break
+			}
+			continue
+		}
+		if strings.HasPrefix(line, "data:") {
+			value := strings.TrimPrefix(line, "data:")
+			value = strings.TrimPrefix(value, " ")
+			dataLines = append(dataLines, value)
+		}
+	}
+	if err := scanner.Err(); err != nil {
+		return nil, fmt.Errorf("read LLM stream: %w", err)
+	}
+	if !done {
+		if err := processEvent(); err != nil {
+			return nil, err
+		}
+	}
+
+	indices := make([]int, 0, len(toolCalls))
+	for index := range toolCalls {
+		indices = append(indices, index)
+	}
+	sort.Ints(indices)
+	for _, index := range indices {
+		call := toolCalls[index]
+		arguments := json.RawMessage(call.Function.Arguments)
+		if len(arguments) == 0 {
+			arguments = json.RawMessage(`{}`)
+		}
+		result.ToolCalls = append(result.ToolCalls, ToolCall{
+			ID: call.ID, Name: call.Function.Name, Arguments: arguments,
+		})
+	}
+	return result, nil
+}
+
 func compactBody(body []byte) string {
 	value := strings.TrimSpace(string(body))
 	if len(value) > 512 {
@@ -128,6 +237,7 @@ type openAIRequest struct {
 	Model    string          `json:"model"`
 	Messages []openAIMessage `json:"messages"`
 	Tools    []openAITool    `json:"tools,omitempty"`
+	Stream   bool            `json:"stream"`
 }
 
 type openAIMessage struct {
@@ -163,4 +273,23 @@ type openAIResponse struct {
 	Choices []struct {
 		Message openAIMessage `json:"message"`
 	} `json:"choices"`
+}
+
+type openAIStreamResponse struct {
+	Choices []struct {
+		Delta struct {
+			Content   string                 `json:"content"`
+			ToolCalls []openAIStreamToolCall `json:"tool_calls"`
+		} `json:"delta"`
+	} `json:"choices"`
+	Error *struct {
+		Message string `json:"message"`
+	} `json:"error,omitempty"`
+}
+
+type openAIStreamToolCall struct {
+	Index    int                `json:"index"`
+	ID       string             `json:"id"`
+	Type     string             `json:"type"`
+	Function openAIFunctionCall `json:"function"`
 }

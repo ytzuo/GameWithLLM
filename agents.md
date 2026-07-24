@@ -46,6 +46,7 @@ Go 发往 Unity：
 - `unity.tool.execute`
 - `unity.tool.cancel`
 - `assistant.status`
+- `assistant.delta`
 
 禁止重新引入：
 

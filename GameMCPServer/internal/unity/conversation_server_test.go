@@ -23,11 +23,16 @@ type conversationScriptedLLM struct {
 	results []*agent.CompletionResult
 }
 
-func (l *conversationScriptedLLM) Complete(_ context.Context, _ agent.CompletionRequest) (*agent.CompletionResult, error) {
+func (l *conversationScriptedLLM) Complete(_ context.Context, request agent.CompletionRequest) (*agent.CompletionResult, error) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	result := l.results[0]
 	l.results = l.results[1:]
+	if result.Content != "" && request.OnTextDelta != nil {
+		if err := request.OnTextDelta(result.Content); err != nil {
+			return nil, err
+		}
+	}
 	return result, nil
 }
 
@@ -88,6 +93,13 @@ func TestJSONRPCServer_GoAgentConversationToolLoop(t *testing.T) {
 		"jsonrpc": "2.0", "id": json.RawMessage(message.ID),
 		"result": ToolResult{OK: true, Message: "movement started"},
 	}))
+
+	require.NoError(t, wsjson.Read(ctx, conn, &message))
+	assert.Equal(t, "assistant.delta", message.Method)
+	var delta AssistantDeltaParams
+	require.NoError(t, json.Unmarshal(message.Params, &delta))
+	assert.Equal(t, started.SessionID, delta.SessionID)
+	assert.Equal(t, "我现在去大门。", delta.Text)
 
 	require.NoError(t, wsjson.Read(ctx, conn, &message))
 	assert.JSONEq(t, `"player-message"`, string(message.ID))

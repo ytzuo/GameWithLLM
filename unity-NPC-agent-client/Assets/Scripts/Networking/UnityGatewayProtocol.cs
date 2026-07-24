@@ -15,6 +15,7 @@ public static class UnityGatewayProtocol
     public const string PlayerMessageMethod = "player.message";
     public const string ConversationEndMethod = "conversation.end";
     public const string AssistantStatusMethod = "assistant.status";
+    public const string AssistantDeltaMethod = "assistant.delta";
 }
 
 [Serializable]
@@ -76,4 +77,12 @@ public sealed class UnityGatewayAssistantStatus
     [JsonProperty("type")] public string Type;
     [JsonProperty("sessionId")] public string SessionId;
     [JsonProperty("status")] public string Status;
+}
+
+[Serializable]
+public sealed class UnityGatewayAssistantDelta
+{
+    [JsonProperty("type")] public string Type;
+    [JsonProperty("sessionId")] public string SessionId;
+    [JsonProperty("text")] public string Text;
 }

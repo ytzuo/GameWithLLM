@@ -45,6 +45,7 @@ public class AgentHostClient : Singleton<AgentHostClient>
         _gatewayClient.ToolCallReceived += OnGatewayToolCallReceived;
         _gatewayClient.ToolCancellationReceived += OnGatewayToolCancellationReceived;
         _gatewayClient.AssistantStatusReceived += OnAssistantStatusReceived;
+        _gatewayClient.AssistantDeltaReceived += OnAssistantDeltaReceived;
         _gatewayClient.Registered += OnGatewayRegistered;
         _gatewayClient.Info += OnGatewayInfo;
         _gatewayClient.Warning += OnGatewayWarning;
@@ -109,8 +110,7 @@ public class AgentHostClient : Singleton<AgentHostClient>
                 sessionId,
                 text,
                 _appCts.Token);
-            if (!string.IsNullOrWhiteSpace(reply?.Text))
-                EnqueueOpponentMessage(reply.Text);
+            EnqueueOpponentStreamCompleted(npcId, reply?.Text);
         }
         catch (OperationCanceledException) when (_appCts.IsCancellationRequested)
         {
@@ -118,7 +118,8 @@ public class AgentHostClient : Singleton<AgentHostClient>
         catch (Exception ex)
         {
             _sessionsByNpc.TryRemove(npcId, out _);
-            EnqueueSystemMessage($"对话请求失败：{ex.Message}");
+            EnqueueOpponentStreamCancelled(npcId);
+            EnqueueSystemMessage(npcId, $"对话请求失败：{ex.Message}");
         }
         finally
         {
@@ -187,8 +188,19 @@ public class AgentHostClient : Singleton<AgentHostClient>
 
     private void OnAssistantStatusReceived(UnityGatewayAssistantStatus status)
     {
-        if (status?.Status == "thinking")
-            EnqueueSystemMessage("NPC 正在思考……");
+        if (status?.Status == "thinking" &&
+            TryGetNpcIdForSession(status.SessionId, out string npcId))
+            EnqueueSystemMessage(npcId, "NPC 正在思考……");
+    }
+
+    private void OnAssistantDeltaReceived(UnityGatewayAssistantDelta delta)
+    {
+        if (delta == null || string.IsNullOrEmpty(delta.Text))
+            return;
+        if (!TryGetNpcIdForSession(delta.SessionId, out string npcId))
+            return;
+        _mainThreadActions.Enqueue(
+            () => ChatViewModel.Instance.AppendOpponentMessageDelta(npcId, delta.Text));
     }
 
     private void OnGatewayToolCallReceived(UnityToolCommand request)
@@ -215,15 +227,40 @@ public class AgentHostClient : Singleton<AgentHostClient>
             _ = _gatewayClient.NotifyToolsChangedAsync(_appCts.Token);
     }
 
-    private void EnqueueOpponentMessage(string text)
+    private bool TryGetNpcIdForSession(string sessionId, out string npcId)
     {
-        string npcId = _activeNpcId;
-        _mainThreadActions.Enqueue(() => ChatViewModel.Instance.AddOpponentMessage(npcId, text));
+        foreach (KeyValuePair<string, string> pair in _sessionsByNpc)
+        {
+            if (string.Equals(pair.Value, sessionId, StringComparison.Ordinal))
+            {
+                npcId = pair.Key;
+                return true;
+            }
+        }
+        npcId = null;
+        return false;
+    }
+
+    private void EnqueueOpponentStreamCompleted(string npcId, string finalText)
+    {
+        _mainThreadActions.Enqueue(
+            () => ChatViewModel.Instance.CompleteOpponentMessageStream(npcId, finalText));
+    }
+
+    private void EnqueueOpponentStreamCancelled(string npcId)
+    {
+        _mainThreadActions.Enqueue(
+            () => ChatViewModel.Instance.CancelOpponentMessageStream(npcId));
     }
 
     private void EnqueueSystemMessage(string text)
     {
         string npcId = _activeNpcId;
+        EnqueueSystemMessage(npcId, text);
+    }
+
+    private void EnqueueSystemMessage(string npcId, string text)
+    {
         _mainThreadActions.Enqueue(() => ChatViewModel.Instance.AddSystemMessage(npcId, text));
     }
 
@@ -242,6 +279,7 @@ public class AgentHostClient : Singleton<AgentHostClient>
             _gatewayClient.ToolCallReceived -= OnGatewayToolCallReceived;
             _gatewayClient.ToolCancellationReceived -= OnGatewayToolCancellationReceived;
             _gatewayClient.AssistantStatusReceived -= OnAssistantStatusReceived;
+            _gatewayClient.AssistantDeltaReceived -= OnAssistantDeltaReceived;
             _gatewayClient.Registered -= OnGatewayRegistered;
             _gatewayClient.Info -= OnGatewayInfo;
             _gatewayClient.Warning -= OnGatewayWarning;

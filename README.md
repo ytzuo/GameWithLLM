@@ -184,3 +184,4 @@ node GameMCPServer/test_mcp.js --start-server
 | `unity.tool.execute` | Go→Unity | 要求执行工具 |
 | `unity.tool.cancel` | Go→Unity | 取消工具执行 |
 | `assistant.status` | Go→Unity | 推送助手状态 |
+| `assistant.delta` | Go→Unity | 推送模型生成的文本增量 |
