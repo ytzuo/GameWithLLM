@@ -14,6 +14,22 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestNormalizeChatCompletionsEndpoint(t *testing.T) {
+	tests := map[string]string{
+		"https://api.deepseek.com":                   "https://api.deepseek.com/chat/completions",
+		"https://api.deepseek.com/":                  "https://api.deepseek.com/chat/completions",
+		"https://api.openai.com/v1":                  "https://api.openai.com/v1/chat/completions",
+		"https://api.openai.com/v1/":                 "https://api.openai.com/v1/chat/completions",
+		"https://api.openai.com/v1/chat/completions": "https://api.openai.com/v1/chat/completions",
+		"https://example.com/custom/completions":     "https://example.com/custom/completions",
+	}
+	for input, expected := range tests {
+		t.Run(input, func(t *testing.T) {
+			assert.Equal(t, expected, normalizeChatCompletionsEndpoint(input))
+		})
+	}
+}
+
 func TestOpenAICompatibleClient_Complete(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		assert.Equal(t, "Bearer secret", r.Header.Get("Authorization"))

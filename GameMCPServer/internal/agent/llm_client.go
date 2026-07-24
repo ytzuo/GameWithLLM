@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"sort"
 	"strings"
 	"time"
@@ -25,10 +26,7 @@ type OpenAICompatibleClient struct {
 }
 
 func NewOpenAICompatibleClient(endpoint, apiKey, model string, timeout time.Duration) *OpenAICompatibleClient {
-	endpoint = strings.TrimRight(strings.TrimSpace(endpoint), "/")
-	if strings.HasSuffix(endpoint, "/v1") {
-		endpoint += "/chat/completions"
-	}
+	endpoint = normalizeChatCompletionsEndpoint(endpoint)
 	if timeout <= 0 {
 		timeout = 60 * time.Second
 	}
@@ -38,6 +36,25 @@ func NewOpenAICompatibleClient(endpoint, apiKey, model string, timeout time.Dura
 		model:      model,
 		httpClient: &http.Client{Timeout: timeout},
 	}
+}
+
+func normalizeChatCompletionsEndpoint(endpoint string) string {
+	endpoint = strings.TrimSpace(endpoint)
+	parsed, err := url.Parse(endpoint)
+	if err != nil || parsed.Scheme == "" || parsed.Host == "" {
+		return strings.TrimRight(endpoint, "/")
+	}
+
+	path := strings.TrimRight(parsed.Path, "/")
+	switch path {
+	case "":
+		parsed.Path = "/chat/completions"
+	case "/v1":
+		parsed.Path = "/v1/chat/completions"
+	default:
+		parsed.Path = path
+	}
+	return parsed.String()
 }
 
 func (c *OpenAICompatibleClient) Complete(ctx context.Context, request CompletionRequest) (*CompletionResult, error) {
