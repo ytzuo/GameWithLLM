@@ -61,7 +61,7 @@ public class ChatWindow : BaseWindow
 
         if (_chatInput != null)
         {
-            _chatInput.RegisterCallback<KeyDownEvent>(OnChatInputKeyDown);
+            _chatInput.RegisterCallback<KeyDownEvent>(OnChatInputKeyDown, TrickleDown.TrickleDown);
             _chatInput.RegisterValueChangedCallback(OnInputValueChanged);
         }
 
@@ -138,7 +138,7 @@ public class ChatWindow : BaseWindow
 
         if (_chatInput != null)
         {
-            _chatInput.UnregisterCallback<KeyDownEvent>(OnChatInputKeyDown);
+            _chatInput.UnregisterCallback<KeyDownEvent>(OnChatInputKeyDown, TrickleDown.TrickleDown);
             _chatInput.UnregisterValueChangedCallback(OnInputValueChanged);
         }
 
@@ -243,12 +243,40 @@ public class ChatWindow : BaseWindow
         if (evt == null)
             return;
 
-        bool isEnter = evt.keyCode == KeyCode.Return || evt.keyCode == KeyCode.KeypadEnter;
-        if (isEnter && !evt.shiftKey)
-        {
+        bool isEnter = evt.keyCode == KeyCode.Return ||
+                       evt.keyCode == KeyCode.KeypadEnter ||
+                       evt.character == '\n' ||
+                       evt.character == '\r';
+        if (!isEnter)
+            return;
+
+        if (evt.shiftKey)
+            InsertLineBreak();
+        else
             SendCurrentMessage();
-            evt.StopImmediatePropagation();
-        }
+
+        // TextField 会自行处理 Enter；必须在捕获阶段阻止默认行为，
+        // 否则普通 Enter 会先换行，Shift+Enter 的行为也会因平台而异。
+        evt.StopImmediatePropagation();
+    }
+
+    private void InsertLineBreak()
+    {
+        if (_chatInput == null)
+            return;
+
+        string value = _chatInput.value ?? string.Empty;
+        int cursorIndex = Mathf.Clamp(_chatInput.cursorIndex, 0, value.Length);
+        int selectIndex = Mathf.Clamp(_chatInput.selectIndex, 0, value.Length);
+        int selectionStart = Mathf.Min(cursorIndex, selectIndex);
+        int selectionEnd = Mathf.Max(cursorIndex, selectIndex);
+
+        if (value.Length - (selectionEnd - selectionStart) >= MaxMessageLength)
+            return;
+
+        _chatInput.value = value.Substring(0, selectionStart) + "\n" + value.Substring(selectionEnd);
+        int nextCursorIndex = selectionStart + 1;
+        _chatInput.SelectRange(nextCursorIndex, nextCursorIndex);
     }
 
     private void OnInputValueChanged(ChangeEvent<string> evt)
