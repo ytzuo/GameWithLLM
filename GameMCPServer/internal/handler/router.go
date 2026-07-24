@@ -25,7 +25,7 @@ func RegisterRoutesWithTimeout(mux *http.ServeMux, timeout time.Duration) *unity
 func RegisterRoutesWithConfig(mux *http.ServeMux, cfg config.Config) *unity.JSONRPCServer {
 	llm := agent.NewOpenAICompatibleClient(cfg.LLMAPIURL, cfg.LLMAPIKey, cfg.LLMModel, cfg.LLMRequestTimeout)
 	return registerRoutes(mux, unity.NewJSONRPCServerWithAgent(
-		cfg.UnityToolTimeout, llm, cfg.LLMModel, cfg.LLMMaxToolRounds,
+		cfg.UnityToolTimeout, llm, cfg.LLMModel, cfg.LLMMaxToolRounds, cfg.LLMMaxContextChars,
 	))
 }
 

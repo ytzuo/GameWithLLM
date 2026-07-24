@@ -21,6 +21,7 @@ const (
 	defaultLLMModel           = "gpt-4o-mini"
 	defaultLLMTimeoutSeconds  = 60
 	defaultLLMMaxToolRounds   = 4
+	defaultLLMMaxContextChars = 32000
 )
 
 // Config contains runtime settings shared by local development tools.
@@ -36,6 +37,7 @@ type Config struct {
 	LLMRequestTimeout       time.Duration
 	LLMRequestTimeoutSecond int
 	LLMMaxToolRounds        int
+	LLMMaxContextChars      int
 }
 
 // Load reads .env.local/.env while allowing real process environment variables
@@ -57,6 +59,7 @@ func Load() Config {
 		LLMRequestTimeout:       time.Duration(llmTimeoutSeconds) * time.Second,
 		LLMRequestTimeoutSecond: llmTimeoutSeconds,
 		LLMMaxToolRounds:        intValue("LLM_MAX_TOOL_ROUNDS", values, defaultLLMMaxToolRounds),
+		LLMMaxContextChars:      intValue("LLM_MAX_CONTEXT_CHARS", values, defaultLLMMaxContextChars),
 	}
 }
 

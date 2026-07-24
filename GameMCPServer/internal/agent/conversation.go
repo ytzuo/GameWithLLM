@@ -27,15 +27,23 @@ type ConversationService interface {
 }
 
 type Service struct {
-	llm     LLMClient
-	store   SessionStore
-	runtime Runtime
-	policy  gametools.Policy
-	model   string
+	llm             LLMClient
+	store           SessionStore
+	runtime         Runtime
+	policy          gametools.Policy
+	model           string
+	maxContextChars int
 }
 
-func NewConversationService(llm LLMClient, store SessionStore, runtime Runtime, model string, maxToolRounds int) *Service {
-	return &Service{llm: llm, store: store, runtime: runtime, policy: gametools.NewPolicy(maxToolRounds), model: model}
+func NewConversationService(llm LLMClient, store SessionStore, runtime Runtime, model string, maxToolRounds int, contextBudgets ...int) *Service {
+	maxContextChars := defaultMaxContextChars
+	if len(contextBudgets) > 0 && contextBudgets[0] > 0 {
+		maxContextChars = contextBudgets[0]
+	}
+	return &Service{
+		llm: llm, store: store, runtime: runtime, policy: gametools.NewPolicy(maxToolRounds),
+		model: model, maxContextChars: maxContextChars,
+	}
 }
 
 func (s *Service) StartSession(ctx context.Context, playerID, npcID string) (*Session, error) {
@@ -106,6 +114,7 @@ func (s *Service) submitMessage(
 		return nil, fmt.Errorf("Unity instance or NPC is offline for session %s", sessionID)
 	}
 	session.Messages = append(session.Messages, Message{Role: "user", Content: text})
+	s.trimSessionMessages(session)
 	session.LastActiveAt = time.Now().UTC()
 	if err := s.store.Save(operationCtx, session); err != nil {
 		return nil, err
@@ -143,6 +152,7 @@ func (s *Service) submitMessage(
 				content = "我暂时没有可回复的内容。"
 			}
 			session.Messages = append(session.Messages, Message{Role: "assistant", Content: content})
+			s.trimSessionMessages(session)
 			session.LastActiveAt = time.Now().UTC()
 			if err := s.store.Save(operationCtx, session); err != nil {
 				return nil, err
@@ -177,10 +187,19 @@ func (s *Service) submitMessage(
 			encodedResult, _ := json.Marshal(result)
 			session.Messages = append(session.Messages, Message{Role: "tool", ToolCallID: call.ID, Content: string(encodedResult)})
 		}
+		s.trimSessionMessages(session)
 		session.LastActiveAt = time.Now().UTC()
 		if err := s.store.Save(operationCtx, session); err != nil {
 			return nil, err
 		}
+	}
+}
+
+func (s *Service) trimSessionMessages(session *Session) {
+	before := len(session.Messages)
+	session.Messages = trimConversationMessages(session.Messages, s.maxContextChars)
+	if removed := before - len(session.Messages); removed > 0 {
+		log.Printf("event=conversation_context_trimmed session_id=%q removed_message_count=%d retained_message_count=%d max_context_chars=%d", session.ID, removed, len(session.Messages), s.maxContextChars)
 	}
 }
 

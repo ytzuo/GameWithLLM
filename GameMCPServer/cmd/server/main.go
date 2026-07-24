@@ -36,7 +36,7 @@ func run(ctx context.Context, cfg config.Config) error {
 		IdleTimeout:       60 * time.Second,
 	}
 
-	log.Printf("event=server_starting base_url=%q websocket_url=%q tool_timeout_seconds=%d llm_model=%q llm_timeout_seconds=%d llm_max_tool_rounds=%d llm_api_key_configured=%t", cfg.BaseURL, cfg.UnityJSONRPCWSURL, cfg.UnityToolTimeoutSecond, cfg.LLMModel, cfg.LLMRequestTimeoutSecond, cfg.LLMMaxToolRounds, cfg.LLMAPIKey != "")
+	log.Printf("event=server_starting base_url=%q websocket_url=%q tool_timeout_seconds=%d llm_model=%q llm_timeout_seconds=%d llm_max_tool_rounds=%d llm_max_context_chars=%d llm_api_key_configured=%t", cfg.BaseURL, cfg.UnityJSONRPCWSURL, cfg.UnityToolTimeoutSecond, cfg.LLMModel, cfg.LLMRequestTimeoutSecond, cfg.LLMMaxToolRounds, cfg.LLMMaxContextChars, cfg.LLMAPIKey != "")
 
 	serveErr := make(chan error, 1)
 	go func() {

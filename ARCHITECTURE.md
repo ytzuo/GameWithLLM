@@ -73,6 +73,7 @@ Unity 运行时声明 `game_scene_get_npc_targets`，用于查询当前已加载
 1. Unity 连接 Go，并注册实例、NPC 和工具能力。
 2. 玩家在 Unity 中与 NPC 交互，Unity 向 Go 创建对话并提交消息。
 3. Go 调用 LLM；如果模型直接回复，结果返回 Unity 展示。
+   - 每次调用前，Go 按 `LLM_MAX_CONTEXT_CHARS` 对会话历史做字符预算裁剪。`system` 消息始终保留；从最近一轮向前保留完整轮次，assistant tool call 与对应 tool result 不会被拆开。
 4. 如果模型请求工具，Go 校验参数和权限后向 Unity 下发 `unity.tool.execute`。
 5. Unity 在主线程执行 NPC 行为并返回结果。
 6. Go 将工具结果写回模型上下文，再生成最终回复返回 Unity。

@@ -30,11 +30,11 @@ func NewJSONRPCServer(timeout time.Duration) *JSONRPCServer {
 	return newJSONRPCServer(timeout, nil, "", 0)
 }
 
-func NewJSONRPCServerWithAgent(timeout time.Duration, llm agent.LLMClient, model string, maxToolRounds int) *JSONRPCServer {
-	return newJSONRPCServer(timeout, llm, model, maxToolRounds)
+func NewJSONRPCServerWithAgent(timeout time.Duration, llm agent.LLMClient, model string, maxToolRounds int, contextBudgets ...int) *JSONRPCServer {
+	return newJSONRPCServer(timeout, llm, model, maxToolRounds, contextBudgets...)
 }
 
-func newJSONRPCServer(timeout time.Duration, llm agent.LLMClient, model string, maxToolRounds int) *JSONRPCServer {
+func newJSONRPCServer(timeout time.Duration, llm agent.LLMClient, model string, maxToolRounds int, contextBudgets ...int) *JSONRPCServer {
 	registry := NewUnityRegistry()
 	executor := NewToolExecutor(registry, timeout)
 	server := &JSONRPCServer{
@@ -43,7 +43,7 @@ func newJSONRPCServer(timeout time.Duration, llm agent.LLMClient, model string, 
 	}
 	if llm != nil {
 		server.conversations = agent.NewConversationService(
-			llm, agent.NewMemorySessionStore(), newAgentRuntime(registry, executor), model, maxToolRounds,
+			llm, agent.NewMemorySessionStore(), newAgentRuntime(registry, executor), model, maxToolRounds, contextBudgets...,
 		)
 	}
 	return server

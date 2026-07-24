@@ -15,6 +15,7 @@ func TestLoad_AgentHostAndLLMConfiguration(t *testing.T) {
 	t.Setenv("LLM_MODEL", "model-test")
 	t.Setenv("LLM_REQUEST_TIMEOUT_SECONDS", "12")
 	t.Setenv("LLM_MAX_TOOL_ROUNDS", "3")
+	t.Setenv("LLM_MAX_CONTEXT_CHARS", "12345")
 
 	cfg := Load()
 	assert.Equal(t, "127.0.0.1:19090", cfg.ServerAddr)
@@ -24,4 +25,5 @@ func TestLoad_AgentHostAndLLMConfiguration(t *testing.T) {
 	assert.Equal(t, "model-test", cfg.LLMModel)
 	assert.Equal(t, 12*time.Second, cfg.LLMRequestTimeout)
 	assert.Equal(t, 3, cfg.LLMMaxToolRounds)
+	assert.Equal(t, 12345, cfg.LLMMaxContextChars)
 }
