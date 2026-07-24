@@ -1,4 +1,6 @@
 using System.Collections.Concurrent;
+using Newtonsoft.Json;
+using Newtonsoft.Json.Linq;
 using UnityEngine;
 using UnityEngine.AI;
 
@@ -70,12 +72,29 @@ public class NpcEntity : MonoBehaviour
                 request.Function.ArgumentsJson);
         }
 
-        Debug.Log(result.IsError
-            ? $"[NPC:{npcId}] tool failed: {result.Message}"
-            : $"[NPC:{npcId}] {result.Message}");
+        var resultTrace = new JObject
+        {
+            ["event"] = "unity_tool_executed",
+            ["requestId"] = request?.RequestId,
+            ["npcId"] = npcId,
+            ["tool"] = request?.Function?.Name,
+            ["ok"] = !result.IsError
+        };
+        if (!string.IsNullOrEmpty(result.ErrorCode))
+            resultTrace["errorCode"] = result.ErrorCode;
+        if (!string.IsNullOrEmpty(result.Message))
+            resultTrace["message"] = result.Message;
+        if (result.Data != null)
+            resultTrace["data"] = result.Data.DeepClone();
+        Debug.Log($"[Unity Tool Trace] {resultTrace.ToString(Formatting.None)}", this);
 
         if (!string.IsNullOrEmpty(request?.RequestId))
-            _ = AgentHostClient.Instance.SendToolResponseAsync(request.RequestId, result.Message, result.IsError, result.ErrorCode, result.Data);
+            _ = AgentHostClient.Instance.SendToolResponseAsync(
+                request.RequestId,
+                result.Message,
+                result.IsError,
+                result.ErrorCode,
+                result.Data);
     }
 
     internal string MoveToLandmark(MoveArgs args)

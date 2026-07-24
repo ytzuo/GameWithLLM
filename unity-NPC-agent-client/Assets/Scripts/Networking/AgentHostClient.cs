@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
+using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using UnityEngine;
 
@@ -203,6 +204,14 @@ public class AgentHostClient : Singleton<AgentHostClient>
     {
         if (string.IsNullOrEmpty(requestId))
             return;
+
+        EnqueueToolResultTrace(
+            "unity_tool_result_sending",
+            requestId,
+            text,
+            isError,
+            errorCode,
+            data);
         try
         {
             await _gatewayClient.SendToolResultAsync(
@@ -212,10 +221,27 @@ public class AgentHostClient : Singleton<AgentHostClient>
                 errorCode,
                 data,
                 _appCts.Token);
+            EnqueueToolResultTrace(
+                "unity_tool_result_sent",
+                requestId,
+                text,
+                isError,
+                errorCode,
+                data);
         }
         catch (Exception ex)
         {
-            Debug.LogError($"[Unity Gateway] 发送工具响应失败: {ex.Message}");
+            EnqueueToolResultTrace(
+                "unity_tool_result_send_failed",
+                requestId,
+                text,
+                isError,
+                errorCode,
+                data,
+                ex.Message);
+            string errorMessage = ex.Message;
+            _mainThreadActions.Enqueue(
+                () => Debug.LogError($"[Unity Gateway] 发送工具响应失败: requestId={requestId}, error={errorMessage}"));
         }
     }
 
@@ -254,7 +280,60 @@ public class AgentHostClient : Singleton<AgentHostClient>
 
     private void OnGatewayToolCallReceived(UnityToolCommand request)
     {
+        var trace = new JObject
+        {
+            ["event"] = "unity_tool_received",
+            ["requestId"] = request?.RequestId,
+            ["npcId"] = request?.NpcId,
+            ["tool"] = request?.Function?.Name
+        };
+        string argumentsJson = request?.Function?.ArgumentsJson;
+        if (!string.IsNullOrWhiteSpace(argumentsJson))
+        {
+            try
+            {
+                trace["arguments"] = JToken.Parse(argumentsJson);
+            }
+            catch
+            {
+                trace["argumentsRaw"] = argumentsJson;
+            }
+        }
+        EnqueueToolTrace(trace);
         _dispatcher.OnReceiveNetMessage(request);
+    }
+
+    private void EnqueueToolResultTrace(
+        string eventName,
+        string requestId,
+        string text,
+        bool isError,
+        string errorCode,
+        JToken data,
+        string transportError = null)
+    {
+        var trace = new JObject
+        {
+            ["event"] = eventName,
+            ["requestId"] = requestId,
+            ["ok"] = !isError
+        };
+        if (!string.IsNullOrEmpty(errorCode))
+            trace["errorCode"] = errorCode;
+        if (!string.IsNullOrEmpty(text))
+            trace["message"] = text;
+        if (data != null)
+            trace["data"] = data.DeepClone();
+        if (!string.IsNullOrEmpty(transportError))
+            trace["transportError"] = transportError;
+        EnqueueToolTrace(trace);
+    }
+
+    private void EnqueueToolTrace(JObject trace)
+    {
+        string compactJson = trace.ToString(Formatting.None);
+        _mainThreadActions.Enqueue(
+            () => Debug.Log($"[Unity Tool Trace] {compactJson}"));
     }
 
     private void OnGatewayToolCancellationReceived(string requestId)
