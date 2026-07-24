@@ -17,6 +17,7 @@ func newAgentRuntime(registry *UnityRegistry, executor ToolExecutor) agent.Runti
 	return &agentRuntime{registry: registry, executor: executor}
 }
 
+// Capabilities 将 Unity 注册的协议 DTO 复制为 Agent 可见的工具定义。
 func (r *agentRuntime) Capabilities(npcID string) (string, []gametools.Definition, bool) {
 	instanceID, definitions, ok := r.registry.CapabilitiesForNPC(npcID)
 	if !ok {
@@ -32,6 +33,7 @@ func (r *agentRuntime) Capabilities(npcID string) (string, []gametools.Definitio
 	return instanceID, result, true
 }
 
+// Execute 调用 Unity 工具并复制结构化 Data，避免跨层共享可变 JSON 字节。
 func (r *agentRuntime) Execute(ctx context.Context, instanceID, npcID, tool string, arguments json.RawMessage) (agent.ToolExecutionResult, error) {
 	result, err := r.executor.Execute(ctx, instanceID, npcID, tool, arguments)
 	if err != nil {

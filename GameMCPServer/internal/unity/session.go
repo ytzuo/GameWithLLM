@@ -13,11 +13,13 @@ import (
 	"GameMCPServer/internal/agent"
 )
 
+// jsonRPCConnection 隔离具体 WebSocket 实现，便于对单连接协议循环进行测试。
 type jsonRPCConnection interface {
 	Read(context.Context, *jsonRPCMessage) error
 	Write(context.Context, jsonRPCMessage) error
 }
 
+// jsonRPCSession 管理一条 Unity 连接的注册、对话所有权、pending 请求和串行写入。
 type jsonRPCSession struct {
 	ctx             context.Context
 	cancel          context.CancelFunc
@@ -32,6 +34,7 @@ type jsonRPCSession struct {
 	nextID          atomic.Uint64
 }
 
+// newJSONRPCSession 创建单连接状态；可选 ConversationService 供无 Agent 的协议测试复用。
 func newJSONRPCSession(
 	ctx context.Context,
 	cancel context.CancelFunc,
@@ -51,6 +54,7 @@ func newJSONRPCSession(
 	}
 }
 
+// readLoop 是连接的唯一读循环；退出时会清理注册表、所属对话和连接 Context。
 func (s *jsonRPCSession) readLoop() {
 	defer s.registry.UnregisterSession(s)
 	defer s.endConversations()
@@ -79,6 +83,7 @@ func (s *jsonRPCSession) readLoop() {
 		case methodConversationStart:
 			s.handleConversationStart(msg)
 		case methodPlayerMessage:
+			// LLM 调用可能耗时，异步处理以保证读循环仍能接收工具响应和取消信号。
 			go s.handlePlayerMessage(msg)
 		case methodConversationEnd:
 			s.handleConversationEnd(msg)
@@ -225,6 +230,7 @@ func (s *jsonRPCSession) handlePlayerMessage(msg jsonRPCMessage) {
 	_ = s.writeResult(msg.ID, reply)
 }
 
+// conversationErrorCode 将内部错误稳定映射为 Unity 可据此恢复 Session 的 JSON-RPC 错误码。
 func conversationErrorCode(err error) int {
 	switch {
 	case errors.Is(err, agent.ErrSessionNotFound):
@@ -276,6 +282,7 @@ func (s *jsonRPCSession) removeConversation(sessionID string) bool {
 	return true
 }
 
+// endConversations 在连接断开时使用独立 Context 清理该连接创建的全部内存 Session。
 func (s *jsonRPCSession) endConversations() {
 	if s.conversations == nil {
 		return
@@ -310,6 +317,7 @@ func (s *jsonRPCSession) executeUnityTool(ctx context.Context, params UnityToolE
 	}
 	id := json.RawMessage(fmt.Sprintf(`"unity-exec-%d"`, s.nextID.Add(1)))
 	key := string(id)
+	// 容量为 1，读循环投递响应时不会被已超时或已取消的调用方阻塞。
 	ch := make(chan jsonRPCMessage, 1)
 	if !s.addPending(key, ch) {
 		return nil, fmt.Errorf("duplicate internal request id: %s", key)
@@ -338,6 +346,7 @@ func (s *jsonRPCSession) executeUnityTool(ctx context.Context, params UnityToolE
 	}
 }
 
+// sendUnityToolCancel 以通知形式尽力告知 Unity 停止已超时的主线程工具。
 func (s *jsonRPCSession) sendUnityToolCancel(id json.RawMessage) {
 	var requestID string
 	if err := json.Unmarshal(id, &requestID); err != nil {
@@ -351,6 +360,8 @@ func (s *jsonRPCSession) sendUnityToolCancel(id json.RawMessage) {
 		log.Printf("event=unity_tool_cancel_failed request_id=%q error=%q", requestID, err)
 	}
 }
+
+// complete 将响应交给对应 pending 请求；未知或重复响应只记录并忽略。
 func (s *jsonRPCSession) complete(msg jsonRPCMessage) {
 	if len(msg.ID) == 0 {
 		log.Print("event=jsonrpc_response_ignored reason=missing_id")
@@ -399,6 +410,7 @@ func (s *jsonRPCSession) writeError(id json.RawMessage, code int, message string
 	return s.writeMessage(jsonRPCMessage{JSONRPC: jsonRPCVersion, ID: id, Error: &jsonRPCError{Code: code, Message: message}})
 }
 
+// writeMessage 用单一发送锁保护所有 WebSocket 写入，避免帧并发交错。
 func (s *jsonRPCSession) writeMessage(msg jsonRPCMessage) error {
 	s.writeMu.Lock()
 	defer s.writeMu.Unlock()

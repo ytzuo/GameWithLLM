@@ -16,10 +16,12 @@ import (
 	"time"
 )
 
+// LLMClient 抽象一次支持工具调用和文本流的模型补全。
 type LLMClient interface {
 	Complete(ctx context.Context, req CompletionRequest) (*CompletionResult, error)
 }
 
+// OpenAICompatibleClient 调用 OpenAI-compatible Chat Completions，并聚合 SSE 工具调用片段。
 type OpenAICompatibleClient struct {
 	endpoint   string
 	apiKey     string
@@ -28,6 +30,7 @@ type OpenAICompatibleClient struct {
 	maxRetries int
 }
 
+// NewOpenAICompatibleClient 创建模型客户端；可选 retryLimits 的首个值覆盖默认重试次数。
 func NewOpenAICompatibleClient(endpoint, apiKey, model string, timeout time.Duration, retryLimits ...int) *OpenAICompatibleClient {
 	endpoint = normalizeChatCompletionsEndpoint(endpoint)
 	if timeout <= 0 {
@@ -49,6 +52,7 @@ func NewOpenAICompatibleClient(endpoint, apiKey, model string, timeout time.Dura
 	}
 }
 
+// normalizeChatCompletionsEndpoint 接受供应商根地址、/v1 或完整端点，并只补齐已知缺失路径。
 func normalizeChatCompletionsEndpoint(endpoint string) string {
 	endpoint = strings.TrimSpace(endpoint)
 	parsed, err := url.Parse(endpoint)
@@ -68,6 +72,7 @@ func normalizeChatCompletionsEndpoint(endpoint string) string {
 	return parsed.String()
 }
 
+// Complete 转换内部消息、执行安全重试，并返回聚合后的文本与工具调用。
 func (c *OpenAICompatibleClient) Complete(ctx context.Context, request CompletionRequest) (*CompletionResult, error) {
 	if c.endpoint == "" {
 		return nil, fmt.Errorf("LLM_API_URL is not configured")
@@ -107,6 +112,7 @@ func (c *OpenAICompatibleClient) Complete(ctx context.Context, request Completio
 	if err != nil {
 		return nil, err
 	}
+	// 每次尝试都创建新 HTTP 请求；请求体字节可安全复用。
 	for attempt := 0; ; attempt++ {
 		deliveredText := false
 		onTextDelta := request.OnTextDelta
@@ -123,6 +129,7 @@ func (c *OpenAICompatibleClient) Complete(ctx context.Context, request Completio
 		if requestErr == nil {
 			return result, nil
 		}
+		// 已向 UI 输出文本后禁止重放整次请求，否则玩家会看到重复的开头。
 		if deliveredText || attempt >= c.maxRetries || !IsTemporaryLLMError(requestErr) {
 			return nil, requestErr
 		}
@@ -212,6 +219,7 @@ func (c *OpenAICompatibleClient) completeOnce(
 	return result, nil
 }
 
+// retryDelay 优先采用 Retry-After，否则使用有上限的指数退避。
 func retryDelay(attempt int, err error) time.Duration {
 	var requestError *LLMRequestError
 	if errors.As(err, &requestError) && requestError.RetryAfter > 0 {
@@ -224,6 +232,7 @@ func retryDelay(attempt int, err error) time.Duration {
 	return min(delay, 5*time.Second)
 }
 
+// parseRetryAfter 同时支持秒数和 HTTP 日期两种标准格式。
 func parseRetryAfter(value string) time.Duration {
 	value = strings.TrimSpace(value)
 	if value == "" {
@@ -241,6 +250,7 @@ func parseRetryAfter(value string) time.Duration {
 	return 0
 }
 
+// decodeOpenAIEventStream 解析 SSE data 事件，并按 index 拼接被拆分的工具调用字段。
 func decodeOpenAIEventStream(reader io.Reader, onTextDelta func(string) error) (*CompletionResult, error) {
 	scanner := bufio.NewScanner(reader)
 	scanner.Buffer(make([]byte, 64*1024), 4<<20)
@@ -281,6 +291,7 @@ func decodeOpenAIEventStream(reader io.Reader, onTextDelta func(string) error) (
 				}
 			}
 		}
+		// 工具名称和 arguments 可能跨多个 SSE chunk 到达，必须按 index 累积。
 		for _, fragment := range delta.ToolCalls {
 			call := toolCalls[fragment.Index]
 			if call == nil {

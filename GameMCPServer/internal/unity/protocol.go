@@ -1,3 +1,4 @@
+// Package unity 实现 Unity Gateway 的 JSON-RPC 协议、连接注册和主线程工具调度桥接。
 package unity
 
 import (
@@ -52,6 +53,7 @@ type UnityRegistration struct {
 	NPCs            []string         `json:"npcs"`
 }
 
+// Validate 校验协议版本、实例标识和完整能力快照。
 func (r UnityRegistration) Validate() error {
 	if r.ProtocolVersion != unityProtocolVersion {
 		return fmt.Errorf("unsupported protocolVersion: %d", r.ProtocolVersion)
@@ -72,6 +74,7 @@ func (r UnityRegistration) Validate() error {
 	return nil
 }
 
+// Validate 确保工具名称非空且 inputSchema 是 JSON 对象。
 func (t ToolDefinition) Validate() error {
 	if t.Name == "" {
 		return fmt.Errorf("tool name is required")
@@ -82,48 +85,57 @@ func (t ToolDefinition) Validate() error {
 	return nil
 }
 
+// UnityRegistrationResult 确认 Unity 注册是否被接受及服务端协议版本。
 type UnityRegistrationResult struct {
 	Accepted        bool `json:"accepted"`
 	ProtocolVersion int  `json:"protocolVersion"`
 }
 
+// UnityNPCChangedParams 描述已注册实例中单个 NPC 的上下线变化。
 type UnityNPCChangedParams struct {
 	InstanceID string `json:"instanceId"`
 	NPCID      string `json:"npcId"`
 	Online     bool   `json:"online"`
 }
 
+// UnityToolsChangedParams 携带 Unity 实例最新的完整工具能力快照。
 type UnityToolsChangedParams struct {
 	InstanceID string           `json:"instanceId"`
 	Tools      []ToolDefinition `json:"tools"`
 }
 
+// ConversationStartParams 标识要建立对话的玩家和 NPC。
 type ConversationStartParams struct {
 	PlayerID string `json:"playerId"`
 	NPCID    string `json:"npcId"`
 }
 
+// ConversationStartResult 返回新建 Session 及其绑定的 NPC。
 type ConversationStartResult struct {
 	SessionID string `json:"sessionId"`
 	NPCID     string `json:"npcId"`
 }
 
+// PlayerMessageParams 携带玩家向已有 Session 提交的消息。
 type PlayerMessageParams struct {
 	Type      string `json:"type,omitempty"`
 	SessionID string `json:"sessionId"`
 	Text      string `json:"text"`
 }
 
+// ConversationEndParams 指定要结束并从内存删除的 Session。
 type ConversationEndParams struct {
 	SessionID string `json:"sessionId"`
 }
 
+// AssistantStatusParams 向 Unity 推送 thinking 等非文本状态。
 type AssistantStatusParams struct {
 	Type      string `json:"type"`
 	SessionID string `json:"sessionId"`
 	Status    string `json:"status"`
 }
 
+// AssistantDeltaParams 推送文本增量；Reset 表示撤回当前未完成草稿。
 type AssistantDeltaParams struct {
 	Type      string `json:"type"`
 	SessionID string `json:"sessionId"`
@@ -138,6 +150,7 @@ type UnityToolExecuteParams struct {
 	Arguments json.RawMessage `json:"arguments"`
 }
 
+// Validate 确保 NPC、工具名和对象形式 arguments 均满足协议要求。
 func (p UnityToolExecuteParams) Validate() error {
 	if p.NPCID == "" {
 		return fmt.Errorf("npcId is required")
@@ -151,6 +164,7 @@ func (p UnityToolExecuteParams) Validate() error {
 	return nil
 }
 
+// UnityToolCancelParams 指定需要在 Unity 主线程侧取消的工具请求。
 type UnityToolCancelParams struct {
 	RequestID string `json:"requestId"`
 }

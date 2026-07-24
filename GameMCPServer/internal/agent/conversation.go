@@ -1,3 +1,4 @@
+// Package agent 负责 Session、系统提示词、LLM 调用和 Unity 工具循环的编排。
 package agent
 
 import (
@@ -14,11 +15,13 @@ import (
 	gametools "GameMCPServer/internal/tools"
 )
 
+// Runtime 是 Agent 访问 Unity 实时能力和执行游戏工具的唯一边界。
 type Runtime interface {
 	Capabilities(npcID string) (instanceID string, definitions []gametools.Definition, ok bool)
 	Execute(ctx context.Context, instanceID, npcID, tool string, arguments json.RawMessage) (ToolExecutionResult, error)
 }
 
+// ConversationService 管理 Session 生命周期，并编排 LLM 与 Unity 工具循环。
 type ConversationService interface {
 	StartSession(ctx context.Context, playerID, npcID string) (*Session, error)
 	SubmitMessage(ctx context.Context, sessionID, text string) (*AssistantReply, error)
@@ -26,6 +29,7 @@ type ConversationService interface {
 	EndSession(ctx context.Context, sessionID string) error
 }
 
+// Service 是 ConversationService 的内存实现；每个 Session 内部串行处理玩家消息。
 type Service struct {
 	llm             LLMClient
 	store           SessionStore
@@ -35,6 +39,7 @@ type Service struct {
 	maxContextChars int
 }
 
+// NewConversationService 装配模型、会话存储、Unity 运行时和工具/上下文预算。
 func NewConversationService(llm LLMClient, store SessionStore, runtime Runtime, model string, maxToolRounds int, contextBudgets ...int) *Service {
 	maxContextChars := defaultMaxContextChars
 	if len(contextBudgets) > 0 && contextBudgets[0] > 0 {
@@ -46,6 +51,7 @@ func NewConversationService(llm LLMClient, store SessionStore, runtime Runtime, 
 	}
 }
 
+// StartSession 校验 NPC 在线状态，生成系统提示词并创建内存 Session。
 func (s *Service) StartSession(ctx context.Context, playerID, npcID string) (*Session, error) {
 	if strings.TrimSpace(playerID) == "" {
 		return nil, fmt.Errorf("playerId is required")
@@ -70,10 +76,12 @@ func (s *Service) StartSession(ctx context.Context, playerID, npcID string) (*Se
 	return session, nil
 }
 
+// SubmitMessage 以非流式回调方式处理一条玩家消息。
 func (s *Service) SubmitMessage(ctx context.Context, sessionID, text string) (*AssistantReply, error) {
 	return s.submitMessage(ctx, sessionID, text, nil)
 }
 
+// SubmitMessageStream 处理玩家消息，并向调用方推送文本增量或草稿重置事件。
 func (s *Service) SubmitMessageStream(
 	ctx context.Context,
 	sessionID, text string,
@@ -94,9 +102,11 @@ func (s *Service) submitMessage(
 	if err != nil {
 		return nil, err
 	}
+	// 同一 Session 串行处理消息，避免两个 tool loop 交叉改写历史。
 	session.mu.Lock()
 	defer session.mu.Unlock()
 
+	// 将当前操作的 cancel 暂存到 Session，使 conversation.end 能中止 LLM 或 Unity 工具。
 	operationCtx, cancel := context.WithCancel(ctx)
 	session.cancelMu.Lock()
 	session.cancel = cancel
@@ -141,6 +151,7 @@ func (s *Service) submitMessage(
 			return nil, err
 		}
 		log.Printf("event=llm_request_completed session_id=%q outcome=success duration_ms=%d tool_call_count=%d text_length=%d", session.ID, time.Since(llmStartedAt).Milliseconds(), len(completion.ToolCalls), len([]rune(completion.Content)))
+		// 工具调用前的文本只是临时草稿，先通知 Unity 撤回，再执行工具。
 		if len(completion.ToolCalls) > 0 && streamedText && onStreamEvent != nil {
 			if err := onStreamEvent(AssistantStreamEvent{Reset: true}); err != nil {
 				return nil, fmt.Errorf("reset provisional assistant text: %w", err)
@@ -166,6 +177,7 @@ func (s *Service) submitMessage(
 		toolRounds++
 		session.Messages = append(session.Messages, Message{Role: "assistant", Content: completion.Content, ToolCalls: completion.ToolCalls})
 
+		// 每个工具结果紧跟对应 assistant tool call 写入，形成不可拆分的原子轮次。
 		for _, call := range completion.ToolCalls {
 			session.CurrentToolCallID = call.ID
 			result := ToolExecutionResult{OK: false, ErrorCode: "TOOL_REJECTED"}
@@ -203,6 +215,7 @@ func (s *Service) trimSessionMessages(session *Session) {
 	}
 }
 
+// EndSession 取消正在进行的模型/工具操作，并幂等删除内存 Session。
 func (s *Service) EndSession(ctx context.Context, sessionID string) error {
 	session, err := s.store.Load(ctx, sessionID)
 	if err != nil {

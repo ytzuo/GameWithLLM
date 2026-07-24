@@ -30,6 +30,7 @@ func NewJSONRPCServer(timeout time.Duration) *JSONRPCServer {
 	return newJSONRPCServer(timeout, nil, "", 0)
 }
 
+// NewJSONRPCServerWithAgent 创建启用 LLM 对话和 Unity 工具循环的生产服务。
 func NewJSONRPCServerWithAgent(timeout time.Duration, llm agent.LLMClient, model string, maxToolRounds int, contextBudgets ...int) *JSONRPCServer {
 	return newJSONRPCServer(timeout, llm, model, maxToolRounds, contextBudgets...)
 }
@@ -138,10 +139,12 @@ type websocketJSONRPCConnection struct {
 	conn *websocket.Conn
 }
 
+// Read 从 WebSocket 解码一条 JSON-RPC 消息。
 func (c *websocketJSONRPCConnection) Read(ctx context.Context, msg *jsonRPCMessage) error {
 	return wsjson.Read(ctx, c.conn, msg)
 }
 
+// Write 将一条 JSON-RPC 消息编码到 WebSocket；上层负责串行化调用。
 func (c *websocketJSONRPCConnection) Write(ctx context.Context, msg jsonRPCMessage) error {
 	return wsjson.Write(ctx, c.conn, msg)
 }

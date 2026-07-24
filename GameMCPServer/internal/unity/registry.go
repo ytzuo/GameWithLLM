@@ -21,6 +21,7 @@ type UnityRegistry struct {
 	sessionToInstance map[*jsonRPCSession]string
 }
 
+// NewUnityRegistry 创建空的在线实例、NPC 路由和能力注册表。
 func NewUnityRegistry() *UnityRegistry {
 	return &UnityRegistry{
 		instances:         make(map[string]*registeredUnityInstance),
@@ -29,6 +30,7 @@ func NewUnityRegistry() *UnityRegistry {
 	}
 }
 
+// Register 原子替换实例的连接和完整能力快照，并返回是否取代了旧连接。
 func (r *UnityRegistry) Register(session *jsonRPCSession, registration UnityRegistration) (bool, error) {
 	if session == nil {
 		return false, fmt.Errorf("session is required")
@@ -69,6 +71,7 @@ func (r *UnityRegistry) Register(session *jsonRPCSession, registration UnityRegi
 	return replaced, nil
 }
 
+// UnregisterSession 仅清理由该连接实际拥有的实例，避免旧连接误删新注册。
 func (r *UnityRegistry) UnregisterSession(session *jsonRPCSession) {
 	if session == nil {
 		return
@@ -96,6 +99,7 @@ func (r *UnityRegistry) unregisterSessionLocked(session *jsonRPCSession, instanc
 	delete(r.instances, instanceID)
 }
 
+// UpdateNPC 更新所属实例的 NPC 路由；调用连接必须拥有该实例。
 func (r *UnityRegistry) UpdateNPC(session *jsonRPCSession, change UnityNPCChangedParams) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -118,6 +122,7 @@ func (r *UnityRegistry) UpdateNPC(session *jsonRPCSession, change UnityNPCChange
 	return nil
 }
 
+// UpdateTools 校验并替换所属实例的完整工具能力快照。
 func (r *UnityRegistry) UpdateTools(session *jsonRPCSession, change UnityToolsChangedParams) error {
 	for _, tool := range change.Tools {
 		if err := tool.Validate(); err != nil {
@@ -149,6 +154,7 @@ func (r *UnityRegistry) ownedInstanceLocked(session *jsonRPCSession, instanceID 
 	return instance, nil
 }
 
+// ResolveNPC 返回 NPC 当前所属实例和负责发送命令的连接 Session。
 func (r *UnityRegistry) ResolveNPC(npcID string) (string, *jsonRPCSession, bool) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
@@ -160,6 +166,7 @@ func (r *UnityRegistry) ResolveNPC(npcID string) (string, *jsonRPCSession, bool)
 	return instanceID, instance.session, true
 }
 
+// CapabilitiesForNPC 返回 NPC 所属实例及按名称稳定排序的工具定义副本。
 func (r *UnityRegistry) CapabilitiesForNPC(npcID string) (string, []ToolDefinition, bool) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
@@ -179,6 +186,8 @@ func (r *UnityRegistry) CapabilitiesForNPC(npcID string) (string, []ToolDefiniti
 	}
 	return instanceID, definitions, true
 }
+
+// HasTool 判断指定 Unity 实例当前是否声明了该工具。
 func (r *UnityRegistry) HasTool(instanceID, toolName string) bool {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
@@ -190,12 +199,14 @@ func (r *UnityRegistry) HasTool(instanceID, toolName string) bool {
 	return ok
 }
 
+// IsRegistered 判断连接是否已经完成 unity.register。
 func (r *UnityRegistry) IsRegistered(session *jsonRPCSession) bool {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 	return r.sessionToInstance[session] != ""
 }
 
+// ListTools 汇总所有在线实例的工具，并按名称去重和稳定排序。
 func (r *UnityRegistry) ListTools() []ToolDefinition {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
@@ -217,6 +228,7 @@ func (r *UnityRegistry) ListTools() []ToolDefinition {
 	return result
 }
 
+// Counts 返回当前在线实例数和可路由 NPC 数。
 func (r *UnityRegistry) Counts() (instances, npcs int) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()

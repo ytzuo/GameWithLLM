@@ -4,6 +4,7 @@ import "unicode/utf8"
 
 const defaultMaxContextChars = 32000
 
+// trimConversationMessages 从最近轮次向前保留历史，同时保证 system 前缀和单轮工具链不被拆开。
 func trimConversationMessages(messages []Message, maxChars int) []Message {
 	if maxChars <= 0 || len(messages) <= 1 {
 		return append([]Message(nil), messages...)
@@ -45,6 +46,7 @@ func trimConversationMessages(messages []Message, maxChars int) []Message {
 	return result
 }
 
+// messagesContextChars 以 Unicode 字符数近似上下文大小，不依赖特定模型 tokenizer。
 func messagesContextChars(messages []Message) int {
 	total := 0
 	for _, message := range messages {
