@@ -85,4 +85,5 @@ public sealed class UnityGatewayAssistantDelta
     [JsonProperty("type")] public string Type;
     [JsonProperty("sessionId")] public string SessionId;
     [JsonProperty("text")] public string Text;
+    [JsonProperty("reset")] public bool Reset;
 }

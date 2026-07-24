@@ -30,6 +30,7 @@ public class ChatWindow : BaseWindow
     private bool _isSubscribed;
     private Action<Role, string> _viewModelMessageHandler;
     private Action<Role, string> _viewModelMessageUpdatedHandler;
+    private Action _viewModelHistoryChangedHandler;
     private Action<List<string>> _viewModelNpcListHandler;
     private Action<string> _viewModelActiveNpcHandler;
     private Label _latestOpponentMessageLabel;
@@ -79,11 +80,13 @@ public class ChatWindow : BaseWindow
         {
             _viewModelMessageHandler = RenderMessage;
             _viewModelMessageUpdatedHandler = UpdateRenderedMessage;
+            _viewModelHistoryChangedHandler = ReloadMessagesForActiveNpc;
             _viewModelNpcListHandler = OnNpcListChanged;
             _viewModelActiveNpcHandler = OnActiveNpcChanged;
 
             ChatViewModel.Instance.Subscribe(_viewModelMessageHandler);
             ChatViewModel.Instance.SubscribeToUpdates(_viewModelMessageUpdatedHandler);
+            ChatViewModel.Instance.OnHistoryChanged += _viewModelHistoryChangedHandler;
             ChatViewModel.Instance.OnNpcListChanged += _viewModelNpcListHandler;
             ChatViewModel.Instance.OnActiveNpcChanged += _viewModelActiveNpcHandler;
             _isSubscribed = true;
@@ -116,6 +119,8 @@ public class ChatWindow : BaseWindow
                 ChatViewModel.Instance.Unsubscribe(_viewModelMessageHandler);
             if (_viewModelMessageUpdatedHandler != null)
                 ChatViewModel.Instance.UnsubscribeFromUpdates(_viewModelMessageUpdatedHandler);
+            if (_viewModelHistoryChangedHandler != null)
+                ChatViewModel.Instance.OnHistoryChanged -= _viewModelHistoryChangedHandler;
             if (_viewModelNpcListHandler != null)
                 ChatViewModel.Instance.OnNpcListChanged -= _viewModelNpcListHandler;
             if (_viewModelActiveNpcHandler != null)
@@ -123,6 +128,7 @@ public class ChatWindow : BaseWindow
 
             _viewModelMessageHandler = null;
             _viewModelMessageUpdatedHandler = null;
+            _viewModelHistoryChangedHandler = null;
             _viewModelNpcListHandler = null;
             _viewModelActiveNpcHandler = null;
             _isSubscribed = false;

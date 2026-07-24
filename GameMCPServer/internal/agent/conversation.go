@@ -22,7 +22,7 @@ type Runtime interface {
 type ConversationService interface {
 	StartSession(ctx context.Context, playerID, npcID string) (*Session, error)
 	SubmitMessage(ctx context.Context, sessionID, text string) (*AssistantReply, error)
-	SubmitMessageStream(ctx context.Context, sessionID, text string, onTextDelta func(string) error) (*AssistantReply, error)
+	SubmitMessageStream(ctx context.Context, sessionID, text string, onStreamEvent func(AssistantStreamEvent) error) (*AssistantReply, error)
 	EndSession(ctx context.Context, sessionID string) error
 }
 
@@ -69,15 +69,15 @@ func (s *Service) SubmitMessage(ctx context.Context, sessionID, text string) (*A
 func (s *Service) SubmitMessageStream(
 	ctx context.Context,
 	sessionID, text string,
-	onTextDelta func(string) error,
+	onStreamEvent func(AssistantStreamEvent) error,
 ) (*AssistantReply, error) {
-	return s.submitMessage(ctx, sessionID, text, onTextDelta)
+	return s.submitMessage(ctx, sessionID, text, onStreamEvent)
 }
 
 func (s *Service) submitMessage(
 	ctx context.Context,
 	sessionID, text string,
-	onTextDelta func(string) error,
+	onStreamEvent func(AssistantStreamEvent) error,
 ) (*AssistantReply, error) {
 	if strings.TrimSpace(text) == "" {
 		return nil, fmt.Errorf("message text is required")
@@ -115,6 +115,14 @@ func (s *Service) submitMessage(
 	for {
 		llmStartedAt := time.Now()
 		log.Printf("event=llm_request_started session_id=%q npc_id=%q model=%q message_count=%d tool_count=%d tool_round=%d", session.ID, session.NPCID, session.Model, len(session.Messages), len(definitions), toolRounds)
+		streamedText := false
+		var onTextDelta func(string) error
+		if onStreamEvent != nil {
+			onTextDelta = func(delta string) error {
+				streamedText = true
+				return onStreamEvent(AssistantStreamEvent{Text: delta})
+			}
+		}
 		completion, err := s.llm.Complete(operationCtx, CompletionRequest{
 			Model: session.Model, Messages: append([]Message(nil), session.Messages...),
 			Tools: definitions, OnTextDelta: onTextDelta,
@@ -124,6 +132,11 @@ func (s *Service) submitMessage(
 			return nil, err
 		}
 		log.Printf("event=llm_request_completed session_id=%q outcome=success duration_ms=%d tool_call_count=%d text_length=%d", session.ID, time.Since(llmStartedAt).Milliseconds(), len(completion.ToolCalls), len([]rune(completion.Content)))
+		if len(completion.ToolCalls) > 0 && streamedText && onStreamEvent != nil {
+			if err := onStreamEvent(AssistantStreamEvent{Reset: true}); err != nil {
+				return nil, fmt.Errorf("reset provisional assistant text: %w", err)
+			}
+		}
 		if len(completion.ToolCalls) == 0 {
 			content := strings.TrimSpace(completion.Content)
 			if content == "" {

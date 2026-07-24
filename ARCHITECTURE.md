@@ -121,7 +121,7 @@ Unity 运行时声明 `game_scene_get_npc_targets`，用于查询当前已加载
 | `player.message` | Unity→Go | 请求（需id） | 玩家发送消息文本 |
 | `conversation.end` | Unity→Go | 通知（id可选） | 结束对话 |
 | `assistant.status` | Go→Unity | 通知（无id） | Go推送助手状态（如thinking） |
-| `assistant.delta` | Go→Unity | 通知（无id） | Go推送模型生成的文本增量 |
+| `assistant.delta` | Go→Unity | 通知（无id） | Go推送模型文本增量；`reset:true` 撤回当前未完成草稿 |
 
 ### 三、Unity 端 DTO（10个类/结构）
 
@@ -138,7 +138,7 @@ Unity 运行时声明 `game_scene_get_npc_targets`，用于查询当前已加载
 | `UnityGatewayConversationStartResult` | `SessionId`, `NpcId` | 对话创建结果 |
 | `UnityGatewayAssistantReply` | `Type`, `SessionId`, `NpcId`, `Text` | 助手文本回复 |
 | `UnityGatewayAssistantStatus` | `Type`, `SessionId`, `Status` | 助手状态推送 |
-| `UnityGatewayAssistantDelta` | `Type`, `SessionId`, `Text` | 助手文本增量推送 |
+| `UnityGatewayAssistantDelta` | `Type`, `SessionId`, `Text`, `Reset` | 助手文本增量推送；Reset撤回当前草稿 |
 
 **文件**: `Assets/Scripts/Models/Models.cs`
 
@@ -165,7 +165,7 @@ Unity 运行时声明 `game_scene_get_npc_targets`，用于查询当前已加载
 | `PlayerMessageParams` | `Type`, `SessionID`, `Text` | 玩家消息 |
 | `ConversationEndParams` | `SessionID` | 对话结束 |
 | `AssistantStatusParams` | `Type`, `SessionID`, `Status` | 状态推送 |
-| `AssistantDeltaParams` | `Type`, `SessionID`, `Text` | 文本增量推送 |
+| `AssistantDeltaParams` | `Type`, `SessionID`, `Text`, `Reset` | 文本增量推送；Reset撤回当前草稿 |
 | `UnityToolExecuteParams` | `NPCID`, `Tool`, `Arguments` | 工具执行+Validate()检查是JSON对象 |
 | `UnityToolCancelParams` | `RequestID` | 取消 |
 | `ToolResult` | `OK`, `ErrorCode`, `Message` | 工具结果 |
@@ -270,7 +270,10 @@ sequenceDiagram
     Unity->>Go: player.message
     Go->>Unity: assistant.status (thinking)
     Go->>LLM: /chat/completions (stream:true)
+    LLM-->>Go: provisional text delta (optional)
+    Go-->>Unity: assistant.delta (optional draft)
     LLM->>Go: tool_calls[]
+    Go-->>Unity: assistant.delta (reset:true)
     Go->>Unity: unity.tool.execute
     Note right of Unity: Unity主线程执行
     Unity->>Go: {ok,message}

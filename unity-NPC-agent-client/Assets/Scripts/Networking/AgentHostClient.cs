@@ -195,12 +195,22 @@ public class AgentHostClient : Singleton<AgentHostClient>
 
     private void OnAssistantDeltaReceived(UnityGatewayAssistantDelta delta)
     {
-        if (delta == null || string.IsNullOrEmpty(delta.Text))
+        if (delta == null)
             return;
         if (!TryGetNpcIdForSession(delta.SessionId, out string npcId))
             return;
-        _mainThreadActions.Enqueue(
-            () => ChatViewModel.Instance.AppendOpponentMessageDelta(npcId, delta.Text));
+
+        if (delta.Reset)
+        {
+            _mainThreadActions.Enqueue(
+                () => ChatViewModel.Instance.CancelOpponentMessageStream(npcId));
+            return;
+        }
+        if (!string.IsNullOrEmpty(delta.Text))
+        {
+            _mainThreadActions.Enqueue(
+                () => ChatViewModel.Instance.AppendOpponentMessageDelta(npcId, delta.Text));
+        }
     }
 
     private void OnGatewayToolCallReceived(UnityToolCommand request)

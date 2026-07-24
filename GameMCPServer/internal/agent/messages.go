@@ -37,6 +37,11 @@ type ToolExecutionResult struct {
 	Message   string `json:"message"`
 }
 
+type AssistantStreamEvent struct {
+	Text  string
+	Reset bool
+}
+
 type AssistantReply struct {
 	Type      string `json:"type"`
 	SessionID string `json:"sessionId"`

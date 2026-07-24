@@ -205,12 +205,13 @@ func (s *jsonRPCSession) handlePlayerMessage(msg jsonRPCMessage) {
 		s.ctx,
 		params.SessionID,
 		params.Text,
-		func(delta string) error {
-			if delta == "" {
+		func(event agent.AssistantStreamEvent) error {
+			if event.Text == "" && !event.Reset {
 				return nil
 			}
 			return s.writeNotification(methodAssistantDelta, AssistantDeltaParams{
-				Type: "assistant.delta", SessionID: params.SessionID, Text: delta,
+				Type: "assistant.delta", SessionID: params.SessionID,
+				Text: event.Text, Reset: event.Reset,
 			})
 		},
 	)

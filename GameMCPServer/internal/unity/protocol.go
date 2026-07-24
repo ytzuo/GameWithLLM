@@ -127,7 +127,8 @@ type AssistantStatusParams struct {
 type AssistantDeltaParams struct {
 	Type      string `json:"type"`
 	SessionID string `json:"sessionId"`
-	Text      string `json:"text"`
+	Text      string `json:"text,omitempty"`
+	Reset     bool   `json:"reset,omitempty"`
 }
 
 // UnityToolExecuteParams 使用对象形式的 arguments，禁止 JSON 字符串二次编码。

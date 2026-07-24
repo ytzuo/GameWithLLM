@@ -76,6 +76,7 @@ public class ChatViewModel
 	/// </summary>
 	public event Action<ChatWindow.Role, string> OnMessageAdded;
 	public event Action<ChatWindow.Role, string> OnMessageUpdated;
+	public event Action OnHistoryChanged;
 
 	/// <summary>
 	/// NPC 列表发生变化时触发（新增/移除 NPC）
@@ -244,8 +245,27 @@ public class ChatViewModel
 	public void CancelOpponentMessageStream(string npcId)
 	{
 		if (string.IsNullOrWhiteSpace(npcId)) return;
+
+		bool removed = false;
+		bool isActive;
 		lock (_lock)
+		{
+			if (_streamingOpponentMessageIndexes.TryGetValue(npcId, out int index) &&
+				_npcHistories.TryGetValue(npcId, out var history) &&
+				index >= 0 && index < history.Count)
+			{
+				history.RemoveAt(index);
+				removed = true;
+			}
 			_streamingOpponentMessageIndexes.Remove(npcId);
+			isActive = _activeNpcId == npcId;
+		}
+
+		if (removed && isActive)
+		{
+			try { OnHistoryChanged?.Invoke(); }
+			catch (Exception e) { Debug.LogWarning($"ChatViewModel: OnHistoryChanged error: {e.Message}"); }
+		}
 	}
 
 	/// <summary>
