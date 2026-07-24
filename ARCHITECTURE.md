@@ -74,6 +74,7 @@ Unity 运行时声明 `game_scene_get_npc_targets`，用于查询当前已加载
 2. 玩家在 Unity 中与 NPC 交互，Unity 向 Go 创建对话并提交消息。
 3. Go 调用 LLM；如果模型直接回复，结果返回 Unity 展示。
    - 每次调用前，Go 按 `LLM_MAX_CONTEXT_CHARS` 对会话历史做字符预算裁剪。`system` 消息始终保留；从最近一轮向前保留完整轮次，assistant tool call 与对应 tool result 不会被拆开。
+   - Go 对 429、5xx 和尚未向 UI 输出文本时的网络失败最多重试 `LLM_MAX_RETRIES` 次，并遵循有上限的 `Retry-After`；一旦文本已对玩家可见就不自动重试，避免重复输出。
 4. 如果模型请求工具，Go 校验参数和权限后向 Unity 下发 `unity.tool.execute`。
 5. Unity 在主线程执行 NPC 行为并返回结果。
 6. Go 将工具结果写回模型上下文，再生成最终回复返回 Unity。
@@ -296,6 +297,11 @@ sequenceDiagram
 | -32004 | NPC未注册 |
 | -32010 | Agent Host未配置 |
 | -32011 | 对话不属于当前连接 |
-| -32020 | 对话处理失败 |
+| -32012 | 对话会话不存在或已失效 |
+| -32020 | 未分类的对话处理失败 |
+| -32021 | LLM 永久请求错误，不应自动重试 |
+| -32022 | LLM 临时请求错误，可稍后重试 |
 
 业务层错误通过 `{ok:false, errorCode:"...", message:"..."}` 返回，不走JSON-RPC error。
+
+Unity 仅在收到 `-32011` 或 `-32012` 时丢弃本地会话映射，并尽力发送 `conversation.end`；LLM 临时或永久错误不会清空 Session，避免丢失已有上下文。

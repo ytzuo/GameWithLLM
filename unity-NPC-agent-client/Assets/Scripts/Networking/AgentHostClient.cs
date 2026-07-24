@@ -104,9 +104,10 @@ public class AgentHostClient : Singleton<AgentHostClient>
     private async Task SubmitPlayerInputAsync(string npcId, string text)
     {
         await _conversationSendLock.WaitAsync(_appCts.Token);
+        string sessionId = null;
         try
         {
-            string sessionId = await EnsureSessionAsync(npcId);
+            sessionId = await EnsureSessionAsync(npcId);
             UnityGatewayAssistantReply reply = await _gatewayClient.SendPlayerMessageAsync(
                 sessionId,
                 text,
@@ -116,15 +117,50 @@ public class AgentHostClient : Singleton<AgentHostClient>
         catch (OperationCanceledException) when (_appCts.IsCancellationRequested)
         {
         }
+        catch (UnityGatewayRequestException ex) when (IsConversationInvalid(ex.Code))
+        {
+            if (_sessionsByNpc.TryGetValue(npcId, out string currentSession) &&
+                string.Equals(currentSession, sessionId, StringComparison.Ordinal))
+                _sessionsByNpc.TryRemove(npcId, out _);
+            await EndConversationSafelyAsync(sessionId);
+            EnqueueOpponentStreamCancelled(npcId);
+            EnqueueSystemMessage(npcId, "对话会话已失效，请重新发送。下一条消息会自动创建新会话。");
+        }
+        catch (UnityGatewayRequestException ex) when (ex.Code == -32022)
+        {
+            EnqueueOpponentStreamCancelled(npcId);
+            EnqueueSystemMessage(npcId, "模型服务暂时不可用，请稍后重试。当前对话上下文已保留。");
+        }
         catch (Exception ex)
         {
-            _sessionsByNpc.TryRemove(npcId, out _);
             EnqueueOpponentStreamCancelled(npcId);
-            EnqueueSystemMessage(npcId, $"对话请求失败：{ex.Message}");
+            EnqueueSystemMessage(npcId, $"对话请求失败：{ex.Message}。当前对话上下文已保留。");
         }
         finally
         {
             _conversationSendLock.Release();
+        }
+    }
+
+    private static bool IsConversationInvalid(int errorCode)
+    {
+        return errorCode == -32011 || errorCode == -32012;
+    }
+
+    private async Task EndConversationSafelyAsync(string sessionId)
+    {
+        if (string.IsNullOrWhiteSpace(sessionId) || _gatewayClient == null)
+            return;
+        try
+        {
+            await _gatewayClient.EndConversationAsync(sessionId, _appCts.Token);
+        }
+        catch (OperationCanceledException) when (_appCts.IsCancellationRequested)
+        {
+        }
+        catch (Exception ex)
+        {
+            Debug.LogWarning($"[Agent Host] 清理失效会话失败: sessionId={sessionId}, error={ex.Message}");
         }
     }
 

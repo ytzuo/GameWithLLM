@@ -3,6 +3,19 @@ using System.Collections.Generic;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 
+public sealed class UnityGatewayRequestException : Exception
+{
+    public int Code { get; }
+    public string RemoteMessage { get; }
+
+    public UnityGatewayRequestException(int code, string remoteMessage)
+        : base($"Unity Gateway 请求失败 ({code}): {remoteMessage}")
+    {
+        Code = code;
+        RemoteMessage = remoteMessage;
+    }
+}
+
 public static class UnityGatewayProtocol
 {
     public const int Version = 1;

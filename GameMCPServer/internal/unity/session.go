@@ -3,6 +3,7 @@ package unity
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log"
 	"sync"
@@ -217,11 +218,24 @@ func (s *jsonRPCSession) handlePlayerMessage(msg jsonRPCMessage) {
 	)
 	if err != nil {
 		log.Printf("event=assistant_reply_failed session_id=%q duration_ms=%d error=%q", params.SessionID, time.Since(startedAt).Milliseconds(), err)
-		_ = s.writeError(msg.ID, -32020, err.Error())
+		_ = s.writeError(msg.ID, conversationErrorCode(err), err.Error())
 		return
 	}
 	log.Printf("event=assistant_reply_completed session_id=%q npc_id=%q duration_ms=%d text_length=%d", reply.SessionID, reply.NPCID, time.Since(startedAt).Milliseconds(), len([]rune(reply.Text)))
 	_ = s.writeResult(msg.ID, reply)
+}
+
+func conversationErrorCode(err error) int {
+	switch {
+	case errors.Is(err, agent.ErrSessionNotFound):
+		return -32012
+	case agent.IsTemporaryLLMError(err):
+		return -32022
+	case agent.IsLLMRequestError(err):
+		return -32021
+	default:
+		return -32020
+	}
 }
 
 func (s *jsonRPCSession) handleConversationEnd(msg jsonRPCMessage) {

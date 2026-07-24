@@ -5,11 +5,13 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
 	"net/url"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -23,18 +25,27 @@ type OpenAICompatibleClient struct {
 	apiKey     string
 	model      string
 	httpClient *http.Client
+	maxRetries int
 }
 
-func NewOpenAICompatibleClient(endpoint, apiKey, model string, timeout time.Duration) *OpenAICompatibleClient {
+func NewOpenAICompatibleClient(endpoint, apiKey, model string, timeout time.Duration, retryLimits ...int) *OpenAICompatibleClient {
 	endpoint = normalizeChatCompletionsEndpoint(endpoint)
 	if timeout <= 0 {
 		timeout = 60 * time.Second
+	}
+	maxRetries := 2
+	if len(retryLimits) > 0 {
+		maxRetries = retryLimits[0]
+	}
+	if maxRetries < 0 {
+		maxRetries = 0
 	}
 	return &OpenAICompatibleClient{
 		endpoint:   endpoint,
 		apiKey:     apiKey,
 		model:      model,
 		httpClient: &http.Client{Timeout: timeout},
+		maxRetries: maxRetries,
 	}
 }
 
@@ -96,6 +107,43 @@ func (c *OpenAICompatibleClient) Complete(ctx context.Context, request Completio
 	if err != nil {
 		return nil, err
 	}
+	for attempt := 0; ; attempt++ {
+		deliveredText := false
+		onTextDelta := request.OnTextDelta
+		if onTextDelta != nil {
+			onTextDelta = func(delta string) error {
+				if delta != "" {
+					deliveredText = true
+				}
+				return request.OnTextDelta(delta)
+			}
+		}
+
+		result, requestErr := c.completeOnce(ctx, body, onTextDelta)
+		if requestErr == nil {
+			return result, nil
+		}
+		if deliveredText || attempt >= c.maxRetries || !IsTemporaryLLMError(requestErr) {
+			return nil, requestErr
+		}
+
+		timer := time.NewTimer(retryDelay(attempt, requestErr))
+		select {
+		case <-ctx.Done():
+			if !timer.Stop() {
+				<-timer.C
+			}
+			return nil, ctx.Err()
+		case <-timer.C:
+		}
+	}
+}
+
+func (c *OpenAICompatibleClient) completeOnce(
+	ctx context.Context,
+	body []byte,
+	onTextDelta func(string) error,
+) (*CompletionResult, error) {
 	httpRequest, err := http.NewRequestWithContext(ctx, http.MethodPost, c.endpoint, bytes.NewReader(body))
 	if err != nil {
 		return nil, err
@@ -105,22 +153,44 @@ func (c *OpenAICompatibleClient) Complete(ctx context.Context, request Completio
 
 	response, err := c.httpClient.Do(httpRequest)
 	if err != nil {
-		return nil, fmt.Errorf("LLM request failed: %w", err)
+		if ctx.Err() != nil {
+			return nil, ctx.Err()
+		}
+		return nil, &LLMRequestError{
+			Message:   "LLM request failed",
+			Temporary: true,
+			Cause:     err,
+		}
 	}
 	defer response.Body.Close()
 	if response.StatusCode < 200 || response.StatusCode >= 300 {
 		responseBody, readErr := io.ReadAll(io.LimitReader(response.Body, 4<<20))
 		if readErr != nil {
-			return nil, fmt.Errorf("read LLM error response: %w", readErr)
+			return nil, &LLMRequestError{
+				StatusCode: response.StatusCode,
+				Message:    "failed to read error response",
+				Temporary:  response.StatusCode == http.StatusTooManyRequests || response.StatusCode >= 500,
+				RetryAfter: parseRetryAfter(response.Header.Get("Retry-After")),
+				Cause:      readErr,
+			}
 		}
-		return nil, fmt.Errorf("LLM returned HTTP %d: %s", response.StatusCode, compactBody(responseBody))
+		message := compactBody(responseBody)
+		if message == "" {
+			message = http.StatusText(response.StatusCode)
+		}
+		return nil, &LLMRequestError{
+			StatusCode: response.StatusCode,
+			Message:    message,
+			Temporary:  response.StatusCode == http.StatusTooManyRequests || response.StatusCode >= 500,
+			RetryAfter: parseRetryAfter(response.Header.Get("Retry-After")),
+		}
 	}
 	if strings.Contains(strings.ToLower(response.Header.Get("Content-Type")), "text/event-stream") {
-		return decodeOpenAIEventStream(response.Body, request.OnTextDelta)
+		return decodeOpenAIEventStream(response.Body, onTextDelta)
 	}
 	responseBody, err := io.ReadAll(io.LimitReader(response.Body, 4<<20))
 	if err != nil {
-		return nil, fmt.Errorf("read LLM response: %w", err)
+		return nil, &LLMRequestError{Message: "read LLM response", Temporary: true, Cause: err}
 	}
 
 	var decoded openAIResponse
@@ -140,6 +210,35 @@ func (c *OpenAICompatibleClient) Complete(ctx context.Context, request Completio
 		result.ToolCalls = append(result.ToolCalls, ToolCall{ID: call.ID, Name: call.Function.Name, Arguments: arguments})
 	}
 	return result, nil
+}
+
+func retryDelay(attempt int, err error) time.Duration {
+	var requestError *LLMRequestError
+	if errors.As(err, &requestError) && requestError.RetryAfter > 0 {
+		if requestError.RetryAfter > 5*time.Second {
+			return 5 * time.Second
+		}
+		return requestError.RetryAfter
+	}
+	delay := 250 * time.Millisecond * time.Duration(1<<min(attempt, 4))
+	return min(delay, 5*time.Second)
+}
+
+func parseRetryAfter(value string) time.Duration {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return 0
+	}
+	if seconds, err := strconv.Atoi(value); err == nil {
+		if seconds <= 0 {
+			return 0
+		}
+		return time.Duration(seconds) * time.Second
+	}
+	if retryAt, err := http.ParseTime(value); err == nil {
+		return time.Until(retryAt)
+	}
+	return 0
 }
 
 func decodeOpenAIEventStream(reader io.Reader, onTextDelta func(string) error) (*CompletionResult, error) {
@@ -216,7 +315,7 @@ func decodeOpenAIEventStream(reader io.Reader, onTextDelta func(string) error) (
 		}
 	}
 	if err := scanner.Err(); err != nil {
-		return nil, fmt.Errorf("read LLM stream: %w", err)
+		return nil, &LLMRequestError{Message: "read LLM stream", Temporary: true, Cause: err}
 	}
 	if !done {
 		if err := processEvent(); err != nil {

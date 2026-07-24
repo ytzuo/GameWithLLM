@@ -368,11 +368,11 @@ public sealed class UnityGatewayClient : IDisposable
         JToken responseError = message["error"];
         if (responseError != null)
         {
-            completion.TrySetException(new InvalidOperationException(
-                $"Unity Gateway 请求失败 ({responseError["code"]}): {responseError["message"]}"));
+            int code = responseError["code"]?.Value<int>() ?? 0;
+            string remoteMessage = responseError["message"]?.Value<string>() ?? "未知错误";
+            completion.TrySetException(new UnityGatewayRequestException(code, remoteMessage));
             return;
         }
-
         completion.TrySetResult(message["result"]?.ToString(Formatting.None));
     }
 

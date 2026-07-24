@@ -116,6 +116,7 @@ Unity 会自动连接 Go Agent Host 并完成注册。之后在场景中与 NPC 
 | `LLM_API_KEY` | LLM API 密钥 | — |
 | `LLM_MODEL` | 模型名称 | `gpt-4o-mini` |
 | `LLM_REQUEST_TIMEOUT_SECONDS` | LLM 请求超时（秒） | `60` |
+| `LLM_MAX_RETRIES` | 429、5xx 或安全网络失败的最大重试次数；已向 UI 输出文本后不重试 | `2` |
 | `LLM_MAX_TOOL_ROUNDS` | 单轮对话最大工具调用次数 | `4` |
 | `LLM_MAX_CONTEXT_CHARS` | 单个会话发送给模型的上下文字符预算；按完整对话轮次裁剪 | `32000` |
 
