@@ -7,6 +7,9 @@ public class NpcEntity : MonoBehaviour
 {
     public string npcId;
 
+    [Header("Movement")]
+    [SerializeField, Min(0.5f)] private float moveStoppingDistance = 1.5f;
+
     [Header("Inventory tools")]
     [SerializeField, Min(0f)] private float inventoryInteractionRange = 3f;
 
@@ -87,11 +90,14 @@ public class NpcEntity : MonoBehaviour
         if (!NavMesh.SamplePosition(landmark.position, out NavMeshHit hit, 2f, NavMesh.AllAreas))
             throw new ToolExecutionException("LANDMARK_NOT_ON_NAVMESH", $"地标 '{args.targetLandmark}' 附近没有可行走的 NavMesh。");
 
+        _navAgent.stoppingDistance = moveStoppingDistance;
+        _navAgent.autoBraking = true;
+
         if (!_navAgent.SetDestination(hit.position))
             throw new ToolExecutionException("PATH_NOT_FOUND", $"无法为 NPC '{npcId}' 设置前往 '{args.targetLandmark}' 的路径。");
 
         _fsmState = NpcState.Operating;
-        return $"NPC 已开始前往 {args.targetLandmark}";
+        return $"NPC 已开始前往 {args.targetLandmark} 附近，将在约 {moveStoppingDistance:0.##} 米外停下";
     }
 
     private void OnDestroy()
