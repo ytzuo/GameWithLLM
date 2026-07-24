@@ -20,7 +20,9 @@ const (
 	defaultLLMAPIURL          = "https://api.openai.com/v1/chat/completions"
 	defaultLLMModel           = "gpt-4o-mini"
 	defaultLLMTimeoutSeconds  = 60
+	defaultLLMMaxRetries      = 2
 	defaultLLMMaxToolRounds   = 4
+	defaultLLMMaxContextChars = 32000
 )
 
 // Config contains runtime settings shared by local development tools.
@@ -35,7 +37,9 @@ type Config struct {
 	LLMModel                string
 	LLMRequestTimeout       time.Duration
 	LLMRequestTimeoutSecond int
+	LLMMaxRetries           int
 	LLMMaxToolRounds        int
+	LLMMaxContextChars      int
 }
 
 // Load reads .env.local/.env while allowing real process environment variables
@@ -56,7 +60,9 @@ func Load() Config {
 		LLMModel:                stringValue("LLM_MODEL", values, defaultLLMModel),
 		LLMRequestTimeout:       time.Duration(llmTimeoutSeconds) * time.Second,
 		LLMRequestTimeoutSecond: llmTimeoutSeconds,
+		LLMMaxRetries:           nonNegativeIntValue("LLM_MAX_RETRIES", values, defaultLLMMaxRetries),
 		LLMMaxToolRounds:        intValue("LLM_MAX_TOOL_ROUNDS", values, defaultLLMMaxToolRounds),
+		LLMMaxContextChars:      intValue("LLM_MAX_CONTEXT_CHARS", values, defaultLLMMaxContextChars),
 	}
 }
 
@@ -77,6 +83,18 @@ func intValue(key string, values map[string]string, fallback int) int {
 	}
 	parsed, err := strconv.Atoi(value)
 	if err != nil || parsed <= 0 {
+		return fallback
+	}
+	return parsed
+}
+
+func nonNegativeIntValue(key string, values map[string]string, fallback int) int {
+	value := stringValue(key, values, "")
+	if value == "" {
+		return fallback
+	}
+	parsed, err := strconv.Atoi(value)
+	if err != nil || parsed < 0 {
 		return fallback
 	}
 	return parsed

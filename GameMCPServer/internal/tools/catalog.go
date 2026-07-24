@@ -1,3 +1,4 @@
+// Package tools 定义模型可见的运行时工具契约、参数校验和调用策略。
 package tools
 
 import "encoding/json"
@@ -9,6 +10,7 @@ type Definition struct {
 	InputSchema json.RawMessage `json:"inputSchema"`
 }
 
+// Find 按名称查找当前 NPC 可见的工具定义。
 func Find(definitions []Definition, name string) (Definition, bool) {
 	for _, definition := range definitions {
 		if definition.Name == name {

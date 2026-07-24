@@ -3,9 +3,9 @@ using UnityEngine;
 
 public class GameToolWrapper<T> where T : ToolArgsBase
 {
-    private readonly Func<T, string> _coreLogic;
+    private readonly Func<T, ToolExecutionResult> _coreLogic;
 
-    public GameToolWrapper(Func<T, string> coreLogic)
+    public GameToolWrapper(Func<T, ToolExecutionResult> coreLogic)
     {
         _coreLogic = coreLogic ?? throw new ArgumentNullException(nameof(coreLogic));
     }
@@ -29,7 +29,7 @@ public class GameToolWrapper<T> where T : ToolArgsBase
 
         try
         {
-            return ToolExecutionResult.Success(_coreLogic(parsedArgs));
+            return _coreLogic(parsedArgs);
         }
         catch (ToolExecutionException ex)
         {

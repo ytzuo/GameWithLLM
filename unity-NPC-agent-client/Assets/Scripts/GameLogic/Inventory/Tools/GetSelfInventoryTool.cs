@@ -19,7 +19,7 @@ public sealed class GetSelfInventoryTool : NpcTool<EmptyInventoryToolArgs>
 
     public override JObject InputSchema => (JObject)Schema.DeepClone();
 
-    protected override string ExecuteCore(
+    protected override ToolExecutionResult ExecuteCore(
         NpcToolContext context,
         EmptyInventoryToolArgs args)
     {
@@ -28,6 +28,6 @@ public sealed class GetSelfInventoryTool : NpcTool<EmptyInventoryToolArgs>
         if (string.IsNullOrWhiteSpace(displayName))
             displayName = context.Npc.gameObject.name;
 
-        return InventoryToolSupport.SerializeInventory(inventory, displayName);
+        return ToolExecutionResult.Success(InventoryToolSupport.CreateInventoryData(inventory, displayName));
     }
 }

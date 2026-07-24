@@ -1,4 +1,3 @@
-using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using UnityEngine.Scripting;
 
@@ -36,7 +35,7 @@ public sealed class PutItemInContainerTool : NpcTool<PutItemInContainerArgs>
 
     public override JObject InputSchema => (JObject)Schema.DeepClone();
 
-    protected override string ExecuteCore(
+    protected override ToolExecutionResult ExecuteCore(
         NpcToolContext context,
         PutItemInContainerArgs args)
     {
@@ -69,7 +68,7 @@ public sealed class PutItemInContainerTool : NpcTool<PutItemInContainerArgs>
                 $"无法将 '{item.ItemName}' 转移到容器 '{target.ContainerId}'。");
         }
 
-        return JsonConvert.SerializeObject(new
+        return ToolExecutionResult.Success(JToken.FromObject(new
         {
             transferred = true,
             itemId = item.ItemId,
@@ -79,6 +78,6 @@ public sealed class PutItemInContainerTool : NpcTool<PutItemInContainerArgs>
             toContainerId = target.ContainerId,
             targetDistance = System.Math.Round(target.Distance, 2),
             remainingQuantity = source.GetItemCount(item)
-        }, Formatting.None);
+        }));
     }
 }

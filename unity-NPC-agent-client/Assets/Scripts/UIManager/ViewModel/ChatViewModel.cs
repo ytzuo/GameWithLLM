@@ -41,6 +41,8 @@ public class ChatViewModel
 
 	private readonly Dictionary<string, List<Message>> _npcHistories =
 		new Dictionary<string, List<Message>>();
+	private readonly Dictionary<string, int> _streamingOpponentMessageIndexes =
+		new Dictionary<string, int>();
 	private List<string> _npcIds = new List<string>();
 	private string _activeNpcId;
 
@@ -73,6 +75,8 @@ public class ChatViewModel
 	/// 仅针对当前活跃 NPC 触发。
 	/// </summary>
 	public event Action<ChatWindow.Role, string> OnMessageAdded;
+	public event Action<ChatWindow.Role, string> OnMessageUpdated;
+	public event Action OnHistoryChanged;
 
 	/// <summary>
 	/// NPC 列表发生变化时触发（新增/移除 NPC）
@@ -180,6 +184,91 @@ public class ChatViewModel
 	}
 
 	/// <summary>
+	/// 将模型增量追加到当前 NPC 的同一条回复中。
+	/// </summary>
+	public void AppendOpponentMessageDelta(string npcId, string delta)
+	{
+		if (string.IsNullOrEmpty(delta) || string.IsNullOrWhiteSpace(npcId)) return;
+
+		Message message;
+		bool added;
+		bool isActive;
+		lock (_lock)
+		{
+			if (!_npcHistories.TryGetValue(npcId, out var history))
+			{
+				history = new List<Message>();
+				_npcHistories[npcId] = history;
+			}
+
+			if (_streamingOpponentMessageIndexes.TryGetValue(npcId, out int index) &&
+				index >= 0 && index < history.Count)
+			{
+				message = history[index];
+				message.Text += delta;
+				message.Timestamp = DateTime.UtcNow;
+				history[index] = message;
+				added = false;
+			}
+			else
+			{
+				message = new Message(ChatWindow.Role.Opponent, delta);
+				history.Add(message);
+				_streamingOpponentMessageIndexes[npcId] = history.Count - 1;
+				added = true;
+			}
+			isActive = _activeNpcId == npcId;
+		}
+
+		if (!isActive) return;
+		if (added)
+			Notify(message.Role, message.Text);
+		else
+			NotifyUpdated(message.Role, message.Text);
+	}
+
+	/// <summary>
+	/// 结束一条流式回复；未收到增量时使用最终文本创建普通消息。
+	/// </summary>
+	public void CompleteOpponentMessageStream(string npcId, string finalText)
+	{
+		if (string.IsNullOrWhiteSpace(npcId)) return;
+
+		bool hadStream;
+		lock (_lock)
+			hadStream = _streamingOpponentMessageIndexes.Remove(npcId);
+
+		if (!hadStream && !string.IsNullOrWhiteSpace(finalText))
+			AddOpponentMessage(npcId, finalText);
+	}
+
+	public void CancelOpponentMessageStream(string npcId)
+	{
+		if (string.IsNullOrWhiteSpace(npcId)) return;
+
+		bool removed = false;
+		bool isActive;
+		lock (_lock)
+		{
+			if (_streamingOpponentMessageIndexes.TryGetValue(npcId, out int index) &&
+				_npcHistories.TryGetValue(npcId, out var history) &&
+				index >= 0 && index < history.Count)
+			{
+				history.RemoveAt(index);
+				removed = true;
+			}
+			_streamingOpponentMessageIndexes.Remove(npcId);
+			isActive = _activeNpcId == npcId;
+		}
+
+		if (removed && isActive)
+		{
+			try { OnHistoryChanged?.Invoke(); }
+			catch (Exception e) { Debug.LogWarning($"ChatViewModel: OnHistoryChanged error: {e.Message}"); }
+		}
+	}
+
+	/// <summary>
 	/// 添加一条系统消息到指定 NPC 的历史中。
 	/// 仅当该 NPC 是当前活跃 NPC 时才通知 UI。
 	/// </summary>
@@ -210,6 +299,7 @@ public class ChatViewModel
 		{
 			if (_npcHistories.TryGetValue(npcId, out var list))
 				list.Clear();
+			_streamingOpponentMessageIndexes.Remove(npcId);
 		}
 	}
 
@@ -218,7 +308,11 @@ public class ChatViewModel
 	/// </summary>
 	public void ClearAllHistory()
 	{
-		lock (_lock) _npcHistories.Clear();
+		lock (_lock)
+		{
+			_npcHistories.Clear();
+			_streamingOpponentMessageIndexes.Clear();
+		}
 	}
 
 	// ── 历史同步 ───────────────────────────────────────────
@@ -245,6 +339,8 @@ public class ChatViewModel
 
 	public void Subscribe(Action<ChatWindow.Role, string> handler) => OnMessageAdded += handler;
 	public void Unsubscribe(Action<ChatWindow.Role, string> handler) => OnMessageAdded -= handler;
+	public void SubscribeToUpdates(Action<ChatWindow.Role, string> handler) => OnMessageUpdated += handler;
+	public void UnsubscribeFromUpdates(Action<ChatWindow.Role, string> handler) => OnMessageUpdated -= handler;
 
 	// ── 内部帮助 ───────────────────────────────────────────
 
@@ -265,5 +361,11 @@ public class ChatViewModel
 	{
 		try { OnMessageAdded?.Invoke(role, text); }
 		catch (Exception e) { Debug.LogWarning($"ChatViewModel: OnMessageAdded error: {e.Message}"); }
+	}
+
+	private void NotifyUpdated(ChatWindow.Role role, string text)
+	{
+		try { OnMessageUpdated?.Invoke(role, text); }
+		catch (Exception e) { Debug.LogWarning($"ChatViewModel: OnMessageUpdated error: {e.Message}"); }
 	}
 }
