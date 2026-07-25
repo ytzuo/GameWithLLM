@@ -11,8 +11,7 @@ public sealed class QuerySceneTargetsArgs : ToolArgsBase
 {
     [ToolParameter(
         UniqueItems = true,
-        ItemMinLength = 1,
-        ItemPattern = @"\S")]
+        ItemMinLength = 1 )]
     public string[] targetIds;
 
     [ToolParameter(

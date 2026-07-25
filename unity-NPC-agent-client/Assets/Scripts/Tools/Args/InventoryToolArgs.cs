@@ -16,7 +16,6 @@ public sealed class ContainerInventoryArgs : ToolArgsBase
     [ToolParameter(
         Required = true,
         MinLength = 1,
-        Pattern = @"\S",
         Description = "game_inventory_get_nearby_containers 返回的稳定 containerId")]
     public string containerId;
 
@@ -56,14 +55,12 @@ public sealed class PutItemInContainerArgs : ToolArgsBase
     [ToolParameter(
         Required = true,
         MinLength = 1,
-        Pattern = @"\S",
         Description = "game_inventory_get_nearby_containers 返回的稳定 containerId")]
     public string containerId;
 
     [ToolParameter(
         Required = true,
         MinLength = 1,
-        Pattern = @"\S",
         Description = "从 NPC 自身背包转移的稳定物品标识")]
     public string itemId;
 
@@ -80,14 +77,12 @@ public sealed class TakeItemFromContainerArgs : ToolArgsBase
     [ToolParameter(
         Required = true,
         MinLength = 1,
-        Pattern = @"\S",
         Description = "game_inventory_get_nearby_containers 返回的稳定 containerId")]
     public string containerId;
 
     [ToolParameter(
         Required = true,
         MinLength = 1,
-        Pattern = @"\S",
         Description = "要从附近容器取出的稳定物品标识")]
     public string itemId;
 

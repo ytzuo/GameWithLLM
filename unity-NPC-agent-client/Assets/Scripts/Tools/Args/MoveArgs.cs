@@ -6,7 +6,6 @@ public class MoveArgs : ToolArgsBase
     [ToolParameter(
         Required = true,
         MinLength = 1,
-        Pattern = @"\S",
         Description = "game_scene_get_targets 返回的稳定 targetId")]
     public string targetId;
 
