@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using Newtonsoft.Json;
+using Newtonsoft.Json.Linq;
 using UnityEngine;
 
 internal sealed class NearbyInventoryContainer
@@ -132,7 +133,7 @@ internal static class InventoryToolSupport
             $"自身背包中没有 itemId 为 '{itemId}' 的物品。");
     }
 
-    public static string SerializeItemDefinitions(ItemDataList catalog)
+    public static JToken CreateItemDefinitionsData(ItemDataList catalog)
     {
         var items = catalog.items
             .Where(item => item != null)
@@ -146,10 +147,10 @@ internal static class InventoryToolSupport
             })
             .ToList();
 
-        return JsonConvert.SerializeObject(new { itemTypes = items }, Formatting.None);
+        return JToken.FromObject(new { itemTypes = items });
     }
 
-    public static string SerializeInventory(
+    public static JToken CreateInventoryData(
         InventoryComponent inventory,
         string displayName,
         float? distance = null)
@@ -195,7 +196,7 @@ internal static class InventoryToolSupport
             emptySlots = inventory.EmptySlotCount,
             items
         };
-        return JsonConvert.SerializeObject(result, Formatting.None);
+        return JToken.FromObject(result);
     }
 
     private static bool MatchesContainer(

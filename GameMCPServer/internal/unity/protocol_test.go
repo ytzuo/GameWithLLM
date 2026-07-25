@@ -59,3 +59,18 @@ func TestToolResultJSONShape_BitsUT(t *testing.T) {
 	require.NoError(t, err)
 	assert.JSONEq(t, `{"ok":false,"errorCode":"LANDMARK_NOT_FOUND","message":"目标地标不存在"}`, string(payload))
 }
+func TestToolResultStructuredDataJSONShape_BitsUT(t *testing.T) {
+	payload, err := json.Marshal(ToolResult{
+		OK: true, Data: json.RawMessage(`{"items":[{"itemId":"apple","quantity":2}]}`),
+	})
+	require.NoError(t, err)
+	assert.JSONEq(t, `{"ok":true,"data":{"items":[{"itemId":"apple","quantity":2}]}}`, string(payload))
+}
+
+func TestAssistantDeltaResetJSONShape_BitsUT(t *testing.T) {
+	payload, err := json.Marshal(AssistantDeltaParams{
+		Type: "assistant.delta", SessionID: "session-1", Reset: true,
+	})
+	require.NoError(t, err)
+	assert.JSONEq(t, `{"type":"assistant.delta","sessionId":"session-1","reset":true}`, string(payload))
+}

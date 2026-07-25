@@ -2,8 +2,11 @@ package unity
 
 import (
 	"encoding/json"
+	"errors"
 	"testing"
 	"time"
+
+	"GameMCPServer/internal/agent"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -76,4 +79,22 @@ func TestJSONRPCSessionWriteHelpers_BitsUT(t *testing.T) {
 	response = mustReceiveMessage(t, conn.writes)
 	require.NotNil(t, response.Error)
 	assert.Equal(t, -32601, response.Error.Code)
+}
+
+func TestConversationErrorCode_BitsUT(t *testing.T) {
+	tests := []struct {
+		name string
+		err  error
+		want int
+	}{
+		{name: "missing session", err: agent.ErrSessionNotFound, want: -32012},
+		{name: "permanent provider failure", err: &agent.LLMRequestError{StatusCode: 400}, want: -32021},
+		{name: "temporary provider failure", err: &agent.LLMRequestError{StatusCode: 503, Temporary: true}, want: -32022},
+		{name: "other failure", err: errors.New("boom"), want: -32020},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			assert.Equal(t, test.want, conversationErrorCode(test.err))
+		})
+	}
 }

@@ -42,7 +42,7 @@ Unity 不直接调用 LLM，不保存 LLM API Key，也不维护模型对话历�
 3. 工具类集中提供名称、描述、JSON Schema 和到 NPC 领域行为的执行适配。
 4. `NpcToolDiscovery` 在 `ToolsRegistry` 初始化时扫描并注册工具；扫描和注册只发生在主线程初始化阶段。
 5. `ToolsRegistry` 将相同的工具对象用于能力声明和实际执行，避免 Schema 注册与名称分发分离。
-6. `NpcEntity` 从自己的主线程队列取出命令后，通过 `ToolsRegistry` 执行，并统一返回 `{ok,errorCode,message}`。
+6. `NpcEntity` 从自己的主线程队列取出命令后，通过 `ToolsRegistry` 执行。失败结果使用 `{ok:false,errorCode,message}`；成功结果使用 `{ok:true,data?,message?}`，其中结构化数据必须放在 `data`，不得二次编码到字符串。
 
 反射发现的工具必须拥有公共无参构造函数，并标记 Unity `Preserve`，避免 IL2CPP 构建裁剪。工具能力仍然以 Unity 运行时注册为唯一来源，Go 不保存重复 Schema。
 
@@ -73,6 +73,8 @@ Unity 运行时声明 `game_scene_get_npc_targets`，用于查询当前已加载
 1. Unity 连接 Go，并注册实例、NPC 和工具能力。
 2. 玩家在 Unity 中与 NPC 交互，Unity 向 Go 创建对话并提交消息。
 3. Go 调用 LLM；如果模型直接回复，结果返回 Unity 展示。
+   - 每次调用前，Go 按 `LLM_MAX_CONTEXT_CHARS` 对会话历史做字符预算裁剪。`system` 消息始终保留；从最近一轮向前保留完整轮次，assistant tool call 与对应 tool result 不会被拆开。
+   - Go 对 429、5xx 和尚未向 UI 输出文本时的网络失败最多重试 `LLM_MAX_RETRIES` 次，并遵循有上限的 `Retry-After`；一旦文本已对玩家可见就不自动重试，避免重复输出。
 4. 如果模型请求工具，Go 校验参数和权限后向 Unity 下发 `unity.tool.execute`。
 5. Unity 在主线程执行 NPC 行为并返回结果。
 6. Go 将工具结果写回模型上下文，再生成最终回复返回 Unity。
@@ -108,7 +110,7 @@ Unity 运行时声明 `game_scene_get_npc_targets`，用于查询当前已加载
 }
 ```
 
-### 二、协议方法常量（9个）
+### 二、协议方法常量（10个）
 
 | 方法名 | 方向 | 请求/通知 | 含义 |
 |---|---|---|---|
@@ -121,22 +123,24 @@ Unity 运行时声明 `game_scene_get_npc_targets`，用于查询当前已加载
 | `player.message` | Unity→Go | 请求（需id） | 玩家发送消息文本 |
 | `conversation.end` | Unity→Go | 通知（id可选） | 结束对话 |
 | `assistant.status` | Go→Unity | 通知（无id） | Go推送助手状态（如thinking） |
+| `assistant.delta` | Go→Unity | 通知（无id） | Go推送模型文本增量；`reset:true` 撤回当前未完成草稿 |
 
-### 三、Unity 端 DTO（7个类/结构）
+### 三、Unity 端 DTO（10个类/结构）
 
 **文件**: `Assets/Scripts/Networking/UnityGatewayProtocol.cs`
 
 | DTO | 字段 | 说明 |
 |---|---|---|
-| `UnityGatewayProtocol` | `Version = 1` | 静态协议常量类，含9个方法字符串 |
+| `UnityGatewayProtocol` | `Version = 1` | 静态协议常量类，含10个方法字符串 |
 | `UnityGatewayToolDefinition` | `Name`, `Description`, `InputSchema(JObject)` | 单个工具定义 |
 | `UnityGatewayRegistration` | `ProtocolVersion`, `InstanceId`, `Tools(List)`, `Npcs(List)` | 注册时提交的完整能力快照 |
 | `UnityGatewayToolExecuteParams` | `NpcId`, `Tool`, `Arguments(JObject)` | 工具执行参数（arguments是JSON对象，非字符串） |
 | `UnityGatewayToolCancelParams` | `RequestId` | 取消工具执行 |
-| `UnityGatewayToolResult` | `Ok`, `ErrorCode`(nullable), `Message` | 工具执行结果（业务层） |
+| `UnityGatewayToolResult` | `Ok`, `ErrorCode`(nullable), `Message`(nullable), `Data(JToken)`(nullable) | 工具执行结果（业务层） |
 | `UnityGatewayConversationStartResult` | `SessionId`, `NpcId` | 对话创建结果 |
 | `UnityGatewayAssistantReply` | `Type`, `SessionId`, `NpcId`, `Text` | 助手文本回复 |
 | `UnityGatewayAssistantStatus` | `Type`, `SessionId`, `Status` | 助手状态推送 |
+| `UnityGatewayAssistantDelta` | `Type`, `SessionId`, `Text`, `Reset` | 助手文本增量推送；Reset撤回当前草稿 |
 
 **文件**: `Assets/Scripts/Models/Models.cs`
 
@@ -163,9 +167,10 @@ Unity 运行时声明 `game_scene_get_npc_targets`，用于查询当前已加载
 | `PlayerMessageParams` | `Type`, `SessionID`, `Text` | 玩家消息 |
 | `ConversationEndParams` | `SessionID` | 对话结束 |
 | `AssistantStatusParams` | `Type`, `SessionID`, `Status` | 状态推送 |
+| `AssistantDeltaParams` | `Type`, `SessionID`, `Text`, `Reset` | 文本增量推送；Reset撤回当前草稿 |
 | `UnityToolExecuteParams` | `NPCID`, `Tool`, `Arguments` | 工具执行+Validate()检查是JSON对象 |
 | `UnityToolCancelParams` | `RequestID` | 取消 |
-| `ToolResult` | `OK`, `ErrorCode`, `Message` | 工具结果 |
+| `ToolResult` | `OK`, `ErrorCode`, `Message`, `Data` | 工具结果；Data保持原生JSON结构 |
 
 **文件**: `internal/agent/session.go`
 
@@ -225,7 +230,7 @@ Unity 运行时声明 `game_scene_get_npc_targets`，用于查询当前已加载
 ### 八、Go ConversationService
 
 - `StartSession()` - 创建Session，生成system prompt，存储
-- `SubmitMessage()` - 追加user消息，进入tool loop：LLM调用 → 判断tool calls → 调用Runtime.Execute → 追加tool结果 → 循环
+- `SubmitMessageStream()` - 追加user消息，进入tool loop：SSE LLM调用 → 推送文本增量 → 判断tool calls → 调用Runtime.Execute → 追加tool结果 → 循环
 - `EndSession()` - 取消进行中的操作，删除Session
 
 ### 九、Go Tool Loop 流程
@@ -240,7 +245,7 @@ Unity 运行时声明 `game_scene_get_npc_targets`，用于查询当前已加载
 
 **UnityGatewayClient**:
 - `ReceiveLoopAsync()` → `HandleMessageAsync()`
-- 有method → 分发到ToolCallReceived/ToolCancellationReceived/AssistantStatusReceived事件
+- 有method → 分发到ToolCallReceived/ToolCancellationReceived/AssistantStatusReceived/AssistantDeltaReceived事件
 - 无method → `HandleResponseAsync()` → 匹配pending或registration响应
 
 **AgentHostClient**:
@@ -265,14 +270,18 @@ sequenceDiagram
     Note right of Go: 创建Session
     Go->>Unity: {sessionId}
     Unity->>Go: player.message
-    Go->>LLM: /chat/completions
     Go->>Unity: assistant.status (thinking)
+    Go->>LLM: /chat/completions (stream:true)
+    LLM-->>Go: provisional text delta (optional)
+    Go-->>Unity: assistant.delta (optional draft)
     LLM->>Go: tool_calls[]
+    Go-->>Unity: assistant.delta (reset:true)
     Go->>Unity: unity.tool.execute
     Note right of Unity: Unity主线程执行
-    Unity->>Go: {ok,message}
-    Go->>LLM: /chat/completions
-    LLM->>Go: text reply
+    Unity->>Go: {ok,data?,message?}
+    Go->>LLM: /chat/completions (stream:true)
+    LLM-->>Go: SSE text delta
+    Go-->>Unity: assistant.delta
     Go->>Unity: result{text}
     Unity->>Go: conversation.end
 ```
@@ -288,6 +297,11 @@ sequenceDiagram
 | -32004 | NPC未注册 |
 | -32010 | Agent Host未配置 |
 | -32011 | 对话不属于当前连接 |
-| -32020 | 对话处理失败 |
+| -32012 | 对话会话不存在或已失效 |
+| -32020 | 未分类的对话处理失败 |
+| -32021 | LLM 永久请求错误，不应自动重试 |
+| -32022 | LLM 临时请求错误，可稍后重试 |
 
 业务层错误通过 `{ok:false, errorCode:"...", message:"..."}` 返回，不走JSON-RPC error。
+
+Unity 仅在收到 `-32011` 或 `-32012` 时丢弃本地会话映射，并尽力发送 `conversation.end`；LLM 临时或永久错误不会清空 Session，避免丢失已有上下文。

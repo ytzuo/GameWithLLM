@@ -26,15 +26,15 @@ public sealed class GetContainerInventoryTool : NpcTool<ContainerInventoryArgs>
 
     public override JObject InputSchema => (JObject)Schema.DeepClone();
 
-    protected override string ExecuteCore(
+    protected override ToolExecutionResult ExecuteCore(
         NpcToolContext context,
         ContainerInventoryArgs args)
     {
         NearbyInventoryContainer container =
             InventoryToolSupport.RequireNearbyContainer(context, args.containerId);
-        return InventoryToolSupport.SerializeInventory(
+        return ToolExecutionResult.Success(InventoryToolSupport.CreateInventoryData(
             container.Inventory,
             container.DisplayName,
-            container.Distance);
+            container.Distance));
     }
 }

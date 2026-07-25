@@ -1,6 +1,5 @@
 using System;
 using System.Linq;
-using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using UnityEngine.Scripting;
 
@@ -33,18 +32,22 @@ public sealed class QueryNpcTargetsTool : NpcTool<QueryNpcTargetsArgs>
 
     public override JObject InputSchema => (JObject)Schema.DeepClone();
 
-    protected override string ExecuteCore(NpcToolContext context, QueryNpcTargetsArgs args)
+    protected override ToolExecutionResult ExecuteCore(NpcToolContext context, QueryNpcTargetsArgs args)
     {
         string[] targetNames = NpcTargetSupport.FindTargets()
             .Select(target => target.name)
             .ToArray();
 
-        return JsonConvert.SerializeObject(
-            new
+        string message = targetNames.Length == 0
+            ? "当前场景没有可用的移动目标。"
+            : $"当前可用的 targetLandmark 有：{string.Join("、", targetNames)}。这些值可直接传给 game_npc_move。";
+
+        return ToolExecutionResult.Success(
+            JToken.FromObject(new
             {
                 count = targetNames.Length,
                 targets = targetNames
-            },
-            Formatting.None);
+            }),
+            message);
     }
 }

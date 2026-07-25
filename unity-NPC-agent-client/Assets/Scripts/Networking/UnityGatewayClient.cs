@@ -39,6 +39,7 @@ public sealed class UnityGatewayClient : IDisposable
     public event Action<string> Warning;
     public event Action Registered;
     public event Action<UnityGatewayAssistantStatus> AssistantStatusReceived;
+    public event Action<UnityGatewayAssistantDelta> AssistantDeltaReceived;
 
     public bool IsRegistered => _isRegistered;
 
@@ -168,6 +169,7 @@ public sealed class UnityGatewayClient : IDisposable
         string message,
         bool isError,
         string errorCode,
+        JToken data,
         CancellationToken cancellationToken)
     {
         if (string.IsNullOrEmpty(requestId))
@@ -177,7 +179,8 @@ public sealed class UnityGatewayClient : IDisposable
         {
             Ok = !isError,
             ErrorCode = isError ? (errorCode ?? "TOOL_EXECUTION_FAILED") : null,
-            Message = message
+            Message = message,
+            Data = data
         };
         return SendJsonAsync(new { jsonrpc = "2.0", id = requestId, result }, cancellationToken);
     }
@@ -326,6 +329,11 @@ public sealed class UnityGatewayClient : IDisposable
                 if (status != null)
                     AssistantStatusReceived?.Invoke(status);
                 break;
+            case UnityGatewayProtocol.AssistantDeltaMethod:
+                var delta = message["params"]?.ToObject<UnityGatewayAssistantDelta>();
+                if (delta != null)
+                    AssistantDeltaReceived?.Invoke(delta);
+                break;
             default:
                 Warning?.Invoke($"未处理的 Unity Gateway 方法: {method}");
                 break;
@@ -360,11 +368,11 @@ public sealed class UnityGatewayClient : IDisposable
         JToken responseError = message["error"];
         if (responseError != null)
         {
-            completion.TrySetException(new InvalidOperationException(
-                $"Unity Gateway 请求失败 ({responseError["code"]}): {responseError["message"]}"));
+            int code = responseError["code"]?.Value<int>() ?? 0;
+            string remoteMessage = responseError["message"]?.Value<string>() ?? "未知错误";
+            completion.TrySetException(new UnityGatewayRequestException(code, remoteMessage));
             return;
         }
-
         completion.TrySetResult(message["result"]?.ToString(Formatting.None));
     }
 

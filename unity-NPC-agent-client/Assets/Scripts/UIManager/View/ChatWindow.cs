@@ -29,8 +29,11 @@ public class ChatWindow : BaseWindow
     // ── ViewModel 订阅 ──────────────────────────────────────
     private bool _isSubscribed;
     private Action<Role, string> _viewModelMessageHandler;
+    private Action<Role, string> _viewModelMessageUpdatedHandler;
+    private Action _viewModelHistoryChangedHandler;
     private Action<List<string>> _viewModelNpcListHandler;
     private Action<string> _viewModelActiveNpcHandler;
+    private Label _latestOpponentMessageLabel;
 
     protected override void OnBindElements()
     {
@@ -59,7 +62,7 @@ public class ChatWindow : BaseWindow
 
         if (_chatInput != null)
         {
-            _chatInput.RegisterCallback<KeyDownEvent>(OnChatInputKeyDown);
+            _chatInput.RegisterCallback<KeyDownEvent>(OnChatInputKeyDown, TrickleDown.TrickleDown);
             _chatInput.RegisterValueChangedCallback(OnInputValueChanged);
         }
 
@@ -76,10 +79,14 @@ public class ChatWindow : BaseWindow
         if (!_isSubscribed)
         {
             _viewModelMessageHandler = RenderMessage;
+            _viewModelMessageUpdatedHandler = UpdateRenderedMessage;
+            _viewModelHistoryChangedHandler = ReloadMessagesForActiveNpc;
             _viewModelNpcListHandler = OnNpcListChanged;
             _viewModelActiveNpcHandler = OnActiveNpcChanged;
 
             ChatViewModel.Instance.Subscribe(_viewModelMessageHandler);
+            ChatViewModel.Instance.SubscribeToUpdates(_viewModelMessageUpdatedHandler);
+            ChatViewModel.Instance.OnHistoryChanged += _viewModelHistoryChangedHandler;
             ChatViewModel.Instance.OnNpcListChanged += _viewModelNpcListHandler;
             ChatViewModel.Instance.OnActiveNpcChanged += _viewModelActiveNpcHandler;
             _isSubscribed = true;
@@ -110,12 +117,18 @@ public class ChatWindow : BaseWindow
         {
             if (_viewModelMessageHandler != null)
                 ChatViewModel.Instance.Unsubscribe(_viewModelMessageHandler);
+            if (_viewModelMessageUpdatedHandler != null)
+                ChatViewModel.Instance.UnsubscribeFromUpdates(_viewModelMessageUpdatedHandler);
+            if (_viewModelHistoryChangedHandler != null)
+                ChatViewModel.Instance.OnHistoryChanged -= _viewModelHistoryChangedHandler;
             if (_viewModelNpcListHandler != null)
                 ChatViewModel.Instance.OnNpcListChanged -= _viewModelNpcListHandler;
             if (_viewModelActiveNpcHandler != null)
                 ChatViewModel.Instance.OnActiveNpcChanged -= _viewModelActiveNpcHandler;
 
             _viewModelMessageHandler = null;
+            _viewModelMessageUpdatedHandler = null;
+            _viewModelHistoryChangedHandler = null;
             _viewModelNpcListHandler = null;
             _viewModelActiveNpcHandler = null;
             _isSubscribed = false;
@@ -131,7 +144,7 @@ public class ChatWindow : BaseWindow
 
         if (_chatInput != null)
         {
-            _chatInput.UnregisterCallback<KeyDownEvent>(OnChatInputKeyDown);
+            _chatInput.UnregisterCallback<KeyDownEvent>(OnChatInputKeyDown, TrickleDown.TrickleDown);
             _chatInput.UnregisterValueChangedCallback(OnInputValueChanged);
         }
 
@@ -215,6 +228,7 @@ public class ChatWindow : BaseWindow
     private void ReloadMessagesForActiveNpc()
     {
         _chatScrollView?.Clear();
+        _latestOpponentMessageLabel = null;
         ChatViewModel.Instance.PopulateExistingHistory(RenderMessage);
         RootElement.schedule.Execute(() => ScrollToLatestMessage());
     }
@@ -235,12 +249,40 @@ public class ChatWindow : BaseWindow
         if (evt == null)
             return;
 
-        bool isEnter = evt.keyCode == KeyCode.Return || evt.keyCode == KeyCode.KeypadEnter;
-        if (isEnter && !evt.shiftKey)
-        {
+        bool isEnter = evt.keyCode == KeyCode.Return ||
+                       evt.keyCode == KeyCode.KeypadEnter ||
+                       evt.character == '\n' ||
+                       evt.character == '\r';
+        if (!isEnter)
+            return;
+
+        if (evt.shiftKey)
+            InsertLineBreak();
+        else
             SendCurrentMessage();
-            evt.StopImmediatePropagation();
-        }
+
+        // TextField 会自行处理 Enter；必须在捕获阶段阻止默认行为，
+        // 否则普通 Enter 会先换行，Shift+Enter 的行为也会因平台而异。
+        evt.StopImmediatePropagation();
+    }
+
+    private void InsertLineBreak()
+    {
+        if (_chatInput == null)
+            return;
+
+        string value = _chatInput.value ?? string.Empty;
+        int cursorIndex = Mathf.Clamp(_chatInput.cursorIndex, 0, value.Length);
+        int selectIndex = Mathf.Clamp(_chatInput.selectIndex, 0, value.Length);
+        int selectionStart = Mathf.Min(cursorIndex, selectIndex);
+        int selectionEnd = Mathf.Max(cursorIndex, selectIndex);
+
+        if (value.Length - (selectionEnd - selectionStart) >= MaxMessageLength)
+            return;
+
+        _chatInput.value = value.Substring(0, selectionStart) + "\n" + value.Substring(selectionEnd);
+        int nextCursorIndex = selectionStart + 1;
+        _chatInput.SelectRange(nextCursorIndex, nextCursorIndex);
     }
 
     private void OnInputValueChanged(ChangeEvent<string> evt)
@@ -285,12 +327,12 @@ public class ChatWindow : BaseWindow
 
     // ── 消息渲染 ────────────────────────────────────────────
 
-    private void AddMessageFromTemplate(VisualTreeAsset template, string messageText)
+    private Label AddMessageFromTemplate(VisualTreeAsset template, string messageText)
     {
         if (template == null || _chatScrollView == null)
         {
             Debug.LogWarning("ChatWindow: cannot render a message because its template or ScrollView is missing.");
-            return;
+            return null;
         }
 
         TemplateContainer container = template.CloneTree();
@@ -298,12 +340,13 @@ public class ChatWindow : BaseWindow
         if (label == null)
         {
             Debug.LogWarning("ChatWindow: message template does not contain a Label.");
-            return;
+            return null;
         }
 
         label.text = messageText;
         _chatScrollView.Add(container);
         container.schedule.Execute(() => _chatScrollView.ScrollTo(container));
+        return label;
     }
 
     private void ScrollToLatestMessage()
@@ -329,11 +372,20 @@ public class ChatWindow : BaseWindow
                 AddMessageFromTemplate(_playerMessageTemplate, message);
                 break;
             case Role.Opponent:
-                AddMessageFromTemplate(_opponentMessageTemplate, message);
+                _latestOpponentMessageLabel = AddMessageFromTemplate(_opponentMessageTemplate, message);
                 break;
             case Role.System:
                 AddMessageFromTemplate(_systemMessageTemplate, message);
                 break;
         }
+    }
+
+    private void UpdateRenderedMessage(Role role, string message)
+    {
+        if (role != Role.Opponent || _latestOpponentMessageLabel == null)
+            return;
+
+        _latestOpponentMessageLabel.text = message;
+        RootElement.schedule.Execute(() => ScrollToLatestMessage());
     }
 }

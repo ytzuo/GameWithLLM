@@ -2,7 +2,7 @@
     width: 100%;
     height: 100%;
     flex-direction: row;
-    background-color: rgba(7, 10, 18, 0.82);
+    background-color: rgba(7, 10, 18, 0.68);
 }
 
 /* ── 左侧 NPC 列表 ──────────────────────────────────────── */
@@ -13,7 +13,7 @@
     flex-shrink: 0;
     flex-direction: column;
     margin: 24px 0 24px 24px;
-    background-color: rgba(17, 23, 35, 0.98);
+    background-color: #111723;
     border-width: 1px;
     border-color: rgba(130, 160, 205, 0.45);
     border-radius: 14px;
@@ -26,7 +26,7 @@
     align-items: center;
     padding-left: 16px;
     padding-right: 16px;
-    background-color: rgba(25, 34, 51, 0.98);
+    background-color: #192233;
     border-bottom-width: 1px;
     border-bottom-color: rgba(130, 160, 205, 0.22);
 }
@@ -39,7 +39,7 @@
 
 .npc-list-scroll {
     flex-grow: 1;
-    background-color: rgba(10, 15, 25, 0.52);
+    background-color: #0E1522;
 }
 
 .npc-list-scroll .unity-scroll-view__content-container {
@@ -95,7 +95,7 @@
     min-height: 520px;
     flex-direction: column;
     overflow: hidden;
-    background-color: rgba(17, 23, 35, 0.98);
+    background-color: rgba(17, 23, 35, 0.82);
     border-width: 1px;
     border-color: rgba(130, 160, 205, 0.45);
     border-radius: 14px;
@@ -108,7 +108,7 @@
     align-items: center;
     padding-left: 22px;
     padding-right: 14px;
-    background-color: rgba(25, 34, 51, 0.98);
+    background-color: rgba(25, 34, 51, 0.88);
     border-bottom-width: 1px;
     border-bottom-color: rgba(130, 160, 205, 0.22);
 }
@@ -155,7 +155,7 @@
 .chat-scroll {
     flex-grow: 1;
     flex-shrink: 1;
-    background-color: rgba(10, 15, 25, 0.52);
+    background-color: rgba(10, 15, 25, 0.74);
 }
 
 .chat-scroll .unity-scroll-view__content-container {
@@ -217,7 +217,7 @@
 .bubble-opponent {
     margin-left: 10px;
     color: #F2F6FC;
-    background-color: #242E3E;
+    background-color: rgba(36, 46, 62, 0.95);
     border-color: #3D4B61;
     border-bottom-left-radius: 4px;
 }
@@ -225,7 +225,7 @@
 .bubble-player {
     margin-right: 10px;
     color: #FFFFFF;
-    background-color: #1E56C9;
+    background-color: rgba(30, 86, 201, 0.95);
     border-color: #3D7AF0;
     border-bottom-right-radius: 4px;
 }
@@ -263,7 +263,7 @@
     flex-direction: row;
     align-items: flex-end;
     padding: 14px 18px 8px 18px;
-    background-color: #192233;
+    background-color: rgba(25, 34, 51, 0.90);
     border-top-width: 1px;
     border-top-color: rgba(130, 160, 205, 0.20);
 }
@@ -306,9 +306,12 @@
 .chat-placeholder {
     position: absolute;
     left: 16px;
-    top: 16px;
+    right: 16px;
+    top: 0;
+    bottom: 0;
     color: #6F809A;
     font-size: 17px;
+    -unity-text-align: middle-left;
 }
 
 .send-button {
@@ -347,7 +350,7 @@
     align-items: flex-start;
     padding-left: 20px;
     padding-right: 20px;
-    background-color: #192233;
+    background-color: rgba(25, 34, 51, 0.90);
 }
 
 .input-hint {

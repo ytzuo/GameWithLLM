@@ -4,6 +4,8 @@ using System.Collections.Generic;
 using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
+using Newtonsoft.Json;
+using Newtonsoft.Json.Linq;
 using UnityEngine;
 
 public class AgentHostClient : Singleton<AgentHostClient>
@@ -45,6 +47,7 @@ public class AgentHostClient : Singleton<AgentHostClient>
         _gatewayClient.ToolCallReceived += OnGatewayToolCallReceived;
         _gatewayClient.ToolCancellationReceived += OnGatewayToolCancellationReceived;
         _gatewayClient.AssistantStatusReceived += OnAssistantStatusReceived;
+        _gatewayClient.AssistantDeltaReceived += OnAssistantDeltaReceived;
         _gatewayClient.Registered += OnGatewayRegistered;
         _gatewayClient.Info += OnGatewayInfo;
         _gatewayClient.Warning += OnGatewayWarning;
@@ -102,27 +105,63 @@ public class AgentHostClient : Singleton<AgentHostClient>
     private async Task SubmitPlayerInputAsync(string npcId, string text)
     {
         await _conversationSendLock.WaitAsync(_appCts.Token);
+        string sessionId = null;
         try
         {
-            string sessionId = await EnsureSessionAsync(npcId);
+            sessionId = await EnsureSessionAsync(npcId);
             UnityGatewayAssistantReply reply = await _gatewayClient.SendPlayerMessageAsync(
                 sessionId,
                 text,
                 _appCts.Token);
-            if (!string.IsNullOrWhiteSpace(reply?.Text))
-                EnqueueOpponentMessage(reply.Text);
+            EnqueueOpponentStreamCompleted(npcId, reply?.Text);
+        }
+        catch (OperationCanceledException) when (_appCts.IsCancellationRequested)
+        {
+        }
+        catch (UnityGatewayRequestException ex) when (IsConversationInvalid(ex.Code))
+        {
+            if (_sessionsByNpc.TryGetValue(npcId, out string currentSession) &&
+                string.Equals(currentSession, sessionId, StringComparison.Ordinal))
+                _sessionsByNpc.TryRemove(npcId, out _);
+            await EndConversationSafelyAsync(sessionId);
+            EnqueueOpponentStreamCancelled(npcId);
+            EnqueueSystemMessage(npcId, "对话会话已失效，请重新发送。下一条消息会自动创建新会话。");
+        }
+        catch (UnityGatewayRequestException ex) when (ex.Code == -32022)
+        {
+            EnqueueOpponentStreamCancelled(npcId);
+            EnqueueSystemMessage(npcId, "模型服务暂时不可用，请稍后重试。当前对话上下文已保留。");
+        }
+        catch (Exception ex)
+        {
+            EnqueueOpponentStreamCancelled(npcId);
+            EnqueueSystemMessage(npcId, $"对话请求失败：{ex.Message}。当前对话上下文已保留。");
+        }
+        finally
+        {
+            _conversationSendLock.Release();
+        }
+    }
+
+    private static bool IsConversationInvalid(int errorCode)
+    {
+        return errorCode == -32011 || errorCode == -32012;
+    }
+
+    private async Task EndConversationSafelyAsync(string sessionId)
+    {
+        if (string.IsNullOrWhiteSpace(sessionId) || _gatewayClient == null)
+            return;
+        try
+        {
+            await _gatewayClient.EndConversationAsync(sessionId, _appCts.Token);
         }
         catch (OperationCanceledException) when (_appCts.IsCancellationRequested)
         {
         }
         catch (Exception ex)
         {
-            _sessionsByNpc.TryRemove(npcId, out _);
-            EnqueueSystemMessage($"对话请求失败：{ex.Message}");
-        }
-        finally
-        {
-            _conversationSendLock.Release();
+            Debug.LogWarning($"[Agent Host] 清理失效会话失败: sessionId={sessionId}, error={ex.Message}");
         }
     }
 
@@ -160,10 +199,19 @@ public class AgentHostClient : Singleton<AgentHostClient>
         string requestId,
         string text,
         bool isError = false,
-        string errorCode = null)
+        string errorCode = null,
+        JToken data = null)
     {
         if (string.IsNullOrEmpty(requestId))
             return;
+
+        EnqueueToolResultTrace(
+            "unity_tool_result_sending",
+            requestId,
+            text,
+            isError,
+            errorCode,
+            data);
         try
         {
             await _gatewayClient.SendToolResultAsync(
@@ -171,11 +219,29 @@ public class AgentHostClient : Singleton<AgentHostClient>
                 text,
                 isError,
                 errorCode,
+                data,
                 _appCts.Token);
+            EnqueueToolResultTrace(
+                "unity_tool_result_sent",
+                requestId,
+                text,
+                isError,
+                errorCode,
+                data);
         }
         catch (Exception ex)
         {
-            Debug.LogError($"[Unity Gateway] 发送工具响应失败: {ex.Message}");
+            EnqueueToolResultTrace(
+                "unity_tool_result_send_failed",
+                requestId,
+                text,
+                isError,
+                errorCode,
+                data,
+                ex.Message);
+            string errorMessage = ex.Message;
+            _mainThreadActions.Enqueue(
+                () => Debug.LogError($"[Unity Gateway] 发送工具响应失败: requestId={requestId}, error={errorMessage}"));
         }
     }
 
@@ -187,13 +253,87 @@ public class AgentHostClient : Singleton<AgentHostClient>
 
     private void OnAssistantStatusReceived(UnityGatewayAssistantStatus status)
     {
-        if (status?.Status == "thinking")
-            EnqueueSystemMessage("NPC 正在思考……");
+        if (status?.Status == "thinking" &&
+            TryGetNpcIdForSession(status.SessionId, out string npcId))
+            EnqueueSystemMessage(npcId, "NPC 正在思考……");
+    }
+
+    private void OnAssistantDeltaReceived(UnityGatewayAssistantDelta delta)
+    {
+        if (delta == null)
+            return;
+        if (!TryGetNpcIdForSession(delta.SessionId, out string npcId))
+            return;
+
+        if (delta.Reset)
+        {
+            _mainThreadActions.Enqueue(
+                () => ChatViewModel.Instance.CancelOpponentMessageStream(npcId));
+            return;
+        }
+        if (!string.IsNullOrEmpty(delta.Text))
+        {
+            _mainThreadActions.Enqueue(
+                () => ChatViewModel.Instance.AppendOpponentMessageDelta(npcId, delta.Text));
+        }
     }
 
     private void OnGatewayToolCallReceived(UnityToolCommand request)
     {
+        var trace = new JObject
+        {
+            ["event"] = "unity_tool_received",
+            ["requestId"] = request?.RequestId,
+            ["npcId"] = request?.NpcId,
+            ["tool"] = request?.Function?.Name
+        };
+        string argumentsJson = request?.Function?.ArgumentsJson;
+        if (!string.IsNullOrWhiteSpace(argumentsJson))
+        {
+            try
+            {
+                trace["arguments"] = JToken.Parse(argumentsJson);
+            }
+            catch
+            {
+                trace["argumentsRaw"] = argumentsJson;
+            }
+        }
+        EnqueueToolTrace(trace);
         _dispatcher.OnReceiveNetMessage(request);
+    }
+
+    private void EnqueueToolResultTrace(
+        string eventName,
+        string requestId,
+        string text,
+        bool isError,
+        string errorCode,
+        JToken data,
+        string transportError = null)
+    {
+        var trace = new JObject
+        {
+            ["event"] = eventName,
+            ["requestId"] = requestId,
+            ["ok"] = !isError
+        };
+        if (!string.IsNullOrEmpty(errorCode))
+            trace["errorCode"] = errorCode;
+        if (!string.IsNullOrEmpty(text))
+            trace["message"] = text;
+        if (data != null)
+            trace["data"] = data.DeepClone();
+        if (!string.IsNullOrEmpty(transportError))
+            trace["transportError"] = transportError;
+        EnqueueToolTrace(trace);
+    }
+
+    private void EnqueueToolTrace(JObject trace)
+    {
+        string compactJson = trace.ToString(Formatting.None);
+        _mainThreadActions.Enqueue(
+            () => Debug.Log($"[Unity Tool Trace] {compactJson}"));
     }
 
     private void OnGatewayToolCancellationReceived(string requestId)
@@ -215,15 +355,40 @@ public class AgentHostClient : Singleton<AgentHostClient>
             _ = _gatewayClient.NotifyToolsChangedAsync(_appCts.Token);
     }
 
-    private void EnqueueOpponentMessage(string text)
+    private bool TryGetNpcIdForSession(string sessionId, out string npcId)
     {
-        string npcId = _activeNpcId;
-        _mainThreadActions.Enqueue(() => ChatViewModel.Instance.AddOpponentMessage(npcId, text));
+        foreach (KeyValuePair<string, string> pair in _sessionsByNpc)
+        {
+            if (string.Equals(pair.Value, sessionId, StringComparison.Ordinal))
+            {
+                npcId = pair.Key;
+                return true;
+            }
+        }
+        npcId = null;
+        return false;
+    }
+
+    private void EnqueueOpponentStreamCompleted(string npcId, string finalText)
+    {
+        _mainThreadActions.Enqueue(
+            () => ChatViewModel.Instance.CompleteOpponentMessageStream(npcId, finalText));
+    }
+
+    private void EnqueueOpponentStreamCancelled(string npcId)
+    {
+        _mainThreadActions.Enqueue(
+            () => ChatViewModel.Instance.CancelOpponentMessageStream(npcId));
     }
 
     private void EnqueueSystemMessage(string text)
     {
         string npcId = _activeNpcId;
+        EnqueueSystemMessage(npcId, text);
+    }
+
+    private void EnqueueSystemMessage(string npcId, string text)
+    {
         _mainThreadActions.Enqueue(() => ChatViewModel.Instance.AddSystemMessage(npcId, text));
     }
 
@@ -242,6 +407,7 @@ public class AgentHostClient : Singleton<AgentHostClient>
             _gatewayClient.ToolCallReceived -= OnGatewayToolCallReceived;
             _gatewayClient.ToolCancellationReceived -= OnGatewayToolCancellationReceived;
             _gatewayClient.AssistantStatusReceived -= OnAssistantStatusReceived;
+            _gatewayClient.AssistantDeltaReceived -= OnAssistantDeltaReceived;
             _gatewayClient.Registered -= OnGatewayRegistered;
             _gatewayClient.Info -= OnGatewayInfo;
             _gatewayClient.Warning -= OnGatewayWarning;
