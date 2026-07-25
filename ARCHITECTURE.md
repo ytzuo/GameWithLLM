@@ -138,7 +138,7 @@ Unity 运行时声明 `game_scene_get_targets`，从当前激活的 `NpcEntity`�
 | `conversation.start` | Unity→Go | 请求（需id） | 玩家发起新对话 |
 | `player.message` | Unity→Go | 请求（需id） | 玩家发送消息文本 |
 | `conversation.end` | Unity→Go | 通知（id可选） | 结束对话 |
-| `assistant.status` | Go→Unity | 通知（无id） | Go推送助手状态（如thinking） |
+| `assistant.status` | Go→Unity | 通知（无id） | 保留的助手非文本状态通知；聊天窗口不展示 thinking |
 | `assistant.delta` | Go→Unity | 通知（无id） | Go推送模型文本增量；`reset:true` 撤回当前未完成草稿 |
 
 ### 三、Unity 端 DTO
@@ -287,14 +287,13 @@ sequenceDiagram
     Note right of Go: 创建Session
     Go->>Unity: {sessionId}
     Unity->>Go: player.message
-    Go->>Unity: assistant.status (thinking)
     Go->>LLM: /chat/completions (stream:true)
     LLM-->>Go: provisional text delta (optional)
     Go-->>Unity: assistant.delta (optional draft)
     LLM->>Go: tool_calls[]
     Go-->>Unity: assistant.delta (reset:true)
     Go->>Unity: unity.tool.execute
-    Note right of Unity: Unity主线程执行
+    Note right of Unity: 显示工具调取系统消息并在主线程执行
     Unity->>Go: {ok,data?,message?}
     Go->>LLM: /chat/completions (stream:true)
     LLM-->>Go: SSE text delta

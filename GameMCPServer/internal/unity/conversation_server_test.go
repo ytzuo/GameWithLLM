@@ -87,9 +87,6 @@ func TestJSONRPCServer_GoAgentConversationToolLoop(t *testing.T) {
 	}))
 
 	require.NoError(t, wsjson.Read(ctx, conn, &message))
-	assert.Equal(t, "assistant.status", message.Method)
-
-	require.NoError(t, wsjson.Read(ctx, conn, &message))
 	assert.Equal(t, "unity.tool.execute", message.Method)
 	var execute UnityToolExecuteParams
 	require.NoError(t, json.Unmarshal(message.Params, &execute))

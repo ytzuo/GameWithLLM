@@ -151,7 +151,7 @@ type ConversationEndParams struct {
 	SessionID string `json:"sessionId"`
 }
 
-// AssistantStatusParams 向 Unity 推送 thinking 等非文本状态。
+// AssistantStatusParams 向 Unity 推送保留的非文本状态。
 type AssistantStatusParams struct {
 	Type      string `json:"type"`
 	SessionID string `json:"sessionId"`
