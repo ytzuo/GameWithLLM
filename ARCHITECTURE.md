@@ -65,10 +65,12 @@ Unity 不直接调用 LLM，不保存 LLM API Key，也不维护模型对话历�
 
 `game_npc_move` 是长时工具：Unity 设置 NavMesh 目的地后保持请求 pending，只有 NPC 实际到达停止距离内才返回成功。路径无效、路径不完整、NPC 离开 NavMesh、NPC 销毁或收到 `unity.tool.cancel` 时结束当前移动；取消请求不再回传迟到的工具结果。
 
+Unity 运行时声明只读工具 `game_npc_get_state`，返回当前对话 NPC 的状态、世界坐标、NavMesh 状态，以及当前移动目标、路径状态和剩余距离。所有字段均在 Unity 主线程按调用时的真实状态生成，Go 不缓存或推断 NPC 状态。
+
 Unity 运行时声明 `game_scene_get_npc_targets`，用于查询当前已加载场景中所有激活且带
-`npcTarget` 标签的 GameObject 名称。`game_npc_move.targetLandmark` 不再使用硬编码 enum；
-模型应从查询结果中选择目标，Unity 在移动执行时再次按标签解析并校验名称唯一性，然后在
-目标附近采样 NavMesh。场景对象名称和标签是移动目标的权威来源，Go 不保存地点清单。
+`npcTarget` 标签的移动目标。查询结果包含稳定 `targetLandmark`、显示名称、目标类别、直线距离、NavMesh 可达性和路径距离。
+`game_npc_move` 按同一标签重新解析唯一对象名称，并在目标附近采样 NavMesh。地点、NPC 和玩家均可注册为目标；
+Unity 场景对象和标签是移动目标的权威来源，Go 不维护重复目标清单。
 
 ## 核心交互链路
 

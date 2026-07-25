@@ -11,7 +11,7 @@ public sealed class MoveNpcTool : NpcTool<MoveArgs>
             ""targetLandmark"": {
               ""type"": ""string"",
               ""minLength"": 1,
-              ""description"": ""game_scene_get_npc_targets 返回的目标名称""
+              ""description"": ""game_scene_get_npc_targets 返回的 targetLandmark""
             }
           },
           ""required"": [""targetLandmark""],

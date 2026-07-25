@@ -96,8 +96,9 @@ Unity 会自动连接 Go Agent Host 并完成注册。之后在场景中与 NPC 
 对话中可尝试：
 
 * 普通闲聊 — 模型直接回复文本
-* `场景里有哪些可去的位置` — 触发 `game_scene_get_npc_targets`，查询带 `npcTarget` 标签的目标
+* `场景里有哪些可去的位置` — 触发 `game_scene_get_npc_targets`，查询已注册地标、距离和 NavMesh 可达性
 * `让 NPC 移动到 warehouse` — 模型先按需查询目标，再触发 `game_npc_move` 沿 NavMesh 移动
+* `你现在在哪里、正在做什么` — 触发 `game_npc_get_state`，查询 NPC 的实时位置和移动状态
 * `你背包里有什么` — 触发 `game_inventory_get_self`
 * `查看附近 Alice_001 的背包` — 在交互距离内触发 `game_inventory_get_container`
 * `把 1 个 Rock 放进附近的 Alice_001` — 触发 `game_inventory_put_item`
@@ -155,8 +156,8 @@ node GameMCPServer/test_mcp.js --start-server
 
 > **禁止**在 Go 侧硬编码重复的 Schema。工具能力的唯一来源是 Unity 运行时注册。
 
-移动目标由场景中激活且带 `npcTarget` 标签的 GameObject 动态提供。目标名称应在场景中保持唯一；
-`game_scene_get_npc_targets` 返回可用名称，`game_npc_move` 在执行时再次按标签验证并解析目标。
+移动目标由场景中激活且带 `npcTarget` 标签的 GameObject 动态提供，目标名称必须唯一。地点、NPC 和玩家都可以注册为移动目标；
+`game_scene_get_npc_targets` 返回 `targetLandmark`、类别、距离、NavMesh 可达性和路径距离，`game_npc_move` 在执行时按同一标签重新解析目标。
 
 ## 关键约束
 

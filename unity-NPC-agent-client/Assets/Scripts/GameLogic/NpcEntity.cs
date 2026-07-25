@@ -25,6 +25,65 @@ public class NpcEntity : MonoBehaviour
     public enum NpcState { Idle, Talking, Operating }
 
     internal float InventoryInteractionRange => inventoryInteractionRange;
+    internal bool IsOnNavMesh => _navAgent != null && _navAgent.isOnNavMesh;
+
+    internal JToken CreateRuntimeStateData()
+    {
+        Vector3 position = transform.position;
+        bool isOnNavMesh = _navAgent != null && _navAgent.isOnNavMesh;
+        bool isMoving = _fsmState == NpcState.Operating && !string.IsNullOrEmpty(_activeMoveTarget);
+        JToken remainingDistance = JValue.CreateNull();
+        if (isMoving && isOnNavMesh && !_navAgent.pathPending &&
+            !float.IsInfinity(_navAgent.remainingDistance) &&
+            !float.IsNaN(_navAgent.remainingDistance))
+        {
+            remainingDistance = new JValue(System.Math.Round(_navAgent.remainingDistance, 2));
+        }
+
+        return JToken.FromObject(new
+        {
+            npcId,
+            state = _fsmState.ToString().ToLowerInvariant(),
+            position = new
+            {
+                x = System.Math.Round(position.x, 2),
+                y = System.Math.Round(position.y, 2),
+                z = System.Math.Round(position.z, 2)
+            },
+            isOnNavMesh,
+            movement = new
+            {
+                isMoving,
+                targetLandmark = isMoving ? _activeMoveTarget : null,
+                pathPending = isMoving && _navAgent != null && _navAgent.pathPending,
+                pathStatus = GetMovementPathStatus(isMoving, isOnNavMesh),
+                remainingDistance,
+                stoppingDistance = System.Math.Round(moveStoppingDistance, 2)
+            }
+        });
+    }
+
+    private string GetMovementPathStatus(bool isMoving, bool isOnNavMesh)
+    {
+        if (!isMoving)
+            return "idle";
+        if (!isOnNavMesh)
+            return "unavailable";
+        if (_navAgent.pathPending)
+            return "pending";
+
+        switch (_navAgent.pathStatus)
+        {
+            case NavMeshPathStatus.PathComplete:
+                return "complete";
+            case NavMeshPathStatus.PathPartial:
+                return "partial";
+            case NavMeshPathStatus.PathInvalid:
+                return "invalid";
+            default:
+                return "unknown";
+        }
+    }
 
     private void Start()
     {

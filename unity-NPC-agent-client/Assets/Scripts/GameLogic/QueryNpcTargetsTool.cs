@@ -1,6 +1,9 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
+using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
+using UnityEngine;
 using UnityEngine.Scripting;
 
 [Serializable]
@@ -27,27 +30,59 @@ public sealed class QueryNpcTargetsTool : NpcTool<QueryNpcTargetsArgs>
     public override string Name => "game_scene_get_npc_targets";
 
     public override string Description =>
-        "查询当前已加载场景中所有激活且带有 npcTarget 标签的移动目标。" +
-        "返回的 targets 名称可作为 game_npc_move 的 targetLandmark。";
+        "查询当前场景中可供 NPC 接近的地点、其他 NPC 和玩家。" +
+        "返回稳定 targetLandmark、显示名称、类别、距离和 NavMesh 可达性；" +
+        "game_npc_move 的 targetLandmark 必须使用查询结果中的同名字段。";
 
     public override JObject InputSchema => (JObject)Schema.DeepClone();
 
     protected override ToolExecutionResult ExecuteCore(NpcToolContext context, QueryNpcTargetsArgs args)
     {
-        string[] targetNames = NpcTargetSupport.FindTargets()
-            .Select(target => target.name)
-            .ToArray();
+        Vector3 origin = context.Npc.transform.position;
+        List<TargetSummary> targets = NpcTargetSupport.FindTargets()
+            .Where(target => target != context.Npc.gameObject)
+            .Select(target => CreateSummary(context.Npc, origin, target))
+            .OrderBy(target => target.Distance)
+            .ThenBy(target => target.TargetLandmark, StringComparer.OrdinalIgnoreCase)
+            .ToList();
 
-        string message = targetNames.Length == 0
-            ? "当前场景没有可用的移动目标。"
-            : $"当前可用的 targetLandmark 有：{string.Join("、", targetNames)}。这些值可直接传给 game_npc_move。";
+        string message = targets.Count == 0
+            ? "当前场景没有可用的 NPC 移动目标。"
+            : $"当前可用移动目标有：{string.Join("、", targets.Select(target => target.DisplayName))}。" +
+              "移动时请使用返回结果中的 targetLandmark。";
 
         return ToolExecutionResult.Success(
             JToken.FromObject(new
             {
-                count = targetNames.Length,
-                targets = targetNames
+                count = targets.Count,
+                targets
             }),
             message);
+    }
+
+    private static TargetSummary CreateSummary(NpcEntity npc, Vector3 origin, GameObject target)
+    {
+        bool isReachable = NpcTargetSupport.TryCalculatePath(npc, target, out float pathDistance);
+        NpcEntity targetNpc = target.GetComponent<NpcEntity>();
+        bool isPlayer = target.GetComponent<PlayerMock>() != null;
+        return new TargetSummary
+        {
+            TargetLandmark = target.name,
+            DisplayName = isPlayer ? "玩家" : targetNpc != null ? targetNpc.npcId : target.name,
+            Category = isPlayer ? "player" : targetNpc != null ? "npc" : "landmark",
+            Distance = Math.Round(Vector3.Distance(origin, target.transform.position), 2),
+            IsReachable = isReachable,
+            PathDistance = isReachable ? (double?)Math.Round(pathDistance, 2) : null
+        };
+    }
+
+    private sealed class TargetSummary
+    {
+        [JsonProperty("targetLandmark")] public string TargetLandmark { get; set; }
+        [JsonProperty("displayName")] public string DisplayName { get; set; }
+        [JsonProperty("category")] public string Category { get; set; }
+        [JsonProperty("distance")] public double Distance { get; set; }
+        [JsonProperty("isReachable")] public bool IsReachable { get; set; }
+        [JsonProperty("pathDistance")] public double? PathDistance { get; set; }
     }
 }
