@@ -13,7 +13,7 @@
     flex-shrink: 0;
     flex-direction: column;
     margin: 24px 0 24px 24px;
-    background-color: #111723;
+    background-color: rgba(7, 10, 18, 0.68);
     border-width: 1px;
     border-color: rgba(130, 160, 205, 0.45);
     border-radius: 14px;
@@ -95,7 +95,7 @@
     min-height: 520px;
     flex-direction: column;
     overflow: hidden;
-    background-color: rgba(17, 23, 35, 0.82);
+    background-color: rgba(7, 10, 18, 0.68);
     border-width: 1px;
     border-color: rgba(130, 160, 205, 0.45);
     border-radius: 14px;
@@ -371,9 +371,46 @@
 
 .chat-scroll .unity-scroll-view__vertical-scroller {
     width: 7px;
+    min-width: 7px;
+    max-width: 7px;
     margin: 6px 4px 6px 2px;
     background-color: transparent;
     border-width: 0;
+}
+
+.chat-scroll .unity-scroll-view__vertical-scroller .unity-scroller__slider {
+    width: 7px;
+    min-width: 7px;
+    max-width: 7px;
+    margin: 0;
+    padding: 0;
+    background-color: transparent;
+    border-width: 0;
+}
+
+.chat-scroll .unity-scroll-view__vertical-scroller .unity-base-slider__tracker {
+    background-color: transparent;
+    border-width: 0;
+}
+
+.chat-scroll .unity-scroll-view__vertical-scroller .unity-base-slider__dragger-border {
+    background-color: transparent;
+    border-width: 0;
+}
+
+.chat-scroll .unity-scroll-view__vertical-scroller .unity-base-slider__dragger {
+    width: 5px;
+    min-width: 5px;
+    max-width: 5px;
+    margin-left: 1px;
+    margin-right: 1px;
+    background-color: rgba(130, 160, 205, 0.45);
+    border-width: 0;
+    border-radius: 3px;
+}
+
+.chat-scroll .unity-scroll-view__vertical-scroller .unity-base-slider__dragger:hover {
+    background-color: rgba(130, 160, 205, 0.70);
 }
 
 .chat-scroll .unity-scroller__low-button,

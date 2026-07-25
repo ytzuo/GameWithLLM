@@ -1,8 +1,11 @@
+using System;
 using UnityEngine;
 using UnityEngine.UIElements;
 
 public abstract class BaseWindow
 {
+    internal event Action<BaseWindow, bool> OpenStateChanged;
+
     public VisualElement RootElement { get; private set; }
     
     // 标记当前窗口是否处于打开状态
@@ -46,7 +49,14 @@ public abstract class BaseWindow
         }
         RootElement.BringToFront(); // 保证新打开的在最上层
         IsOpen = true;
-        OnOpen();
+        try
+        {
+            OnOpen();
+        }
+        finally
+        {
+            OpenStateChanged?.Invoke(this, true);
+        }
     }
 
     /// <summary>
@@ -59,7 +69,14 @@ public abstract class BaseWindow
 
         RootElement?.RemoveFromHierarchy();
         IsOpen = false;
-        OnClose();
+        try
+        {
+            OnClose();
+        }
+        finally
+        {
+            OpenStateChanged?.Invoke(this, false);
+        }
     }
 
     /// <summary>

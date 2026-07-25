@@ -58,17 +58,19 @@ public class PlayerMock : MonoBehaviour
 
     private void Awake()
     {
+        // F —— 打开聊天界面
         _interactAction = new InputAction("Interact", binding: "<Keyboard>/f");
+        // ESC —— 退出界面
         _closeChatAction = new InputAction("CloseChat", binding: "<Keyboard>/escape");
 
-        // Tab —— 打开物品栏列表
-        _inventoryAction = new InputAction("Inventory", InputActionType.Button, "<Keyboard>/tab", null, null, null);
+        // C —— 打开物品栏列表
+        _inventoryAction = new InputAction("Inventory", InputActionType.Button, "<Keyboard>/c", null, null, null);
 
-        // E —— 打开玩家背包
-        _openInventoryAction = new InputAction("OpenInventory", InputActionType.Button, "<Keyboard>/e", null, null, null);
+        // Tab —— 打开玩家背包
+        _openInventoryAction = new InputAction("OpenInventory", InputActionType.Button, "<Keyboard>/tab", null, null, null);
 
-        // D —— 打开物品发放器
-        _dispenserAction = new InputAction("Dispenser", InputActionType.Button, "<Keyboard>/d", null, null, null);
+        // E —— 打开物品发放器
+        _dispenserAction = new InputAction("Dispenser", InputActionType.Button, "<Keyboard>/e", null, null, null);
 
         _onInteract = _ => OnInteract();
         _onCloseChat = _ => OnCloseChat();

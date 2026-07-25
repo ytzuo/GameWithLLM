@@ -367,8 +367,21 @@ public class ChatWindow : BaseWindow
         }
 
         label.text = messageText;
+
+        // A player message is added and the input field is reset in the same frame.
+        // Scrolling from the message's scheduler can run before the ScrollView has
+        // recalculated its content height. Wait for the new row's first layout pass
+        // so both player and NPC messages reliably scroll to the actual bottom.
+        EventCallback<GeometryChangedEvent> scrollAfterLayout = null;
+        scrollAfterLayout = _ =>
+        {
+            container.UnregisterCallback<GeometryChangedEvent>(scrollAfterLayout);
+            if (container.panel != null)
+                _chatScrollView.ScrollTo(container);
+        };
+        container.RegisterCallback<GeometryChangedEvent>(scrollAfterLayout);
+
         _chatScrollView.Add(container);
-        container.schedule.Execute(() => _chatScrollView.ScrollTo(container));
         return label;
     }
 

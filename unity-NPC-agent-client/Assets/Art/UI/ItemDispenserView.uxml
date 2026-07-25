@@ -1,18 +1,19 @@
 <ui:UXML xmlns:ui="UnityEngine.UIElements">
     <Style src="project://database/Assets/Art/UI/InventoryStyle.uss" />
+    <Style src="project://database/Assets/Art/UI/ItemDispenserStyle.uss" />
     <ui:VisualElement class="dispenser-root">
         <ui:VisualElement class="dispenser-container">
 
-            <!-- RIGHT PANEL -->
-            <ui:VisualElement class="dispenser-right">
-                <ui:Label class="inv-list-title" text="容器列表" />
+            <ui:VisualElement class="dispenser-sidebar">
+                <ui:VisualElement class="dispenser-list-header">
+                    <ui:Label class="dispenser-list-title" text="容器列表" />
+                </ui:VisualElement>
                 <ui:ScrollView class="dispenser-list-scroll" mode="Vertical">
-                    <ui:VisualElement name="dispenser-list-container" class="inv-list-container" />
+                    <ui:VisualElement name="dispenser-list-container" class="dispenser-list-container" />
                 </ui:ScrollView>
             </ui:VisualElement>
             
-            <!-- LEFT PANEL -->
-            <ui:VisualElement class="dispenser-left">
+            <ui:VisualElement class="dispenser-main">
                 <ui:Label class="inv-section-label" text="选中容器物品" />
                 <ui:ScrollView class="dispenser-grid-scroll" mode="Vertical">
                     <ui:VisualElement name="dispenser-container-grid" class="inv-grid" />
@@ -25,13 +26,15 @@
                     <ui:VisualElement name="dispenser-catalog-grid" class="inv-grid" />
                 </ui:ScrollView>
 
-                <!-- BOTTOM BAR -->
                 <ui:VisualElement class="dispenser-info-bar">
                     <ui:VisualElement class="dispenser-item-info">
                         <ui:Label name="dispenser-info-name" class="dispenser-info-name" text="选择一件物品" />
                         <ui:Label name="dispenser-info-desc" class="dispenser-info-desc" text="" />
                         <ui:Label name="dispenser-info-id" class="dispenser-info-id" text="" />
                     </ui:VisualElement>
+                    <ui:SliderInt name="dispenser-quantity-slider" class="dispenser-quantity-slider"
+                                  label="数量" low-value="1" high-value="1" value="1"
+                                  show-input-field="true" />
                     <ui:Button name="dispenser-dispense-btn" class="dispenser-dispense-btn" text="发放物品" />
                 </ui:VisualElement>
             </ui:VisualElement>

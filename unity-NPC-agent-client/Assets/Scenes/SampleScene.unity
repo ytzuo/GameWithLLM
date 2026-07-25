@@ -291,6 +291,10 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::NpcEntity
   npcId: Alice_001
+  moveStoppingDistance: 1.5
+  dynamicTargetRepathInterval: 0.5
+  dynamicTargetMoveThreshold: 0.5
+  maximumMoveDuration: 45
   inventoryInteractionRange: 3
 --- !u!195 &404743344
 NavMeshAgent:
@@ -423,7 +427,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::InventoryComponent
   _containerId: npc:Alice_001.inventory
   _slots: []
-  _maxSlots: 21
+  _maxSlots: 27
 --- !u!1 &410087039
 GameObject:
   m_ObjectHideFlags: 0
@@ -782,6 +786,10 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::NpcEntity
   npcId: Ryan_001
+  moveStoppingDistance: 1.5
+  dynamicTargetRepathInterval: 0.5
+  dynamicTargetMoveThreshold: 0.5
+  maximumMoveDuration: 45
   inventoryInteractionRange: 3
 --- !u!114 &614615635
 MonoBehaviour:
@@ -797,7 +805,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::InventoryComponent
   _containerId: npc:Ryan_001.inventory
   _slots: []
-  _maxSlots: 21
+  _maxSlots: 27
 --- !u!1 &832575517
 GameObject:
   m_ObjectHideFlags: 0
@@ -859,6 +867,7 @@ GameObject:
   - component: {fileID: 1011640607}
   - component: {fileID: 1011640606}
   - component: {fileID: 1011640605}
+  - component: {fileID: 1011640609}
   m_Layer: 0
   m_Name: gate
   m_TagString: Untagged
@@ -969,10 +978,10 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 4d3cf5cb837f4f24b0af9be26521b2af, type: 3}
-  m_Name:
+  m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::NpcLandmark
   landmarkId: gate
-  displayName: 大门
+  displayName: "\u5927\u95E8"
 --- !u!1 &1368060058
 GameObject:
   m_ObjectHideFlags: 0
@@ -1132,6 +1141,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 92478486c943e774a8e9e24c95854952, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::PlayerMock
+  worldTargetId: player:local-player-1
   npcEntities:
   - {fileID: 614615634}
   - {fileID: 404743343}
@@ -1150,7 +1160,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::InventoryComponent
   _containerId: player:local-player-1.inventory
   _slots: []
-  _maxSlots: 21
+  _maxSlots: 27
 --- !u!23 &1621335204
 MeshRenderer:
   m_ObjectHideFlags: 0
@@ -1242,6 +1252,8 @@ GameObject:
   - component: {fileID: 1832316565}
   - component: {fileID: 1832316564}
   - component: {fileID: 1832316563}
+  - component: {fileID: 1832316567}
+  - component: {fileID: 1832316568}
   m_Layer: 0
   m_Name: warehouse
   m_TagString: Untagged
@@ -1352,10 +1364,25 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 4d3cf5cb837f4f24b0af9be26521b2af, type: 3}
-  m_Name:
+  m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::NpcLandmark
   landmarkId: warehouse
-  displayName: 仓库
+  displayName: "\u4ED3\u5E93"
+--- !u!114 &1832316568
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1832316562}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: ce8e89e9c5049814794df304a0a815b4, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::InventoryComponent
+  _containerId: warehouse
+  _slots: []
+  _maxSlots: 154
 --- !u!1 &1991495249
 GameObject:
   m_ObjectHideFlags: 0

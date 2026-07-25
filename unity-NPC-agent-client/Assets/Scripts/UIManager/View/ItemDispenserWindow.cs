@@ -35,6 +35,7 @@ public class ItemDispenserWindow : BaseWindow
     private Label _infoName;
     private Label _infoDesc;
     private Label _infoId;
+    private SliderInt _quantitySlider;
     private Button _dispenseButton;
 
     // ── 数据 ────────────────────────────────────────────────
@@ -59,6 +60,7 @@ public class ItemDispenserWindow : BaseWindow
         _infoName = RootElement.Q<Label>("dispenser-info-name");
         _infoDesc = RootElement.Q<Label>("dispenser-info-desc");
         _infoId = RootElement.Q<Label>("dispenser-info-id");
+        _quantitySlider = RootElement.Q<SliderInt>("dispenser-quantity-slider");
         _dispenseButton = RootElement.Q<Button>("dispenser-dispense-btn");
 
         _slotTemplate = Resources.Load<VisualTreeAsset>("UI/Inventory/InventorySlot");
@@ -75,6 +77,8 @@ public class ItemDispenserWindow : BaseWindow
             Debug.LogWarning("ItemDispenserWindow: dispenser-info-desc 未在 UXML 中找到。");
         if (_infoId == null)
             Debug.LogWarning("ItemDispenserWindow: dispenser-info-id 未在 UXML 中找到。");
+        if (_quantitySlider == null)
+            Debug.LogError("ItemDispenserWindow: dispenser-quantity-slider 未在 UXML 中找到。");
         if (_dispenseButton == null)
             Debug.LogError("ItemDispenserWindow: dispenser-dispense-btn 未在 UXML 中找到。");
         if (_slotTemplate == null)
@@ -91,6 +95,7 @@ public class ItemDispenserWindow : BaseWindow
 
         if (_dispenseButton != null)
             _dispenseButton.clicked += OnDispenseClicked;
+        _quantitySlider?.SetEnabled(false);
         _dispenseButton?.SetEnabled(false);
     }
 
@@ -319,6 +324,15 @@ public class ItemDispenserWindow : BaseWindow
         if (_infoId != null)
             _infoId.text = $"ID: {item.ItemId}  |  最大堆叠: {item.MaxStackSize}";
 
+        if (_quantitySlider != null)
+        {
+            int maxQuantity = Mathf.Max(1, item.MaxStackSize);
+            _quantitySlider.lowValue = 1;
+            _quantitySlider.highValue = maxQuantity;
+            _quantitySlider.SetValueWithoutNotify(1);
+            _quantitySlider.SetEnabled(true);
+        }
+
         _dispenseButton?.SetEnabled(true);
     }
 
@@ -371,14 +385,26 @@ public class ItemDispenserWindow : BaseWindow
     {
         if (_selectedTarget == null || _selectedItem == null) return;
 
-        if (_selectedTarget.AddItem(_selectedItem, 1))
+        int maxQuantity = Mathf.Max(1, _selectedItem.MaxStackSize);
+        int quantity = Mathf.Clamp(_quantitySlider?.value ?? 1, 1, maxQuantity);
+
+        if (!_selectedTarget.CanAddItem(_selectedItem, quantity))
         {
-            Debug.Log($"物品发放：{_selectedItem.ItemName} → {InventoryViewModel.Instance.GetContainerName(_selectedTarget)}");
+            Debug.LogWarning(
+                $"发放失败：容器空间不足，无法添加 {quantity} 个 {_selectedItem.ItemName}");
+            return;
+        }
+
+        if (_selectedTarget.AddItem(_selectedItem, quantity))
+        {
+            Debug.Log(
+                $"物品发放：{_selectedItem.ItemName} × {quantity} → " +
+                $"{InventoryViewModel.Instance.GetContainerName(_selectedTarget)}");
             RefreshContainerGrid();
         }
         else
         {
-            Debug.LogWarning($"发放失败：容器已满，无法添加 {_selectedItem.ItemName}");
+            Debug.LogWarning($"发放失败：无法添加 {quantity} 个 {_selectedItem.ItemName}");
         }
     }
 }

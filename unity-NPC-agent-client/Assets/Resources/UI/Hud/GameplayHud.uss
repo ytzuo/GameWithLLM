@@ -1,0 +1,66 @@
+.gameplay-hud-root {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+}
+
+.gameplay-hud-panel {
+    position: absolute;
+    top: 24px;
+    left: 24px;
+    width: 278px;
+    padding: 14px 16px 15px 16px;
+    background-color: rgba(7, 10, 18, 0.68);
+    border-width: 1px;
+    border-color: rgba(130, 160, 205, 0.45);
+    border-radius: 12px;
+}
+
+.gameplay-hud-title {
+    color: #F7FAFF;
+    font-size: 16px;
+    -unity-font-style: bold;
+}
+
+.gameplay-hud-divider {
+    height: 1px;
+    flex-shrink: 0;
+    margin-top: 9px;
+    margin-bottom: 8px;
+    background-color: rgba(130, 160, 205, 0.22);
+}
+
+.gameplay-hud-row {
+    height: 32px;
+    flex-shrink: 0;
+    flex-direction: row;
+    align-items: center;
+}
+
+.gameplay-hud-key {
+    width: 34px;
+    height: 24px;
+    flex-shrink: 0;
+    margin-right: 11px;
+    color: #FFFFFF;
+    background-color: rgba(47, 117, 232, 0.72);
+    border-width: 1px;
+    border-color: rgba(130, 178, 255, 0.68);
+    border-radius: 5px;
+    font-size: 13px;
+    -unity-font-style: bold;
+    -unity-text-align: middle-center;
+}
+
+.gameplay-hud-key--wide {
+    font-size: 11px;
+}
+
+.gameplay-hud-description {
+    flex-grow: 1;
+    color: #D2DDF0;
+    font-size: 14px;
+    -unity-text-align: middle-left;
+}

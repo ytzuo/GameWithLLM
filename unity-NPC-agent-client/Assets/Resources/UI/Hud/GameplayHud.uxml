@@ -1,0 +1,26 @@
+<ui:UXML xmlns:ui="UnityEngine.UIElements">
+    <Style src="project://database/Assets/Resources/UI/Hud/GameplayHud.uss" />
+    <ui:VisualElement name="gameplay-hud-root" class="gameplay-hud-root" picking-mode="Ignore">
+        <ui:VisualElement class="gameplay-hud-panel" picking-mode="Ignore">
+            <ui:Label text="游戏操作" class="gameplay-hud-title" picking-mode="Ignore" />
+            <ui:VisualElement class="gameplay-hud-divider" picking-mode="Ignore" />
+
+            <ui:VisualElement class="gameplay-hud-row" picking-mode="Ignore">
+                <ui:Label text="F" class="gameplay-hud-key" picking-mode="Ignore" />
+                <ui:Label text="打开聊天面板" class="gameplay-hud-description" picking-mode="Ignore" />
+            </ui:VisualElement>
+            <ui:VisualElement class="gameplay-hud-row" picking-mode="Ignore">
+                <ui:Label text="E" class="gameplay-hud-key" picking-mode="Ignore" />
+                <ui:Label text="打开物品发放器面板" class="gameplay-hud-description" picking-mode="Ignore" />
+            </ui:VisualElement>
+            <ui:VisualElement class="gameplay-hud-row" picking-mode="Ignore">
+                <ui:Label text="C" class="gameplay-hud-key gameplay-hud-key--wide" picking-mode="Ignore" />
+                <ui:Label text="查看所有容器物品" class="gameplay-hud-description" picking-mode="Ignore" />
+            </ui:VisualElement>
+            <ui:VisualElement class="gameplay-hud-row" picking-mode="Ignore">
+                <ui:Label text="Tab" class="gameplay-hud-key" picking-mode="Ignore" />
+                <ui:Label text="打开自己背包" class="gameplay-hud-description" picking-mode="Ignore" />
+            </ui:VisualElement>
+        </ui:VisualElement>
+    </ui:VisualElement>
+</ui:UXML>

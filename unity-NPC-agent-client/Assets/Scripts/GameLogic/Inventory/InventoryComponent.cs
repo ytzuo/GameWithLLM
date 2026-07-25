@@ -12,7 +12,7 @@ public class InventoryComponent : MonoBehaviour
     [SerializeField, Tooltip("工具和游戏逻辑使用的稳定容器标识；必须显式配置且在场景中唯一。")]
     private string _containerId;
     [SerializeField] private List<InventorySlot> _slots = new List<InventorySlot>();
-    [SerializeField] private int _maxSlots = 21;
+    [SerializeField] private int _maxSlots = 27;
 
     // ── Properties ──
 

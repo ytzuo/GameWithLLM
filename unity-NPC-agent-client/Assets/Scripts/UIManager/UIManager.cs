@@ -7,8 +7,11 @@ using UnityEngine.UIElements;
 [RequireComponent(typeof(UIDocument))]
 public class UIManager : MonoBehaviour
 {
+    private const string GameplayHudResourcePath = "UI/Hud/GameplayHud";
+
     public static UIManager Instance { get; private set; }
     private UIDocument _uiDocument;
+    private VisualElement _gameplayHud;
 
     [Serializable]
     public struct UIConfig
@@ -32,7 +35,7 @@ public class UIManager : MonoBehaviour
     {
         Instance = this;
         _uiDocument = GetComponent<UIDocument>();
-
+        CreateGameplayHud();
     }
     private void Start()
     {
@@ -62,13 +65,13 @@ public class UIManager : MonoBehaviour
         if (uxmlAsset == null) throw new Exception($"UI config {typeof(T).Name} doesn't exist");
         
         window.Load(uxmlAsset);
-        
-        // 3. 挂载到 UIDocument 的根节点并显示
-        window.Open(_uiDocument.rootVisualElement);
-        
-        // 4. 加入工厂管理列表
+
+        // 3. 先纳入管理并监听状态，再挂载到 UIDocument。
+        // 这样窗口打开事件触发时，HUD 可见性统计已经包含当前窗口。
+        window.OpenStateChanged += OnWindowOpenStateChanged;
         _managedWindows.Add(window);
-        
+        window.Open(_uiDocument.rootVisualElement);
+
         return window;
     }
 
@@ -87,9 +90,11 @@ public class UIManager : MonoBehaviour
         
         // 触发子类的销毁逻辑（解绑事件等）
         window.OnDestroy();
-        
+
         // 从管理列表中移除，等待 C# 的 GC 回收
+        window.OpenStateChanged -= OnWindowOpenStateChanged;
         _managedWindows.Remove(window);
+        UpdateGameplayHudVisibility();
     }
 
     /// <summary>
@@ -106,9 +111,11 @@ public class UIManager : MonoBehaviour
             if (!window.IsOpen)
             {
                 window.OnDestroy();
+                window.OpenStateChanged -= OnWindowOpenStateChanged;
                 _managedWindows.RemoveAt(i);
             }
         }
+        UpdateGameplayHudVisibility();
     }
 
     /// <summary>
@@ -119,5 +126,50 @@ public class UIManager : MonoBehaviour
         if (window == null) return;
         if (window.IsOpen) return;
         window.Open(_uiDocument.rootVisualElement);
+    }
+
+    private void CreateGameplayHud()
+    {
+        VisualTreeAsset hudAsset =
+            Resources.Load<VisualTreeAsset>(GameplayHudResourcePath);
+        if (hudAsset == null)
+        {
+            Debug.LogWarning(
+                $"UIManager: 无法加载常驻 HUD：Resources/{GameplayHudResourcePath}.uxml");
+            return;
+        }
+
+        _gameplayHud = hudAsset.CloneTree();
+        _gameplayHud.name = "gameplay-hud";
+        DisablePickingRecursively(_gameplayHud);
+        _uiDocument.rootVisualElement.Add(_gameplayHud);
+        _gameplayHud.BringToFront();
+        UpdateGameplayHudVisibility();
+    }
+
+    private void OnWindowOpenStateChanged(BaseWindow window, bool isOpen)
+    {
+        UpdateGameplayHudVisibility();
+    }
+
+    private void UpdateGameplayHudVisibility()
+    {
+        if (_gameplayHud == null)
+            return;
+
+        bool hasOpenWindow = _managedWindows.Exists(
+            window => window != null && window.IsOpen);
+        _gameplayHud.style.display =
+            hasOpenWindow ? DisplayStyle.None : DisplayStyle.Flex;
+    }
+
+    private static void DisablePickingRecursively(VisualElement element)
+    {
+        if (element == null)
+            return;
+
+        element.pickingMode = PickingMode.Ignore;
+        foreach (VisualElement child in element.Children())
+            DisablePickingRecursively(child);
     }
 }
