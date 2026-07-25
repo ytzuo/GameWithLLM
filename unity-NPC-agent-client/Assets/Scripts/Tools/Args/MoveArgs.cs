@@ -3,7 +3,17 @@ using System;
 [Serializable]
 public class MoveArgs : ToolArgsBase
 {
+    [ToolParameter(
+        Required = true,
+        MinLength = 1,
+        Pattern = @"\S",
+        Description = "game_scene_get_targets 返回的稳定 targetId")]
     public string targetId;
+
+    [ToolParameter(
+        Minimum = 0,
+        Maximum = 10,
+        Description = "与目标保持的距离；0 或省略时使用 NPC 默认停止距离")]
     public float approachDistance;
 
     public override bool Validate(out string errorMessage)
@@ -11,11 +21,6 @@ public class MoveArgs : ToolArgsBase
         if (string.IsNullOrWhiteSpace(targetId))
         {
             errorMessage = "targetId 不能为空";
-            return false;
-        }
-        if (approachDistance < 0f || approachDistance > 10f)
-        {
-            errorMessage = "approachDistance 必须在 0 到 10 米之间；0 表示使用 NPC 默认值";
             return false;
         }
         errorMessage = null;

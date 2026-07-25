@@ -5,22 +5,9 @@ using UnityEngine.Scripting;
 [Preserve]
 public sealed class TakeItemFromContainerTool : InventoryNpcTool<TakeItemFromContainerArgs>
 {
-    private static readonly JObject Schema = JObject.Parse(
-        @"{
-          ""type"": ""object"",
-          ""properties"": {
-            ""containerId"": { ""type"": ""string"", ""minLength"": 1, ""description"": ""附近容器查询返回的稳定 containerId"" },
-            ""itemId"": { ""type"": ""string"", ""minLength"": 1, ""description"": ""要取出的稳定物品标识"" },
-            ""quantity"": { ""type"": ""integer"", ""minimum"": 1 }
-          },
-          ""required"": [""containerId"", ""itemId"", ""quantity""],
-          ""additionalProperties"": false
-        }");
-
     public override string Name => "game_inventory_take_item";
     public override string Description =>
         "从附近容器中取出指定数量的物品放入当前 NPC 背包；操作原子执行，不会部分转移。";
-    public override JObject InputSchema => (JObject)Schema.DeepClone();
 
     protected override ToolExecutionResult ExecuteCore(NpcToolContext context, TakeItemFromContainerArgs args)
     {

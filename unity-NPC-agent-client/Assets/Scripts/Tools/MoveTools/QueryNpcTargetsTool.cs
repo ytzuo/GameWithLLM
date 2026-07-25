@@ -9,31 +9,27 @@ using UnityEngine.Scripting;
 [Serializable]
 public sealed class QuerySceneTargetsArgs : ToolArgsBase
 {
+    [ToolParameter(
+        UniqueItems = true,
+        ItemMinLength = 1,
+        ItemPattern = @"\S")]
     public string[] targetIds;
+
+    [ToolParameter(
+        UniqueItems = true,
+        ItemAllowedValues = new string[] { "npc", "player", "landmark" })]
     public string[] categories;
+
+    [ToolParameter(
+        Minimum = 0,
+        Description = "最大直线距离；0 或省略表示不限制")]
     public float maxDistance;
+
+    [ToolParameter(Description = "是否只返回具有完整 NavMesh 路径的目标")]
     public bool reachableOnly;
 
     public override bool Validate(out string errorMessage)
     {
-        if (maxDistance < 0f)
-        {
-            errorMessage = "maxDistance 不能小于 0";
-            return false;
-        }
-        string[] allowed = { "npc", "player", "landmark" };
-        if (categories != null)
-        {
-            for (int i = 0; i < categories.Length; i++)
-            {
-                if (string.IsNullOrWhiteSpace(categories[i]) ||
-                    !allowed.Contains(categories[i], StringComparer.OrdinalIgnoreCase))
-                {
-                    errorMessage = $"不支持的目标类别：{categories[i]}";
-                    return false;
-                }
-            }
-        }
         errorMessage = null;
         return true;
     }
@@ -43,25 +39,11 @@ public sealed class QuerySceneTargetsArgs : ToolArgsBase
 [Preserve]
 public sealed class QuerySceneTargetsTool : NpcTool<QuerySceneTargetsArgs>
 {
-    private static readonly JObject Schema = JObject.Parse(
-        @"{
-          ""type"": ""object"",
-          ""properties"": {
-            ""targetIds"": { ""type"": ""array"", ""items"": { ""type"": ""string"", ""minLength"": 1 }, ""uniqueItems"": true },
-            ""categories"": { ""type"": ""array"", ""items"": { ""type"": ""string"", ""enum"": [""npc"", ""player"", ""landmark""] }, ""uniqueItems"": true },
-            ""maxDistance"": { ""type"": ""number"", ""minimum"": 0, ""description"": ""最大直线距离；0 或省略表示不限制"" },
-            ""reachableOnly"": { ""type"": ""boolean"", ""description"": ""是否只返回具有完整 NavMesh 路径的目标"" }
-          },
-          ""additionalProperties"": false
-        }");
-
     public override string Name => "game_scene_get_targets";
 
     public override string Description =>
         "查询当前场景中的其他 NPC、玩家和地标，返回稳定 targetId、类别、距离和 NavMesh 可达性。" +
         "game_npc_move 必须使用本工具返回的 targetId。";
-
-    public override JObject InputSchema => (JObject)Schema.DeepClone();
 
     protected override ToolExecutionResult ExecuteCore(NpcToolContext context, QuerySceneTargetsArgs args)
     {
