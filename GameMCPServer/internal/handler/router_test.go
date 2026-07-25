@@ -45,6 +45,7 @@ func TestRegisterRoutesWithTimeout_BitsUT(t *testing.T) {
 			"instanceId":      "router-test",
 			"tools":           []any{},
 			"npcs":            []string{"Ryan_001"},
+			"npcTools":        map[string][]string{"Ryan_001": {}},
 		},
 	}))
 	var message struct {

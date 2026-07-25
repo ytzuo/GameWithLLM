@@ -16,12 +16,12 @@ public sealed class UnityGatewayClient : IDisposable
 
     private readonly Uri _endpoint;
     private readonly string _instanceId;
-    private readonly Func<List<UnityGatewayToolDefinition>> _toolsProvider;
-    private readonly Func<List<string>> _npcProvider;
+    private readonly Func<UnityGatewayCapabilitySnapshot> _capabilitiesProvider;
     private readonly ReconnectPolicy _reconnectPolicy;
     private readonly TimeSpan _requestTimeout;
     private readonly TimeSpan _conversationTimeout;
     private readonly SemaphoreSlim _sendLock = new SemaphoreSlim(1, 1);
+    private readonly SemaphoreSlim _capabilitySyncLock = new SemaphoreSlim(1, 1);
     private readonly ConcurrentDictionary<string, TaskCompletionSource<string>> _pending =
         new ConcurrentDictionary<string, TaskCompletionSource<string>>();
     private readonly object _lifecycleLock = new object();
@@ -30,6 +30,7 @@ public sealed class UnityGatewayClient : IDisposable
     private Task _connectionLoopTask;
     private ClientWebSocket _socket;
     private string _registrationRequestId;
+    private HashSet<string> _registrationNpcIds = new HashSet<string>(StringComparer.Ordinal);
     private volatile bool _isRegistered;
     private bool _disposed;
 
@@ -46,8 +47,7 @@ public sealed class UnityGatewayClient : IDisposable
     public UnityGatewayClient(
         string endpoint,
         string instanceId,
-        Func<List<UnityGatewayToolDefinition>> toolsProvider,
-        Func<List<string>> npcProvider,
+        Func<UnityGatewayCapabilitySnapshot> capabilitiesProvider,
         ReconnectPolicy reconnectPolicy = null,
         TimeSpan? requestTimeout = null,
         TimeSpan? conversationTimeout = null)
@@ -58,8 +58,8 @@ public sealed class UnityGatewayClient : IDisposable
             throw new ArgumentException("Unity instanceId 不能为空。", nameof(instanceId));
 
         _instanceId = instanceId;
-        _toolsProvider = toolsProvider ?? throw new ArgumentNullException(nameof(toolsProvider));
-        _npcProvider = npcProvider ?? throw new ArgumentNullException(nameof(npcProvider));
+        _capabilitiesProvider = capabilitiesProvider ??
+            throw new ArgumentNullException(nameof(capabilitiesProvider));
         _reconnectPolicy = reconnectPolicy ?? new ReconnectPolicy();
         _requestTimeout = requestTimeout ?? TimeSpan.FromSeconds(15);
         _conversationTimeout = conversationTimeout ?? TimeSpan.FromSeconds(120);
@@ -185,30 +185,40 @@ public sealed class UnityGatewayClient : IDisposable
         return SendJsonAsync(new { jsonrpc = "2.0", id = requestId, result }, cancellationToken);
     }
 
-    public Task NotifyNpcChangedAsync(string npcId, bool online, CancellationToken cancellationToken)
+    public async Task NotifyNpcChangedAsync(string npcId, bool online, CancellationToken cancellationToken)
     {
         if (!_isRegistered || string.IsNullOrWhiteSpace(npcId))
-            return Task.CompletedTask;
+            return;
 
-        return SendNotificationSafelyAsync(new
+        await _capabilitySyncLock.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
         {
-            jsonrpc = "2.0",
-            method = UnityGatewayProtocol.NpcChangedMethod,
-            @params = new { instanceId = _instanceId, npcId, online }
-        }, cancellationToken);
+            if (!_isRegistered)
+                return;
+            await SendNpcChangedCoreAsync(npcId, online, cancellationToken).ConfigureAwait(false);
+            await SendToolsChangedCoreAsync(GetCapabilitySnapshot(), cancellationToken).ConfigureAwait(false);
+        }
+        finally
+        {
+            _capabilitySyncLock.Release();
+        }
     }
 
-    public Task NotifyToolsChangedAsync(CancellationToken cancellationToken)
+    public async Task NotifyToolsChangedAsync(CancellationToken cancellationToken)
     {
         if (!_isRegistered)
-            return Task.CompletedTask;
+            return;
 
-        return SendNotificationSafelyAsync(new
+        await _capabilitySyncLock.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
         {
-            jsonrpc = "2.0",
-            method = UnityGatewayProtocol.ToolsChangedMethod,
-            @params = new { instanceId = _instanceId, tools = _toolsProvider() }
-        }, cancellationToken);
+            if (_isRegistered)
+                await SendToolsChangedCoreAsync(GetCapabilitySnapshot(), cancellationToken).ConfigureAwait(false);
+        }
+        finally
+        {
+            _capabilitySyncLock.Release();
+        }
     }
 
     private async Task RunConnectionLoopAsync(CancellationToken cancellationToken)
@@ -398,6 +408,8 @@ public sealed class UnityGatewayClient : IDisposable
     private Task SendRegistrationAsync(CancellationToken cancellationToken)
     {
         _registrationRequestId = $"register-{Guid.NewGuid():N}";
+        UnityGatewayCapabilitySnapshot snapshot = GetCapabilitySnapshot();
+        _registrationNpcIds = new HashSet<string>(snapshot.Npcs, StringComparer.Ordinal);
         return SendJsonAsync(new
         {
             jsonrpc = "2.0",
@@ -407,30 +419,82 @@ public sealed class UnityGatewayClient : IDisposable
             {
                 ProtocolVersion = UnityGatewayProtocol.Version,
                 InstanceId = _instanceId,
-                Tools = _toolsProvider(),
-                Npcs = _npcProvider()
+                Tools = snapshot.Tools,
+                Npcs = snapshot.Npcs,
+                NpcTools = snapshot.NpcTools
             }
         }, cancellationToken);
     }
 
     private async Task SendCapabilitySnapshotAsync(CancellationToken cancellationToken)
     {
-        await SendJsonAsync(new
+        await _capabilitySyncLock.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            if (!_isRegistered)
+                return;
+
+            UnityGatewayCapabilitySnapshot snapshot = GetCapabilitySnapshot();
+            var currentNpcIds = new HashSet<string>(snapshot.Npcs, StringComparer.Ordinal);
+            foreach (string previousNpcId in _registrationNpcIds)
+            {
+                if (!currentNpcIds.Contains(previousNpcId))
+                {
+                    await SendNpcChangedCoreAsync(
+                        previousNpcId,
+                        false,
+                        cancellationToken).ConfigureAwait(false);
+                }
+            }
+
+            // Online 更新是幂等的。先同步 NPC 路由，再提交严格对应这些 NPC 的工具快照。
+            foreach (string npcId in snapshot.Npcs)
+                await SendNpcChangedCoreAsync(npcId, true, cancellationToken).ConfigureAwait(false);
+            await SendToolsChangedCoreAsync(snapshot, cancellationToken).ConfigureAwait(false);
+            _registrationNpcIds = currentNpcIds;
+        }
+        finally
+        {
+            _capabilitySyncLock.Release();
+        }
+    }
+
+    private Task SendNpcChangedCoreAsync(
+        string npcId,
+        bool online,
+        CancellationToken cancellationToken)
+    {
+        return SendNotificationSafelyAsync(new
+        {
+            jsonrpc = "2.0",
+            method = UnityGatewayProtocol.NpcChangedMethod,
+            @params = new { instanceId = _instanceId, npcId, online }
+        }, cancellationToken);
+    }
+
+    private Task SendToolsChangedCoreAsync(
+        UnityGatewayCapabilitySnapshot snapshot,
+        CancellationToken cancellationToken)
+    {
+        return SendNotificationSafelyAsync(new
         {
             jsonrpc = "2.0",
             method = UnityGatewayProtocol.ToolsChangedMethod,
-            @params = new { instanceId = _instanceId, tools = _toolsProvider() }
-        }, cancellationToken).ConfigureAwait(false);
-
-        foreach (string npcId in _npcProvider())
-        {
-            await SendJsonAsync(new
+            @params = new
             {
-                jsonrpc = "2.0",
-                method = UnityGatewayProtocol.NpcChangedMethod,
-                @params = new { instanceId = _instanceId, npcId, online = true }
-            }, cancellationToken).ConfigureAwait(false);
-        }
+                instanceId = _instanceId,
+                tools = snapshot.Tools,
+                npcTools = snapshot.NpcTools
+            }
+        }, cancellationToken);
+    }
+
+    private UnityGatewayCapabilitySnapshot GetCapabilitySnapshot()
+    {
+        UnityGatewayCapabilitySnapshot snapshot = _capabilitiesProvider();
+        if (snapshot?.Tools == null || snapshot.Npcs == null || snapshot.NpcTools == null)
+            throw new InvalidOperationException("Unity Gateway 能力快照不完整。");
+        return snapshot;
     }
 
     private async Task SendNotificationSafelyAsync(object payload, CancellationToken cancellationToken)

@@ -40,12 +40,21 @@ public sealed class UnityGatewayToolDefinition
 }
 
 [Serializable]
+public sealed class UnityGatewayCapabilitySnapshot
+{
+    [JsonProperty("tools")] public List<UnityGatewayToolDefinition> Tools;
+    [JsonProperty("npcs")] public List<string> Npcs;
+    [JsonProperty("npcTools")] public Dictionary<string, List<string>> NpcTools;
+}
+
+[Serializable]
 public sealed class UnityGatewayRegistration
 {
     [JsonProperty("protocolVersion")] public int ProtocolVersion;
     [JsonProperty("instanceId")] public string InstanceId;
     [JsonProperty("tools")] public List<UnityGatewayToolDefinition> Tools;
     [JsonProperty("npcs")] public List<string> Npcs;
+    [JsonProperty("npcTools")] public Dictionary<string, List<string>> NpcTools;
 }
 
 [Serializable]

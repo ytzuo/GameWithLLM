@@ -1,5 +1,6 @@
+using System;
 using System.Collections.Concurrent;
-using Newtonsoft.Json;
+using System.Collections.Generic;
 using Newtonsoft.Json.Linq;
 using UnityEngine;
 using UnityEngine.AI;
@@ -28,6 +29,8 @@ public class NpcEntity : MonoBehaviour
     private float _nextRepathTime;
     private float _activeApproachDistance;
     private Vector3 _lastMoveDestination;
+    private List<string> _lastAvailableToolNames = new List<string>();
+    private float _nextCapabilityCheckAt;
 
     public enum NpcState { Idle, Talking, Operating }
 
@@ -110,11 +113,12 @@ public class NpcEntity : MonoBehaviour
 
     private void Start()
     {
-        CommandDispatcher.Instance.RegisterNpc(npcId, this);
         _navAgent = GetComponent<NavMeshAgent>();
-
         if (_navAgent == null)
             Debug.LogError($"[NPC:{npcId}] NavMeshAgent is missing.", this);
+
+        _lastAvailableToolNames = ToolsRegistry.Instance.GetToolNamesForNpc(this);
+        CommandDispatcher.Instance.RegisterNpc(npcId, this);
     }
 
     public void ReceiveCommand(UnityToolCommand request)
@@ -124,6 +128,8 @@ public class NpcEntity : MonoBehaviour
 
     private void Update()
     {
+        RefreshCapabilitiesIfNeeded();
+
         switch (_fsmState)
         {
             case NpcState.Idle:
@@ -140,6 +146,32 @@ public class NpcEntity : MonoBehaviour
                 UpdateActiveMovement();
                 break;
         }
+    }
+
+    private void RefreshCapabilitiesIfNeeded()
+    {
+        if (Time.unscaledTime < _nextCapabilityCheckAt)
+            return;
+        _nextCapabilityCheckAt = Time.unscaledTime + 0.5f;
+
+        List<string> available = ToolsRegistry.Instance.GetToolNamesForNpc(this);
+        if (available.Count == _lastAvailableToolNames.Count)
+        {
+            bool unchanged = true;
+            for (int i = 0; i < available.Count; i++)
+            {
+                if (!string.Equals(available[i], _lastAvailableToolNames[i], StringComparison.Ordinal))
+                {
+                    unchanged = false;
+                    break;
+                }
+            }
+            if (unchanged)
+                return;
+        }
+
+        _lastAvailableToolNames = available;
+        CommandDispatcher.Instance.NotifyNpcCapabilitiesChanged(npcId, this);
     }
 
     private void ExecuteBusinessLogic(UnityToolCommand request)
@@ -169,11 +201,9 @@ public class NpcEntity : MonoBehaviour
         };
         if (!string.IsNullOrEmpty(result.ErrorCode))
             resultTrace["errorCode"] = result.ErrorCode;
-        if (!string.IsNullOrEmpty(result.Message))
-            resultTrace["message"] = result.Message;
-        if (result.Data != null)
-            resultTrace["data"] = result.Data.DeepClone();
-        Debug.Log($"[Unity Tool Trace] {resultTrace.ToString(Formatting.None)}", this);
+        resultTrace["messageLength"] = result.Message?.Length ?? 0;
+        resultTrace["hasData"] = result.Data != null;
+        Debug.Log($"[Unity Tool Trace] {resultTrace}", this);
 
         if (result.IsPending)
         {

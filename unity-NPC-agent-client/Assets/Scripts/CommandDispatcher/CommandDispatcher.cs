@@ -12,13 +12,24 @@ public class CommandDispatcher : Singleton<CommandDispatcher>
     private readonly ConcurrentDictionary<string, byte> _activeRequests = new ConcurrentDictionary<string, byte>();
 
     public event Action<string, bool> NpcChanged;
+    public event Action<string> NpcCapabilitiesChanged;
 
     public void RegisterNpc(string id, NpcEntity npc)
     {
         if (string.IsNullOrWhiteSpace(id) || npc == null)
             return;
         lock (_npcLock)
+        {
+            if (_npcEntities.TryGetValue(id, out NpcEntity existing) && existing != npc)
+            {
+                Debug.LogError(
+                    $"[Router] NPC ID 重复：'{id}' 已由 '{existing.gameObject.name}' 注册，" +
+                    $"无法再注册 '{npc.gameObject.name}'。",
+                    npc);
+                return;
+            }
             _npcEntities[id] = npc;
+        }
         NpcChanged?.Invoke(id, true);
     }
 
@@ -37,7 +48,29 @@ public class CommandDispatcher : Singleton<CommandDispatcher>
     public List<string> GetRegisteredNpcIds()
     {
         lock (_npcLock)
-            return new List<string>(_npcEntities.Keys);
+        {
+            var ids = new List<string>(_npcEntities.Keys);
+            ids.Sort(StringComparer.Ordinal);
+            return ids;
+        }
+    }
+
+    public Dictionary<string, NpcEntity> GetRegisteredNpcsSnapshot()
+    {
+        lock (_npcLock)
+            return new Dictionary<string, NpcEntity>(_npcEntities);
+    }
+
+    public void NotifyNpcCapabilitiesChanged(string id, NpcEntity npc)
+    {
+        if (string.IsNullOrWhiteSpace(id) || npc == null)
+            return;
+        lock (_npcLock)
+        {
+            if (!_npcEntities.TryGetValue(id, out NpcEntity registered) || registered != npc)
+                return;
+        }
+        NpcCapabilitiesChanged?.Invoke(id);
     }
 
     public void OnReceiveNetMessage(UnityToolCommand request)

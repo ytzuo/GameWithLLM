@@ -20,10 +20,18 @@ public class AgentHostClient : Singleton<AgentHostClient>
     private readonly ConcurrentDictionary<string, Task<string>> _sessionStarts = new ConcurrentDictionary<string, Task<string>>();
     private readonly ConcurrentQueue<Action> _mainThreadActions = new ConcurrentQueue<Action>();
     private readonly SemaphoreSlim _conversationSendLock = new SemaphoreSlim(1, 1);
+    private readonly object _capabilitySnapshotLock = new object();
 
     private UnityGatewayClient _gatewayClient;
     private CommandDispatcher _dispatcher;
     private ToolsRegistry _toolsRegistry;
+    private UnityGatewayCapabilitySnapshot _capabilitySnapshot =
+        new UnityGatewayCapabilitySnapshot
+        {
+            Tools = new List<UnityGatewayToolDefinition>(),
+            Npcs = new List<string>(),
+            NpcTools = new Dictionary<string, List<string>>()
+        };
     private string _activeNpcId;
 
     protected override void Init()
@@ -40,13 +48,14 @@ public class AgentHostClient : Singleton<AgentHostClient>
         _dispatcher = CommandDispatcher.Instance;
         _toolsRegistry = ToolsRegistry.Instance;
         _dispatcher.NpcChanged += OnNpcChanged;
+        _dispatcher.NpcCapabilitiesChanged += OnNpcCapabilitiesChanged;
         _toolsRegistry.ToolsChanged += OnToolsChanged;
+        RefreshCapabilitySnapshot();
 
         _gatewayClient = new UnityGatewayClient(
             gatewayWsUrl,
             unityInstanceId,
-            _toolsRegistry.GetToolsForGateway,
-            _dispatcher.GetRegisteredNpcIds);
+            GetCapabilitySnapshot);
         _gatewayClient.ToolCallReceived += OnGatewayToolCallReceived;
         _gatewayClient.ToolCancellationReceived += OnGatewayToolCancellationReceived;
         _gatewayClient.AssistantStatusReceived += OnAssistantStatusReceived;
@@ -283,25 +292,15 @@ public class AgentHostClient : Singleton<AgentHostClient>
 
     private void OnGatewayToolCallReceived(UnityToolCommand request)
     {
+        string argumentsJson = request?.Function?.ArgumentsJson;
         var trace = new JObject
         {
             ["event"] = "unity_tool_received",
             ["requestId"] = request?.RequestId,
             ["npcId"] = request?.NpcId,
-            ["tool"] = request?.Function?.Name
+            ["tool"] = request?.Function?.Name,
+            ["argumentsLength"] = argumentsJson?.Length ?? 0
         };
-        string argumentsJson = request?.Function?.ArgumentsJson;
-        if (!string.IsNullOrWhiteSpace(argumentsJson))
-        {
-            try
-            {
-                trace["arguments"] = JToken.Parse(argumentsJson);
-            }
-            catch
-            {
-                trace["argumentsRaw"] = argumentsJson;
-            }
-        }
         EnqueueToolTrace(trace);
         _dispatcher.OnReceiveNetMessage(request);
     }
@@ -323,10 +322,8 @@ public class AgentHostClient : Singleton<AgentHostClient>
         };
         if (!string.IsNullOrEmpty(errorCode))
             trace["errorCode"] = errorCode;
-        if (!string.IsNullOrEmpty(text))
-            trace["message"] = text;
-        if (data != null)
-            trace["data"] = data.DeepClone();
+        trace["messageLength"] = text?.Length ?? 0;
+        trace["dataLength"] = data?.ToString(Formatting.None).Length ?? 0;
         if (!string.IsNullOrEmpty(transportError))
             trace["transportError"] = transportError;
         EnqueueToolTrace(trace);
@@ -346,16 +343,54 @@ public class AgentHostClient : Singleton<AgentHostClient>
 
     private void OnNpcChanged(string npcId, bool online)
     {
+        RefreshCapabilitySnapshot();
         if (!online && _sessionsByNpc.TryRemove(npcId, out string sessionId) && _gatewayClient != null)
             _ = _gatewayClient.EndConversationAsync(sessionId, _appCts.Token);
         if (_gatewayClient != null)
             _ = _gatewayClient.NotifyNpcChangedAsync(npcId, online, _appCts.Token);
     }
 
-    private void OnToolsChanged()
+    private void OnNpcCapabilitiesChanged(string npcId)
     {
+        RefreshCapabilitySnapshot();
         if (_gatewayClient != null)
             _ = _gatewayClient.NotifyToolsChangedAsync(_appCts.Token);
+    }
+
+    private void OnToolsChanged()
+    {
+        RefreshCapabilitySnapshot();
+        if (_gatewayClient != null)
+            _ = _gatewayClient.NotifyToolsChangedAsync(_appCts.Token);
+    }
+
+    private void RefreshCapabilitySnapshot()
+    {
+        List<UnityGatewayToolDefinition> tools = _toolsRegistry.GetToolsForGateway();
+        Dictionary<string, NpcEntity> registered = _dispatcher.GetRegisteredNpcsSnapshot();
+        var npcIds = new List<string>(registered.Keys);
+        npcIds.Sort(StringComparer.Ordinal);
+        var npcTools = new Dictionary<string, List<string>>(StringComparer.Ordinal);
+        for (int i = 0; i < npcIds.Count; i++)
+        {
+            string npcId = npcIds[i];
+            npcTools[npcId] = _toolsRegistry.GetToolNamesForNpc(registered[npcId]);
+        }
+
+        var snapshot = new UnityGatewayCapabilitySnapshot
+        {
+            Tools = tools,
+            Npcs = npcIds,
+            NpcTools = npcTools
+        };
+        lock (_capabilitySnapshotLock)
+            _capabilitySnapshot = snapshot;
+    }
+
+    private UnityGatewayCapabilitySnapshot GetCapabilitySnapshot()
+    {
+        lock (_capabilitySnapshotLock)
+            return _capabilitySnapshot;
     }
 
     private bool TryGetNpcIdForSession(string sessionId, out string npcId)
@@ -401,7 +436,10 @@ public class AgentHostClient : Singleton<AgentHostClient>
     void OnDestroy()
     {
         if (_dispatcher != null)
+        {
             _dispatcher.NpcChanged -= OnNpcChanged;
+            _dispatcher.NpcCapabilitiesChanged -= OnNpcCapabilitiesChanged;
+        }
         if (_toolsRegistry != null)
             _toolsRegistry.ToolsChanged -= OnToolsChanged;
 

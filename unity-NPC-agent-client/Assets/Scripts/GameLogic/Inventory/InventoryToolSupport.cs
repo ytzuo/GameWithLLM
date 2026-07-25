@@ -7,8 +7,13 @@ using UnityEngine;
 
 public abstract class InventoryNpcTool<TArgs> : NpcTool<TArgs> where TArgs : ToolArgsBase
 {
-    public override bool IsAvailable(NpcToolContext context) =>
-        context?.Npc != null && context.Npc.GetComponent<InventoryComponent>() != null;
+    public override bool IsAvailable(NpcToolContext context)
+    {
+        if (context?.Npc == null)
+            return false;
+        InventoryComponent inventory = context.Npc.GetComponent<InventoryComponent>();
+        return inventory != null && inventory.isActiveAndEnabled;
+    }
 }
 
 internal sealed class NearbyInventoryContainer
@@ -43,6 +48,17 @@ internal static class InventoryToolSupport
         ItemDataList catalog = InventoryViewModel.Instance.ItemCatalog;
         if (catalog == null || catalog.items == null)
             throw new ToolExecutionException("ITEM_CATALOG_UNAVAILABLE", "当前游戏未配置可用的物品静态数据表。");
+        var itemIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        for (int i = 0; i < catalog.items.Count; i++)
+        {
+            ItemData item = catalog.items[i];
+            if (item == null)
+                continue;
+            if (string.IsNullOrWhiteSpace(item.ItemId))
+                throw new ToolExecutionException("ITEM_ID_MISSING", $"物品数据 '{item.ItemName}' 缺少稳定 itemId。");
+            if (!itemIds.Add(item.ItemId))
+                throw new ToolExecutionException("ITEM_ID_AMBIGUOUS", $"物品标识 '{item.ItemId}' 不唯一，请配置唯一 itemId。");
+        }
         return catalog;
     }
 
@@ -253,6 +269,12 @@ internal static class InventoryToolSupport
             InventoryComponent component = containers[i].component;
             if (component == null)
                 continue;
+            if (string.IsNullOrWhiteSpace(component.ContainerId))
+            {
+                throw new ToolExecutionException(
+                    "CONTAINER_ID_MISSING",
+                    $"容器 '{component.gameObject.name}' 缺少稳定 containerId。");
+            }
             if (!seen.Add(component.ContainerId))
                 throw new ToolExecutionException("CONTAINER_ID_AMBIGUOUS", $"容器标识 '{component.ContainerId}' 不唯一，请配置唯一 containerId。");
         }

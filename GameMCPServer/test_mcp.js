@@ -115,18 +115,29 @@ async function runProtocolTests() {
   try {
     const tools = [{
       name: "game_npc_move",
-      description: "使 NPC 前往指定地标 (warehouse|gate)",
+      description: "使 NPC 前往指定目标",
       inputSchema: {
         type: "object",
-        properties: { targetLandmark: { type: "string", enum: ["warehouse", "gate"] } },
-        required: ["targetLandmark"],
+        properties: {
+          targetId: {
+            type: "string",
+            enum: ["landmark:warehouse", "landmark:gate"],
+          },
+        },
+        required: ["targetId"],
       },
     }];
     const instanceId = `e2e-game-${Date.now()}`;
 
     ws.send({
       jsonrpc: "2.0", id: "register-1", method: "unity.register",
-      params: { protocolVersion: 1, instanceId, tools, npcs: ["Ryan_001"] },
+      params: {
+        protocolVersion: 1,
+        instanceId,
+        tools,
+        npcs: ["Ryan_001"],
+        npcTools: { Ryan_001: ["game_npc_move"] },
+      },
     });
     const registered = await ws.read();
     console.log("  recv", JSON.stringify(registered));

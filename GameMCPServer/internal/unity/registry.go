@@ -11,6 +11,7 @@ type registeredUnityInstance struct {
 	session    *jsonRPCSession
 	npcs       map[string]struct{}
 	tools      map[string]ToolDefinition
+	npcTools   map[string]map[string]struct{}
 }
 
 // UnityRegistry 保存在线 Unity 实例、NPC 路由和运行时工具能力。
@@ -57,6 +58,7 @@ func (r *UnityRegistry) Register(session *jsonRPCSession, registration UnityRegi
 		session:    session,
 		npcs:       make(map[string]struct{}, len(registration.NPCs)),
 		tools:      make(map[string]ToolDefinition, len(registration.Tools)),
+		npcTools:   make(map[string]map[string]struct{}, len(registration.NPCTools)),
 	}
 	for _, npcID := range registration.NPCs {
 		instance.npcs[npcID] = struct{}{}
@@ -64,6 +66,9 @@ func (r *UnityRegistry) Register(session *jsonRPCSession, registration UnityRegi
 	}
 	for _, tool := range registration.Tools {
 		instance.tools[tool.Name] = tool
+	}
+	for npcID, names := range registration.NPCTools {
+		instance.npcTools[npcID] = toolNameSet(names)
 	}
 
 	r.instances[registration.InstanceID] = instance
@@ -112,10 +117,14 @@ func (r *UnityRegistry) UpdateNPC(session *jsonRPCSession, change UnityNPCChange
 	}
 	if change.Online {
 		instance.npcs[change.NPCID] = struct{}{}
+		if instance.npcTools[change.NPCID] == nil {
+			instance.npcTools[change.NPCID] = make(map[string]struct{})
+		}
 		r.npcToInstance[change.NPCID] = change.InstanceID
 		return nil
 	}
 	delete(instance.npcs, change.NPCID)
+	delete(instance.npcTools, change.NPCID)
 	if r.npcToInstance[change.NPCID] == change.InstanceID {
 		delete(r.npcToInstance, change.NPCID)
 	}
@@ -124,10 +133,8 @@ func (r *UnityRegistry) UpdateNPC(session *jsonRPCSession, change UnityNPCChange
 
 // UpdateTools 校验并替换所属实例的完整工具能力快照。
 func (r *UnityRegistry) UpdateTools(session *jsonRPCSession, change UnityToolsChangedParams) error {
-	for _, tool := range change.Tools {
-		if err := tool.Validate(); err != nil {
-			return err
-		}
+	if err := change.Validate(); err != nil {
+		return err
 	}
 
 	r.mu.Lock()
@@ -136,9 +143,16 @@ func (r *UnityRegistry) UpdateTools(session *jsonRPCSession, change UnityToolsCh
 	if err != nil {
 		return err
 	}
+	if err := validateNPCToolOwners(instance.npcs, change.NPCTools); err != nil {
+		return err
+	}
 	instance.tools = make(map[string]ToolDefinition, len(change.Tools))
 	for _, tool := range change.Tools {
 		instance.tools[tool.Name] = tool
+	}
+	instance.npcTools = make(map[string]map[string]struct{}, len(change.NPCTools))
+	for npcID, names := range change.NPCTools {
+		instance.npcTools[npcID] = toolNameSet(names)
 	}
 	return nil
 }
@@ -175,8 +189,9 @@ func (r *UnityRegistry) CapabilitiesForNPC(npcID string) (string, []ToolDefiniti
 	if instance == nil {
 		return "", nil, false
 	}
-	names := make([]string, 0, len(instance.tools))
-	for name := range instance.tools {
+	available := instance.npcTools[npcID]
+	names := make([]string, 0, len(available))
+	for name := range available {
 		names = append(names, name)
 	}
 	sort.Strings(names)
@@ -187,16 +202,20 @@ func (r *UnityRegistry) CapabilitiesForNPC(npcID string) (string, []ToolDefiniti
 	return instanceID, definitions, true
 }
 
-// HasTool 判断指定 Unity 实例当前是否声明了该工具。
-func (r *UnityRegistry) HasTool(instanceID, toolName string) bool {
+// HasTool 判断指定 Unity 实例的 NPC 当前是否声明了该工具。
+func (r *UnityRegistry) HasTool(instanceID, npcID, toolName string) bool {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 	instance := r.instances[instanceID]
 	if instance == nil {
 		return false
 	}
-	_, ok := instance.tools[toolName]
-	return ok
+	if _, online := instance.npcs[npcID]; !online {
+		return false
+	}
+	_, globallyDefined := instance.tools[toolName]
+	_, availableForNPC := instance.npcTools[npcID][toolName]
+	return globallyDefined && availableForNPC
 }
 
 // IsRegistered 判断连接是否已经完成 unity.register。
@@ -233,4 +252,29 @@ func (r *UnityRegistry) Counts() (instances, npcs int) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 	return len(r.instances), len(r.npcToInstance)
+}
+
+func toolNameSet(names []string) map[string]struct{} {
+	result := make(map[string]struct{}, len(names))
+	for _, name := range names {
+		result[name] = struct{}{}
+	}
+	return result
+}
+
+func validateNPCToolOwners(
+	npcs map[string]struct{},
+	npcTools map[string][]string,
+) error {
+	for npcID := range npcs {
+		if _, ok := npcTools[npcID]; !ok {
+			return fmt.Errorf("npcTools must include online npcId %q", npcID)
+		}
+	}
+	for npcID := range npcTools {
+		if _, ok := npcs[npcID]; !ok {
+			return fmt.Errorf("npcTools contains unknown npcId %q", npcID)
+		}
+	}
+	return nil
 }

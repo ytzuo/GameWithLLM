@@ -20,6 +20,9 @@ public class PlayerMock : MonoBehaviour
         worldTargetId = normalized.StartsWith("player:", System.StringComparison.OrdinalIgnoreCase)
             ? normalized
             : $"player:{normalized}";
+        InventoryComponent inventory = GetComponent<InventoryComponent>();
+        if (inventory != null)
+            inventory.ConfigureContainerId($"{worldTargetId}.inventory");
     }
     [Header("NPC 引用")]
     [Tooltip("场景中所有 NPC 实体的列表")]

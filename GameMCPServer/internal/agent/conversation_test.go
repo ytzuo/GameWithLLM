@@ -47,8 +47,8 @@ func (r *fakeRuntime) Capabilities(npcID string) (string, []gametools.Definition
 	}
 	return "game-1", []gametools.Definition{{
 		Name: "game_npc_move", InputSchema: json.RawMessage(`{
-			"type":"object","properties":{"targetLandmark":{"type":"string","enum":["gate","warehouse"]}},
-			"required":["targetLandmark"]
+			"type":"object","properties":{"targetId":{"type":"string","enum":["landmark:gate","landmark:warehouse"]}},
+			"required":["targetId"]
 		}`),
 	}}, true
 }
@@ -82,7 +82,7 @@ func TestConversationService_NoToolReplyAndIsolation(t *testing.T) {
 
 func TestConversationService_ToolLoopKeepsAtomicPair(t *testing.T) {
 	llm := &scriptedLLM{results: []*CompletionResult{
-		{ToolCalls: []ToolCall{{ID: "call-1", Name: "game_npc_move", Arguments: json.RawMessage(`{"targetLandmark":"gate"}`)}}},
+		{ToolCalls: []ToolCall{{ID: "call-1", Name: "game_npc_move", Arguments: json.RawMessage(`{"targetId":"landmark:gate"}`)}}},
 		{Content: "我去大门。"},
 	}}
 	runtime := &fakeRuntime{}
@@ -104,7 +104,7 @@ func TestConversationService_ToolLoopKeepsAtomicPair(t *testing.T) {
 
 func TestConversationService_PreservesStructuredToolResult(t *testing.T) {
 	llm := &scriptedLLM{results: []*CompletionResult{
-		{ToolCalls: []ToolCall{{ID: "call-1", Name: "game_npc_move", Arguments: json.RawMessage(`{"targetLandmark":"gate"}`)}}},
+		{ToolCalls: []ToolCall{{ID: "call-1", Name: "game_npc_move", Arguments: json.RawMessage(`{"targetId":"landmark:gate"}`)}}},
 		{Content: "完成。"},
 	}}
 	runtime := &fakeRuntime{result: &ToolExecutionResult{
@@ -124,7 +124,7 @@ func TestConversationService_PreservesStructuredToolResult(t *testing.T) {
 
 func TestConversationService_ResetsToolRoundTextBeforeFinalReply(t *testing.T) {
 	llm := &scriptedLLM{results: []*CompletionResult{
-		{Content: "我先看看。", ToolCalls: []ToolCall{{ID: "call-1", Name: "game_npc_move", Arguments: json.RawMessage(`{"targetLandmark":"gate"}`)}}},
+		{Content: "我先看看。", ToolCalls: []ToolCall{{ID: "call-1", Name: "game_npc_move", Arguments: json.RawMessage(`{"targetId":"landmark:gate"}`)}}},
 		{Content: "我已经出发了。"},
 	}}
 	service := NewConversationService(llm, NewMemorySessionStore(), &fakeRuntime{}, "test-model", 3)
@@ -147,7 +147,7 @@ func TestConversationService_ResetsToolRoundTextBeforeFinalReply(t *testing.T) {
 }
 
 func TestConversationService_RejectsToolLoopPastLimit(t *testing.T) {
-	call := &CompletionResult{ToolCalls: []ToolCall{{ID: "call", Name: "game_npc_move", Arguments: json.RawMessage(`{"targetLandmark":"gate"}`)}}}
+	call := &CompletionResult{ToolCalls: []ToolCall{{ID: "call", Name: "game_npc_move", Arguments: json.RawMessage(`{"targetId":"landmark:gate"}`)}}}
 	llm := &scriptedLLM{results: []*CompletionResult{call, call}}
 	service := NewConversationService(llm, NewMemorySessionStore(), &fakeRuntime{}, "test-model", 1)
 	session, err := service.StartSession(context.Background(), "player", "npc-1")

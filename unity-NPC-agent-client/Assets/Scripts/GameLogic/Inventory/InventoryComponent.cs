@@ -9,16 +9,20 @@ public class InventoryComponent : MonoBehaviour
 {
     // ── Fields ──
 
-    [SerializeField, Tooltip("工具和游戏逻辑使用的稳定容器标识；留空时使用 GameObject 名称。")]
+    [SerializeField, Tooltip("工具和游戏逻辑使用的稳定容器标识；必须显式配置且在场景中唯一。")]
     private string _containerId;
     [SerializeField] private List<InventorySlot> _slots = new List<InventorySlot>();
     [SerializeField] private int _maxSlots = 21;
 
     // ── Properties ──
 
-    /// <summary>容器稳定标识；未显式配置时回退到 GameObject 名称。</summary>
-    public string ContainerId =>
-        string.IsNullOrWhiteSpace(_containerId) ? gameObject.name : _containerId.Trim();
+    /// <summary>容器稳定标识。工具层会拒绝缺失或重复的标识。</summary>
+    public string ContainerId => string.IsNullOrWhiteSpace(_containerId) ? string.Empty : _containerId.Trim();
+
+    internal void ConfigureContainerId(string containerId)
+    {
+        _containerId = string.IsNullOrWhiteSpace(containerId) ? string.Empty : containerId.Trim();
+    }
 
     /// <summary>物品栏最大格子数。</summary>
     public int MaxSlots { get; private set; }
@@ -82,6 +86,12 @@ public class InventoryComponent : MonoBehaviour
     private void OnDisable()
     {
         InventoryViewModel.Instance.UnregisterContainer(this);
+    }
+
+    private void OnValidate()
+    {
+        if (string.IsNullOrWhiteSpace(_containerId))
+            Debug.LogWarning($"[InventoryComponent] '{gameObject.name}' 缺少稳定 containerId。", this);
     }
 
     /// <summary>
