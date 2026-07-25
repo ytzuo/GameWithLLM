@@ -321,8 +321,31 @@ public class ChatWindow : BaseWindow
         }
 
         ChatViewModel.Instance.AddPlayerMessage(text);
-        _chatInput.value = string.Empty;
-        RootElement.schedule.Execute(() => _chatInput?.Focus());
+        ResetChatInputAfterSend();
+    }
+
+    private void ResetChatInputAfterSend()
+    {
+        if (_chatInput == null)
+            return;
+
+        // Changing a focused TextField's value does not reliably clamp UI Toolkit's
+        // internal cursor/selection state. Leaving an index from the sent text while
+        // the new value is empty makes the next text input call String.Insert with an
+        // out-of-range startIndex. Reset both the value and selection immediately,
+        // then repeat the selection reset after UI Toolkit has processed the change.
+        _chatInput.SetValueWithoutNotify(string.Empty);
+        _chatInput.SelectRange(0, 0);
+        UpdateInputState();
+
+        RootElement.schedule.Execute(() =>
+        {
+            if (_chatInput == null)
+                return;
+
+            _chatInput.Focus();
+            _chatInput.SelectRange(0, 0);
+        });
     }
 
     // ── 消息渲染 ────────────────────────────────────────────
