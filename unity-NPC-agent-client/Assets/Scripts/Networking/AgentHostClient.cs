@@ -202,7 +202,8 @@ public class AgentHostClient : Singleton<AgentHostClient>
             _appCts.Token);
         if (string.IsNullOrWhiteSpace(result?.SessionId))
             throw new InvalidOperationException("Go Agent Host 未返回 sessionId。");
-        Debug.Log($"[Agent Host] 会话已开始: sessionId={result.SessionId}, npcId={npcId}");
+        // 会话创建属于正常流程，避免在每次切换 NPC 时输出重复日志。
+        // Debug.Log($"[Agent Host] 会话已开始: sessionId={result.SessionId}, npcId={npcId}");
         return result.SessionId;
     }
 
@@ -216,13 +217,14 @@ public class AgentHostClient : Singleton<AgentHostClient>
         if (string.IsNullOrEmpty(requestId))
             return;
 
-        EnqueueToolResultTrace(
-            "unity_tool_result_sending",
-            requestId,
-            text,
-            isError,
-            errorCode,
-            data);
+        // 工具执行端已经记录最终结果，不再重复记录“准备发送”事件。
+        // EnqueueToolResultTrace(
+        //     "unity_tool_result_sending",
+        //     requestId,
+        //     text,
+        //     isError,
+        //     errorCode,
+        //     data);
         try
         {
             await _gatewayClient.SendToolResultAsync(
@@ -232,13 +234,14 @@ public class AgentHostClient : Singleton<AgentHostClient>
                 errorCode,
                 data,
                 _appCts.Token);
-            EnqueueToolResultTrace(
-                "unity_tool_result_sent",
-                requestId,
-                text,
-                isError,
-                errorCode,
-                data);
+            // 正常发送完成无需逐条输出；发送失败仍由下方 catch 记录。
+            // EnqueueToolResultTrace(
+            //     "unity_tool_result_sent",
+            //     requestId,
+            //     text,
+            //     isError,
+            //     errorCode,
+            //     data);
         }
         catch (Exception ex)
         {
@@ -293,16 +296,20 @@ public class AgentHostClient : Singleton<AgentHostClient>
                 $"{request.NpcId}尝试调取工具{request.Function.Name}");
         }
 
-        var trace = new JObject
-        {
-            ["event"] = "unity_tool_received",
-            ["requestId"] = request?.RequestId,
-            ["npcId"] = request?.NpcId,
-            ["tool"] = request?.Function?.Name,
-            ["argumentsLength"] = argumentsJson?.Length ?? 0
-        };
-        EnqueueToolTrace(trace);
+        EnqueueToolCallLog(request, argumentsJson);
         _dispatcher.OnReceiveNetMessage(request);
+    }
+
+    private void EnqueueToolCallLog(UnityToolCommand request, string argumentsJson)
+    {
+        string requestId = request?.RequestId ?? "<missing>";
+        string npcId = request?.NpcId ?? "<missing>";
+        string toolName = request?.Function?.Name ?? "<missing>";
+        string arguments = string.IsNullOrWhiteSpace(argumentsJson) ? "{}" : argumentsJson;
+        _mainThreadActions.Enqueue(
+            () => Debug.Log(
+                $"[Unity Tool Call] requestId={requestId}, npcId={npcId}, " +
+                $"tool={toolName}, arguments={arguments}"));
     }
 
     private void EnqueueToolResultTrace(

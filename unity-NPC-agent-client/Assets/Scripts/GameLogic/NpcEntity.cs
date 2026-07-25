@@ -190,20 +190,22 @@ public class NpcEntity : MonoBehaviour
                 request.Function.ArgumentsJson);
         }
 
-        var resultTrace = new JObject
-        {
-            ["event"] = "unity_tool_executed",
-            ["requestId"] = request?.RequestId,
-            ["npcId"] = npcId,
-            ["tool"] = request?.Function?.Name,
-            ["ok"] = !result.IsError,
-            ["pending"] = result.IsPending
-        };
-        if (!string.IsNullOrEmpty(result.ErrorCode))
-            resultTrace["errorCode"] = result.ErrorCode;
-        resultTrace["messageLength"] = result.Message?.Length ?? 0;
-        resultTrace["hasData"] = result.Data != null;
-        Debug.Log($"[Unity Tool Trace] {resultTrace}", this);
+        // 工具调用参数已在 AgentHostClient 入站处明文记录；执行失败也会由
+        // GameToolWrapper 输出具体错误，避免再输出一份重复的结构化结果日志。
+        // var resultTrace = new JObject
+        // {
+        //     ["event"] = "unity_tool_executed",
+        //     ["requestId"] = request?.RequestId,
+        //     ["npcId"] = npcId,
+        //     ["tool"] = request?.Function?.Name,
+        //     ["ok"] = !result.IsError,
+        //     ["pending"] = result.IsPending
+        // };
+        // if (!string.IsNullOrEmpty(result.ErrorCode))
+        //     resultTrace["errorCode"] = result.ErrorCode;
+        // resultTrace["messageLength"] = result.Message?.Length ?? 0;
+        // resultTrace["hasData"] = result.Data != null;
+        // Debug.Log($"[Unity Tool Trace] {resultTrace}", this);
 
         if (result.IsPending)
         {
