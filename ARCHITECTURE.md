@@ -63,6 +63,8 @@ Unity 不直接调用 LLM，不保存 LLM API Key，也不维护模型对话历�
 
 ### 场景移动目标工具
 
+`game_npc_move` 是长时工具：Unity 设置 NavMesh 目的地后保持请求 pending，只有 NPC 实际到达停止距离内才返回成功。路径无效、路径不完整、NPC 离开 NavMesh、NPC 销毁或收到 `unity.tool.cancel` 时结束当前移动；取消请求不再回传迟到的工具结果。
+
 Unity 运行时声明 `game_scene_get_npc_targets`，用于查询当前已加载场景中所有激活且带
 `npcTarget` 标签的 GameObject 名称。`game_npc_move.targetLandmark` 不再使用硬编码 enum；
 模型应从查询结果中选择目标，Unity 在移动执行时再次按标签解析并校验名称唯一性，然后在

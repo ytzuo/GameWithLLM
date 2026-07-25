@@ -9,6 +9,7 @@ public class CommandDispatcher : Singleton<CommandDispatcher>
     private readonly object _npcLock = new object();
     private readonly ConcurrentQueue<UnityToolCommand> _netIncomingQueue = new ConcurrentQueue<UnityToolCommand>();
     private readonly ConcurrentDictionary<string, byte> _cancelledRequests = new ConcurrentDictionary<string, byte>();
+    private readonly ConcurrentDictionary<string, byte> _activeRequests = new ConcurrentDictionary<string, byte>();
 
     public event Action<string, bool> NpcChanged;
 
@@ -41,20 +42,40 @@ public class CommandDispatcher : Singleton<CommandDispatcher>
 
     public void OnReceiveNetMessage(UnityToolCommand request)
     {
+        if (!string.IsNullOrWhiteSpace(request?.RequestId))
+            _activeRequests[request.RequestId] = 0;
         _netIncomingQueue.Enqueue(request);
     }
 
     public void CancelRequest(string requestId)
     {
-        if (!string.IsNullOrWhiteSpace(requestId))
+        if (!string.IsNullOrWhiteSpace(requestId) && _activeRequests.ContainsKey(requestId))
             _cancelledRequests[requestId] = 0;
     }
+
+    public bool IsCancellationRequested(string requestId)
+    {
+        return !string.IsNullOrWhiteSpace(requestId) && _cancelledRequests.ContainsKey(requestId);
+    }
+
+    public void CompleteRequest(string requestId)
+    {
+        if (string.IsNullOrWhiteSpace(requestId))
+            return;
+        _activeRequests.TryRemove(requestId, out _);
+        _cancelledRequests.TryRemove(requestId, out _);
+    }
+
     private void Update()
     {
         while (_netIncomingQueue.TryDequeue(out UnityToolCommand request))
         {
-            if (!string.IsNullOrEmpty(request.RequestId) && _cancelledRequests.TryRemove(request.RequestId, out _))
+            if (!string.IsNullOrEmpty(request.RequestId) && IsCancellationRequested(request.RequestId))
+            {
+                CompleteRequest(request.RequestId);
                 continue;
+            }
+
             NpcEntity npc;
             lock (_npcLock)
                 _npcEntities.TryGetValue(request.NpcId, out npc);
@@ -72,9 +93,9 @@ public class CommandDispatcher : Singleton<CommandDispatcher>
                         $"NPC '{request.NpcId}' 未注册或已离线。",
                         true,
                         "NPC_NOT_FOUND");
+                    CompleteRequest(request.RequestId);
                 }
             }
         }
     }
-
 }

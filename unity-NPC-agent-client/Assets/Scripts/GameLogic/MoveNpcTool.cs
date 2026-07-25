@@ -29,6 +29,7 @@ public sealed class MoveNpcTool : NpcTool<MoveArgs>
 
     protected override ToolExecutionResult ExecuteCore(NpcToolContext context, MoveArgs args)
     {
-        return ToolExecutionResult.Success(context.Npc.MoveToLandmark(args));
+        context.Npc.MoveToLandmark(args);
+        return ToolExecutionResult.Pending($"NPC 正在前往 {args.targetLandmark}。");
     }
 }
