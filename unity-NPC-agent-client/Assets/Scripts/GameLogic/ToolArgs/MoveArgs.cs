@@ -1,20 +1,23 @@
 using System;
-using UnityEngine;
 
 [Serializable]
 public class MoveArgs : ToolArgsBase
 {
-    public string targetLandmark;
+    public string targetId;
+    public float approachDistance;
 
-    // 在这里写你的合法性检查，专注于防止游戏崩溃
     public override bool Validate(out string errorMessage)
     {
-        if (string.IsNullOrWhiteSpace(targetLandmark))
+        if (string.IsNullOrWhiteSpace(targetId))
         {
-            errorMessage = "targetLandmark 不能为空";
+            errorMessage = "targetId 不能为空";
             return false;
         }
-
+        if (approachDistance < 0f || approachDistance > 10f)
+        {
+            errorMessage = "approachDistance 必须在 0 到 10 米之间；0 表示使用 NPC 默认值";
+            return false;
+        }
         errorMessage = null;
         return true;
     }

@@ -34,7 +34,7 @@ public class GameToolWrapper<T> where T : ToolArgsBase
         catch (ToolExecutionException ex)
         {
             Debug.LogWarning($"[Game Tool] {typeof(T).Name} failed ({ex.ErrorCode}): {ex.Message}");
-            return ToolExecutionResult.Failure(ex.ErrorCode, ex.Message);
+            return ToolExecutionResult.Failure(ex.ErrorCode, ex.Message, ex.Data);
         }
         catch (Exception ex)
         {

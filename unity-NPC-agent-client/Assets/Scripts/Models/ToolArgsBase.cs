@@ -9,10 +9,12 @@ public abstract class ToolArgsBase
 public sealed class ToolExecutionException : Exception
 {
     public string ErrorCode { get; }
+    public JToken Data { get; }
 
-    public ToolExecutionException(string errorCode, string message) : base(message)
+    public ToolExecutionException(string errorCode, string message, JToken data = null) : base(message)
     {
         ErrorCode = errorCode;
+        Data = data;
     }
 }
 
@@ -42,6 +44,6 @@ public readonly struct ToolExecutionResult
     public static ToolExecutionResult Pending(string message = null) =>
         new ToolExecutionResult(message, null, false, true, null);
 
-    public static ToolExecutionResult Failure(string errorCode, string message) =>
-        new ToolExecutionResult(message, null, true, false, errorCode);
+    public static ToolExecutionResult Failure(string errorCode, string message, JToken data = null) =>
+        new ToolExecutionResult(message, data, true, false, errorCode);
 }

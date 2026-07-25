@@ -8,6 +8,19 @@ using UnityEngine.InputSystem;
 /// </summary>
 public class PlayerMock : MonoBehaviour
 {
+    [SerializeField] private string worldTargetId = "player:local-player-1";
+
+    internal string WorldTargetId => worldTargetId;
+
+    internal void ConfigureWorldTargetId(string configuredPlayerId)
+    {
+        if (string.IsNullOrWhiteSpace(configuredPlayerId))
+            return;
+        string normalized = configuredPlayerId.Trim();
+        worldTargetId = normalized.StartsWith("player:", System.StringComparison.OrdinalIgnoreCase)
+            ? normalized
+            : $"player:{normalized}";
+    }
     [Header("NPC 引用")]
     [Tooltip("场景中所有 NPC 实体的列表")]
     public List<NpcEntity> npcEntities = new List<NpcEntity>();

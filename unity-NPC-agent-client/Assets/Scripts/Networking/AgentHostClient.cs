@@ -32,6 +32,9 @@ public class AgentHostClient : Singleton<AgentHostClient>
         gatewayWsUrl = config.Get("UNITY_JSONRPC_WS_URL", gatewayWsUrl);
         unityInstanceId = config.Get("UNITY_INSTANCE_ID", unityInstanceId);
         playerId = config.Get("PLAYER_ID", playerId);
+        PlayerMock[] players = FindObjectsByType<PlayerMock>(FindObjectsInactive.Exclude, FindObjectsSortMode.None);
+        for (int i = 0; i < players.Length; i++)
+            players[i].ConfigureWorldTargetId(playerId);
         unityInstanceId = $"{unityInstanceId}-{Guid.NewGuid():N}";
 
         _dispatcher = CommandDispatcher.Instance;

@@ -1,4 +1,5 @@
 using Newtonsoft.Json.Linq;
+using UnityEngine;
 using UnityEngine.Scripting;
 
 [NpcTool]
@@ -8,28 +9,36 @@ public sealed class MoveNpcTool : NpcTool<MoveArgs>
     private static readonly JObject Schema = JObject.Parse(
         @"{""type"": ""object"",
           ""properties"": {
-            ""targetLandmark"": {
+            ""targetId"": {
               ""type"": ""string"",
               ""minLength"": 1,
-              ""description"": ""game_scene_get_npc_targets 返回的 targetLandmark""
+              ""description"": ""game_scene_get_targets 返回的稳定 targetId""
+            },
+            ""approachDistance"": {
+              ""type"": ""number"",
+              ""minimum"": 0,
+              ""maximum"": 10,
+              ""description"": ""与目标保持的距离；0 或省略时使用 NPC 默认停止距离""
             }
           },
-          ""required"": [""targetLandmark""],
+          ""required"": [""targetId""],
           ""additionalProperties"": false
         }");
 
     public override string Name => "game_npc_move";
 
     public override string Description =>
-        "使 NPC 前往场景中的指定目标附近，并在目标外一定距离停下，避免与目标重叠。" +
-        "targetLandmark 必须来自 game_scene_get_npc_targets 的查询结果；" +
-        "目标列表不确定时应先调用查询工具。";
+        "使 NPC 前往 game_scene_get_targets 返回的目标附近。" +
+        "NPC 和玩家属于动态目标，执行期间会持续更新路径；targetId 不确定时应先查询目标。";
 
     public override JObject InputSchema => (JObject)Schema.DeepClone();
 
+    public override bool IsAvailable(NpcToolContext context) =>
+        context?.Npc != null && context.Npc.GetComponent<UnityEngine.AI.NavMeshAgent>() != null;
+
     protected override ToolExecutionResult ExecuteCore(NpcToolContext context, MoveArgs args)
     {
-        context.Npc.MoveToLandmark(args);
-        return ToolExecutionResult.Pending($"NPC 正在前往 {args.targetLandmark}。");
+        context.Npc.MoveToTarget(args);
+        return ToolExecutionResult.Pending($"NPC 正在前往 {args.targetId}。");
     }
 }

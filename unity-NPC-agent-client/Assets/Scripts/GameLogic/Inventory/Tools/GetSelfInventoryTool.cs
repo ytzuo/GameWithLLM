@@ -3,7 +3,7 @@ using UnityEngine.Scripting;
 
 [NpcTool]
 [Preserve]
-public sealed class GetSelfInventoryTool : NpcTool<EmptyInventoryToolArgs>
+public sealed class GetSelfInventoryTool : InventoryNpcTool<EmptyInventoryToolArgs>
 {
     private static readonly JObject Schema = JObject.Parse(
         @"{

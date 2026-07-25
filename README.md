@@ -2,6 +2,8 @@
 
 基于 Unity + Go 的双进程 NPC Agent 系统：玩家在 Unity 中发起对话，Go Agent Host 调用大模型并决定是否执行工具，Unity 在主线程执行真实游戏行为并返回结果。
 
+> 当前 NPC 工具重构仍在开发和验收中，阶段进度、已落地结果与剩余风险见 [TOOL_OPTIMIZATION_PROGRESS.md](./TOOL_OPTIMIZATION_PROGRESS.md)。
+
 ## 项目简介
 
 在传统游戏开发中，NPC 的对话与行为逻辑通常依赖于固定预设的脚本或行为树，缺乏应对复杂语境与玩家自由输入的灵活性与沉浸感。本项目旨在将大语言模型（LLM）深度接入游戏环境，打破固有的交互范式。

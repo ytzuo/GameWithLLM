@@ -13,22 +13,22 @@ MonoBehaviour:
   m_Name: ItemDataList
   m_EditorClassIdentifier: Assembly-CSharp::ItemList
   items:
-  - ItemId: 0
+  - ItemId: rock
     ItemName: Rock
     Icon: {fileID: 21300000, guid: cc7283ca141790b46a3cf0ca7f1e1f2d, type: 3}
     Description: Rock And Roll
     MaxStackSize: 64
-  - ItemId: 1
+  - ItemId: wood
     ItemName: Wood
     Icon: {fileID: 21300000, guid: 06bbbff6f8fb6e34794244d621ec1393, type: 3}
     Description: WestWood
     MaxStackSize: 64
-  - ItemId: 2
+  - ItemId: axe
     ItemName: Axe
     Icon: {fileID: 21300000, guid: 179748bc960fec84699df8a476b4e9bd, type: 3}
     Description: 0.9attack speed
     MaxStackSize: 1
-  - ItemId: 3
+  - ItemId: helmet
     ItemName: Helmet
     Icon: {fileID: 21300000, guid: 9856b30bc0330b2478759312173bfd71, type: 3}
     Description: Head,Eyes

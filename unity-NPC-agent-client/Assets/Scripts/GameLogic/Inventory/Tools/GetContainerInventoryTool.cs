@@ -3,7 +3,7 @@ using UnityEngine.Scripting;
 
 [NpcTool]
 [Preserve]
-public sealed class GetContainerInventoryTool : NpcTool<ContainerInventoryArgs>
+public sealed class GetContainerInventoryTool : InventoryNpcTool<ContainerInventoryArgs>
 {
     private static readonly JObject Schema = JObject.Parse(
         @"{

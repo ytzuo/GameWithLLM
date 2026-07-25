@@ -21,6 +21,7 @@ public interface INpcTool
     string Name { get; }
     string Description { get; }
     JObject InputSchema { get; }
+    bool IsAvailable(NpcToolContext context);
 
     ToolExecutionResult Execute(NpcToolContext context, string argumentsJson);
 }
@@ -30,6 +31,7 @@ public abstract class NpcTool<TArgs> : INpcTool where TArgs : ToolArgsBase
     public abstract string Name { get; }
     public abstract string Description { get; }
     public abstract JObject InputSchema { get; }
+    public virtual bool IsAvailable(NpcToolContext context) => context?.Npc != null;
 
     public ToolExecutionResult Execute(NpcToolContext context, string argumentsJson)
     {
