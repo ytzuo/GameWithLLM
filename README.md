@@ -2,6 +2,8 @@
 
 基于 Unity + Go 的双进程 NPC Agent 系统：玩家在 Unity 中发起对话，Go Agent Host 调用大模型并决定是否执行工具，Unity 在主线程执行真实游戏行为并返回结果。
 
+NPC 工具重构的实现结果与验证记录见 [TOOL_OPTIMIZATION_PROGRESS.md](./TOOL_OPTIMIZATION_PROGRESS.md)。
+
 ## 项目简介
 
 在传统游戏开发中，NPC 的对话与行为逻辑通常依赖于固定预设的脚本或行为树，缺乏应对复杂语境与玩家自由输入的灵活性与沉浸感。本项目旨在将大语言模型（LLM）深度接入游戏环境，打破固有的交互范式。
@@ -99,11 +101,13 @@ Unity 会自动连接 Go Agent Host 并完成注册。之后在场景中与 NPC 
 对话中可尝试：
 
 * 普通闲聊 — 模型直接回复文本
-* `场景里有哪些可去的位置` — 触发 `game_scene_get_npc_targets`，查询带 `npcTarget` 标签的目标
-* `让 NPC 移动到 warehouse` — 模型先按需查询目标，再触发 `game_npc_move` 沿 NavMesh 移动
+* `场景里有哪些可去的位置` — 触发 `game_scene_get_targets`，查询 NPC、玩家和地标的稳定 `targetId`、距离与 NavMesh 可达性
+* `让 NPC 移动到仓库` — 模型先查询 `landmark:warehouse`，再触发 `game_npc_move` 沿 NavMesh 移动
+* `你现在在哪里、正在做什么` — 触发 `game_npc_get_state`，查询 NPC 的实时位置和移动状态
 * `你背包里有什么` — 触发 `game_inventory_get_self`
 * `查看附近 Alice_001 的背包` — 在交互距离内触发 `game_inventory_get_container`
 * `把 1 个 Rock 放进附近的 Alice_001` — 触发 `game_inventory_put_item`
+* `从附近容器取出 1 个 Wood` — 触发 `game_inventory_take_item`
 
 ## 配置参考
 
@@ -152,14 +156,18 @@ node GameMCPServer/test_mcp.js --start-server
 
 ### 给项目添加新工具
 
-1. 创建继承 `ToolArgsBase` 的参数类型并实现 `Validate`
-2. 创建带 `[NpcTool]` 和 `[Preserve]` 的 `NpcTool<TArgs>` 工具类，在类中声明名称、描述、Schema 和执行适配
-3. 工具会在 Unity 启动时通过反射自动注册；连接建立后，Go 通过 `unity.register` 动态发现工具
+1. 创建继承 `ToolArgsBase` 的参数类型；用 `[ToolParameter]` 声明必填、范围、枚举、描述等结构约束
+2. 在 `Validate` 中只保留空白字符串、跨字段关系或游戏语义等 JSON Schema 无法完整表达的校验
+3. 创建带 `[NpcTool]` 和 `[Preserve]` 的 `NpcTool<TArgs>` 工具类，声明名称、描述、可用性和执行适配
+4. `ToolContract<TArgs>` 会从 C# 类型生成并缓存 JSON Schema，执行时以同一契约严格反序列化
+5. 工具在 Unity 启动时通过反射注册；Go 通过 `unity.register` 动态发现，并按 `npcTools` 只暴露给实际可用的 NPC
 
 > **禁止**在 Go 侧硬编码重复的 Schema。工具能力的唯一来源是 Unity 运行时注册。
 
-移动目标由场景中激活且带 `npcTarget` 标签的 GameObject 动态提供。目标名称应在场景中保持唯一；
-`game_scene_get_npc_targets` 返回可用名称，`game_npc_move` 在执行时再次按标签验证并解析目标。
+移动目标由激活的 `NpcEntity`、`PlayerMock` 和 `NpcLandmark` 组件动态提供。它们分别形成
+`npc:<npcId>`、`player:<playerId>` 和 `landmark:<landmarkId>`，并要求 `targetId` 全局唯一。
+`game_scene_get_targets` 返回 `targetId`、类别、距离、NavMesh 可达性和路径距离；
+`game_npc_move` 在执行和动态追踪期间始终按该稳定标识重新解析真实目标。
 
 ## 关键约束
 
@@ -170,13 +178,13 @@ node GameMCPServer/test_mcp.js --start-server
 * 工具参数在网络协议中必须是 JSON 对象，不得二次编码为 JSON 字符串
 * 当前会话存储为内存实现，Go 重启后对话不恢复
 
-更多约束与规则见 [agents.md](https://www.google.com/search?q=./agents.md)。
+更多约束与规则见 [agents.md](./agents.md)。
 
 ## 协议
 
 两端通过 WebSocket JSON-RPC 2.0 协议通信，唯一入口为 `/unity/ws`。当前协议版本为 `protocolVersion: 1`。
 
-9 个协议方法：
+10 个协议方法：
 
 | 方法 | 方向 | 说明 |
 | --- | --- | --- |

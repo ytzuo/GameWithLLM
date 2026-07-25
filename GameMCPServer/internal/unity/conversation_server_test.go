@@ -38,7 +38,7 @@ func (l *conversationScriptedLLM) Complete(_ context.Context, request agent.Comp
 
 func TestJSONRPCServer_GoAgentConversationToolLoop(t *testing.T) {
 	llm := &conversationScriptedLLM{results: []*agent.CompletionResult{
-		{ToolCalls: []agent.ToolCall{{ID: "llm-call-1", Name: "game_npc_move", Arguments: json.RawMessage(`{"targetLandmark":"gate"}`)}}},
+		{ToolCalls: []agent.ToolCall{{ID: "llm-call-1", Name: "game_npc_move", Arguments: json.RawMessage(`{"targetId":"landmark:gate"}`)}}},
 		{Content: "我现在去大门。"},
 	}}
 	server := NewJSONRPCServerWithAgent(2*time.Second, llm, "test-model", 3)
@@ -56,12 +56,18 @@ func TestJSONRPCServer_GoAgentConversationToolLoop(t *testing.T) {
 	var message jsonRPCMessage
 
 	tool := ToolDefinition{Name: "game_npc_move", InputSchema: json.RawMessage(`{
-		"type":"object","properties":{"targetLandmark":{"type":"string","enum":["warehouse","gate"]}},
-		"required":["targetLandmark"]
+		"type":"object","properties":{"targetId":{"type":"string","enum":["landmark:warehouse","landmark:gate"]}},
+		"required":["targetId"]
 	}`)}
 	require.NoError(t, wsjson.Write(ctx, conn, map[string]any{
 		"jsonrpc": "2.0", "id": "register", "method": "unity.register",
-		"params": UnityRegistration{ProtocolVersion: 1, InstanceID: "game-1", NPCs: []string{"Ryan_001"}, Tools: []ToolDefinition{tool}},
+		"params": UnityRegistration{
+			ProtocolVersion: 1,
+			InstanceID:      "game-1",
+			NPCs:            []string{"Ryan_001"},
+			Tools:           []ToolDefinition{tool},
+			NPCTools:        map[string][]string{"Ryan_001": {"game_npc_move"}},
+		},
 	}))
 	require.NoError(t, wsjson.Read(ctx, conn, &message))
 	assert.JSONEq(t, `"register"`, string(message.ID))
@@ -85,7 +91,7 @@ func TestJSONRPCServer_GoAgentConversationToolLoop(t *testing.T) {
 	var execute UnityToolExecuteParams
 	require.NoError(t, json.Unmarshal(message.Params, &execute))
 	assert.Equal(t, "Ryan_001", execute.NPCID)
-	assert.JSONEq(t, `{"targetLandmark":"gate"}`, string(execute.Arguments))
+	assert.JSONEq(t, `{"targetId":"landmark:gate"}`, string(execute.Arguments))
 	require.NoError(t, wsjson.Write(ctx, conn, map[string]any{
 		"jsonrpc": "2.0", "id": json.RawMessage(message.ID),
 		"result": ToolResult{OK: true, Message: "movement started"},

@@ -1,20 +1,28 @@
 using System;
-using UnityEngine;
 
 [Serializable]
 public class MoveArgs : ToolArgsBase
 {
-    public string targetLandmark;
+    [ToolParameter(
+        Required = true,
+        MinLength = 1,
+        Pattern = @"\S",
+        Description = "game_scene_get_targets 返回的稳定 targetId")]
+    public string targetId;
 
-    // 在这里写你的合法性检查，专注于防止游戏崩溃
+    [ToolParameter(
+        Minimum = 0,
+        Maximum = 10,
+        Description = "与目标保持的距离；0 或省略时使用 NPC 默认停止距离")]
+    public float approachDistance;
+
     public override bool Validate(out string errorMessage)
     {
-        if (string.IsNullOrWhiteSpace(targetLandmark))
+        if (string.IsNullOrWhiteSpace(targetId))
         {
-            errorMessage = "targetLandmark 不能为空";
+            errorMessage = "targetId 不能为空";
             return false;
         }
-
         errorMessage = null;
         return true;
     }

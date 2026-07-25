@@ -23,12 +23,13 @@ Unity 是游戏世界和行为结果的权威来源，主要包含：
 
 - `AgentHostClient`：连接对话 UI 与 Go Agent Host。
 - `UnityGatewayClient`：负责 WebSocket 连接、注册、重连和协议收发。
-- `NpcTool<TArgs>`：单个工具的扩展点，在独立类中集中声明名称、描述、Schema 和执行适配。
+- `NpcTool<TArgs>`：单个工具的扩展点，在独立类中声明名称、描述、可用性和执行适配。
+- `ToolContract<TArgs>`：从 C# 参数类型和 `[ToolParameter]` 生成、缓存 Schema，并按同一契约严格反序列化。
 - `NpcToolDiscovery`：启动时通过 `[NpcTool]` 反射发现工具类；具体工具使用 `[Preserve]` 防止 IL2CPP 裁剪。
-- `ToolsRegistry`：保存已发现工具的运行时目录，同时提供 Gateway 能力快照和按名称执行。
+- `ToolsRegistry`：保存已发现工具的运行时目录，同时提供 Gateway 工具目录、每 NPC 可用工具名和按名称执行。
 - `CommandDispatcher`：把网络命令投递到目标 NPC 的主线程队列，不包含具体工具分支。
 - `NpcEntity`：调用 NavMesh 等 Unity API 执行行为，并返回稳定的工具结果。
-- `InventoryComponent`：物品容器的权威状态和原子转移逻辑；`containerId` 未配置时回退到 GameObject 名称。
+- `InventoryComponent`：物品容器的权威状态和原子转移逻辑；`containerId` 必须显式配置且唯一。
 - `InventoryViewModel`：维护运行时容器登记、玩家背包引用和当前 `ItemDataList` 静态物品表。
 
 Unity 不直接调用 LLM，不保存 LLM API Key，也不维护模型对话历史。
@@ -37,36 +38,51 @@ Unity 不直接调用 LLM，不保存 LLM API Key，也不维护模型对话历�
 
 工具使用“独立工具类 + 反射发现”的扩展模型：
 
-1. 参数类型继承 `ToolArgsBase`，负责贴近游戏规则的运行时校验。
+1. 参数类型继承 `ToolArgsBase`，公共字段或属性自动成为 Schema 属性；`[ToolParameter]` 声明必填、范围、长度、枚举、数组元素和描述等约束。
 2. 工具类继承 `NpcTool<TArgs>`，并使用 `[NpcTool]` 标记。
-3. 工具类集中提供名称、描述、JSON Schema 和到 NPC 领域行为的执行适配。
+3. `NpcTool<TArgs>` 通过 `ToolContract<TArgs>` 自动提供 JSON Schema；具体工具只提供名称、描述、`IsAvailable` 和领域行为适配。
 4. `NpcToolDiscovery` 在 `ToolsRegistry` 初始化时扫描并注册工具；扫描和注册只发生在主线程初始化阶段。
-5. `ToolsRegistry` 将相同的工具对象用于能力声明和实际执行，避免 Schema 注册与名称分发分离。
-6. `NpcEntity` 从自己的主线程队列取出命令后，通过 `ToolsRegistry` 执行。失败结果使用 `{ok:false,errorCode,message}`；成功结果使用 `{ok:true,data?,message?}`，其中结构化数据必须放在 `data`，不得二次编码到字符串。
+5. Schema 在首次访问参数类型时生成并缓存；不支持的成员类型、错误约束、循环类型或重复 JSON 字段会让工具注册失败。
+6. Go 按 Unity 注册的 Schema 校验一次；Unity 收到调用后再次拒绝未知字段、错误类型、缺失必填项、越界值和不合法数组，再反序列化成 `TArgs`。
+7. `Validate` 仅补充空白字符串、跨字段关系或游戏语义等结构 Schema 无法完整表达的规则。
+8. `NpcEntity` 从自己的主线程队列取出命令后，通过 `ToolsRegistry` 执行。失败结果使用 `{ok:false,errorCode,message}`；成功结果使用 `{ok:true,data?,message?}`，其中结构化数据必须放在 `data`，不得二次编码到字符串。
 
 反射发现的工具必须拥有公共无参构造函数，并标记 Unity `Preserve`，避免 IL2CPP 构建裁剪。工具能力仍然以 Unity 运行时注册为唯一来源，Go 不保存重复 Schema。
 
+### 每 NPC 动态工具能力
+
+Unity 的能力快照包含全局工具目录 `tools`、在线 NPC 列表 `npcs` 和 `npcTools` 映射。`IsAvailable` 根据当前 NPC 的真实组件状态判断能力，例如：
+
+- 移动工具要求启用且处于激活对象上的 `NavMeshAgent`。
+- 物品栏工具要求启用的 `InventoryComponent`。
+
+`NpcEntity` 在主线程检测可用工具集合变化并触发完整能力快照。NPC 上下线时先同步路由，再同步与在线 NPC 精确对应的 `npcTools`；注册响应期间发生的变化也会在注册完成后对账。Unity 的能力通知串行发送，Go 原子替换快照，并在模型暴露和执行前都按实例、NPC、工具三元组校验。
+
 ### NPC 物品栏工具
 
-当前 Unity 运行时声明四个物品栏工具：
+当前 Unity 运行时声明六个物品栏工具：
 
 | 工具 | 行为 |
 |---|---|
 | `game_inventory_get_item_definitions` | 返回当前 `ItemDataList` 中定义的全部物品种类 |
 | `game_inventory_get_self` | 返回当前对话 NPC 自身背包中的全部物品和数量 |
+| `game_inventory_get_nearby_containers` | 返回已注册容器的稳定标识、距离、所属目标和交互范围 |
 | `game_inventory_get_container` | 返回指定近距离容器中的全部物品和数量 |
 | `game_inventory_put_item` | 将 NPC 自身背包中的指定物品原子转移到近距离容器 |
+| `game_inventory_take_item` | 从近距离容器原子取出指定物品放入 NPC 背包 |
 
-容器查询使用 `InventoryComponent.ContainerId`；如果未在 Inspector 中配置，则使用容器 GameObject 名称。容器名称匹配忽略大小写，但结果必须唯一。远程容器查询和转移都会返回 `CONTAINER_TOO_FAR`，最大距离由目标 NPC 的 `inventoryInteractionRange` 配置，默认值为 3。
+容器查询只接受显式配置的稳定 `InventoryComponent.ContainerId`，匹配忽略大小写，但不接受 GameObject 名称或显示名称作为别名。缺失和重复标识分别返回 `CONTAINER_ID_MISSING`、`CONTAINER_ID_AMBIGUOUS`。玩家的容器 ID 会随 `PLAYER_ID` 同步为 `player:<playerId>.inventory`。远程容器查询和转移返回 `CONTAINER_TOO_FAR` 及结构化距离数据，最大交互距离由目标 NPC 的 `inventoryInteractionRange` 配置，默认值为 3。
 
-物品转移先完整检查 NPC 持有数量和目标容器容量，不允许部分转移。静态物品数据由场景 `PlayerMock.itemDataList` 在启动时发布到运行时物品栏注册表，不从 Go 或 LLM 构造。
+物品转移先完整检查源持有数量和目标容量，不允许部分转移；异常失败会恢复源物品。静态物品数据由场景 `PlayerMock.itemDataList` 在启动时发布到运行时物品栏注册表，不从 Go 或 LLM 构造。工具层拒绝缺失或重复的 `itemId`。
 
 ### 场景移动目标工具
 
-Unity 运行时声明 `game_scene_get_npc_targets`，用于查询当前已加载场景中所有激活且带
-`npcTarget` 标签的 GameObject 名称。`game_npc_move.targetLandmark` 不再使用硬编码 enum；
-模型应从查询结果中选择目标，Unity 在移动执行时再次按标签解析并校验名称唯一性，然后在
-目标附近采样 NavMesh。场景对象名称和标签是移动目标的权威来源，Go 不保存地点清单。
+`game_npc_move` 是长时工具：Unity 设置 NavMesh 目的地后保持请求 pending，只有 NPC 实际到达停止距离内才返回成功。路径无效、路径不完整、NPC 离开 NavMesh、NPC 销毁或收到 `unity.tool.cancel` 时结束当前移动；取消请求不再回传迟到的工具结果。
+
+Unity 运行时声明只读工具 `game_npc_get_state`，返回当前对话 NPC 的状态、世界坐标、NavMesh 状态，以及当前移动目标、路径状态和剩余距离。所有字段均在 Unity 主线程按调用时的真实状态生成，Go 不缓存或推断 NPC 状态。
+
+Unity 运行时声明 `game_scene_get_targets`，从当前激活的 `NpcEntity`、`PlayerMock` 和 `NpcLandmark` 发现目标。稳定标识分别为 `npc:<npcId>`、`player:<playerId>` 和 `landmark:<landmarkId>`，场景中必须唯一。查询结果包含 `targetId`、显示名称、类别、直线距离、NavMesh 可达性、路径距离和是否为动态目标。
+`game_npc_move` 按 `targetId` 解析目标并在附近采样 NavMesh；NPC 和玩家移动时会定时重新规划路径。Unity 组件和实时场景状态是目标权威来源，Go 不维护重复目标清单。
 
 ## 核心交互链路
 
@@ -114,7 +130,7 @@ Unity 运行时声明 `game_scene_get_npc_targets`，用于查询当前已加载
 
 | 方法名 | 方向 | 请求/通知 | 含义 |
 |---|---|---|---|
-| `unity.register` | Unity→Go | 请求（需id） | Unity实例注册，提交instanceId、工具Schema、NPC列表 |
+| `unity.register` | Unity→Go | 请求（需id） | Unity实例注册，提交instanceId、工具目录、NPC列表和npcTools映射 |
 | `unity.npc.changed` | Unity→Go | 通知（id可选） | NPC上下线变更 |
 | `unity.tools.changed` | Unity→Go | 通知（id可选） | 工具能力动态变更 |
 | `unity.tool.execute` | Go→Unity | 请求（需id） | Go要求Unity执行指定工具 |
@@ -125,7 +141,7 @@ Unity 运行时声明 `game_scene_get_npc_targets`，用于查询当前已加载
 | `assistant.status` | Go→Unity | 通知（无id） | 保留的助手非文本状态通知；聊天窗口不展示 thinking |
 | `assistant.delta` | Go→Unity | 通知（无id） | Go推送模型文本增量；`reset:true` 撤回当前未完成草稿 |
 
-### 三、Unity 端 DTO（10个类/结构）
+### 三、Unity 端 DTO
 
 **文件**: `Assets/Scripts/Networking/UnityGatewayProtocol.cs`
 
@@ -133,7 +149,8 @@ Unity 运行时声明 `game_scene_get_npc_targets`，用于查询当前已加载
 |---|---|---|
 | `UnityGatewayProtocol` | `Version = 1` | 静态协议常量类，含10个方法字符串 |
 | `UnityGatewayToolDefinition` | `Name`, `Description`, `InputSchema(JObject)` | 单个工具定义 |
-| `UnityGatewayRegistration` | `ProtocolVersion`, `InstanceId`, `Tools(List)`, `Npcs(List)` | 注册时提交的完整能力快照 |
+| `UnityGatewayCapabilitySnapshot` | `Tools`, `Npcs`, `NpcTools` | Unity 主线程生成的完整能力快照 |
+| `UnityGatewayRegistration` | `ProtocolVersion`, `InstanceId`, `Tools`, `Npcs`, `NpcTools` | 注册时提交的完整能力快照 |
 | `UnityGatewayToolExecuteParams` | `NpcId`, `Tool`, `Arguments(JObject)` | 工具执行参数（arguments是JSON对象，非字符串） |
 | `UnityGatewayToolCancelParams` | `RequestId` | 取消工具执行 |
 | `UnityGatewayToolResult` | `Ok`, `ErrorCode`(nullable), `Message`(nullable), `Data(JToken)`(nullable) | 工具执行结果（业务层） |
@@ -158,10 +175,10 @@ Unity 运行时声明 `game_scene_get_npc_targets`，用于查询当前已加载
 | `jsonRPCMessage` | `JSONRPC`, `Method`, `ID`, `Params`, `Result`, `Error` | JSON-RPC 信封 |
 | `jsonRPCError` | `Code`, `Message` | 错误体 |
 | `ToolDefinition` | `Name`, `Description`, `InputSchema` | 工具定义 |
-| `UnityRegistration` | `ProtocolVersion`, `InstanceID`, `Tools`, `NPCs` | 注册参数+Validate() |
+| `UnityRegistration` | `ProtocolVersion`, `InstanceID`, `Tools`, `NPCs`, `NPCTools` | 注册参数及完整能力一致性校验 |
 | `UnityRegistrationResult` | `Accepted`, `ProtocolVersion` | 注册响应 |
 | `UnityNPCChangedParams` | `InstanceID`, `NPCID`, `Online` | NPC变更 |
-| `UnityToolsChangedParams` | `InstanceID`, `Tools` | 工具变更 |
+| `UnityToolsChangedParams` | `InstanceID`, `Tools`, `NPCTools` | 工具目录和每 NPC 能力完整快照 |
 | `ConversationStartParams` | `PlayerID`, `NPCID` | 对话开始 |
 | `ConversationStartResult` | `SessionID`, `NPCID` | 对话开始结果 |
 | `PlayerMessageParams` | `Type`, `SessionID`, `Text` | 玩家消息 |
@@ -218,10 +235,10 @@ Unity 运行时声明 `game_scene_get_npc_targets`，用于查询当前已加载
 - `Register()` - 注册Unity实例（替换旧会话，更新NPC路由和工具）
 - `UnregisterSession()` - 断线清理
 - `UpdateNPC()` - NPC上下线
-- `UpdateTools()` - 工具替换
+- `UpdateTools()` - 原子替换工具目录和每 NPC 工具映射
 - `ResolveNPC()` - NPC → instanceID + session
 - `CapabilitiesForNPC()` - 获取某NPC可用的工具
-- `HasTool()` - 工具存在检查
+- `HasTool()` - 按实例、NPC、工具三元组检查
 
 ### 七、Go ToolExecutor
 

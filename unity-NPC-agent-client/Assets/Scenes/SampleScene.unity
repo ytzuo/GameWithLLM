@@ -273,7 +273,7 @@ GameObject:
   - component: {fileID: 404743349}
   m_Layer: 0
   m_Name: Alice_001
-  m_TagString: npcTarget
+  m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
@@ -421,7 +421,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: ce8e89e9c5049814794df304a0a815b4, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::InventoryComponent
-  _containerId: 2
+  _containerId: npc:Alice_001.inventory
   _slots: []
   _maxSlots: 21
 --- !u!1 &410087039
@@ -647,7 +647,7 @@ GameObject:
   - component: {fileID: 614615635}
   m_Layer: 0
   m_Name: Ryan_001
-  m_TagString: npcTarget
+  m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
@@ -795,7 +795,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: ce8e89e9c5049814794df304a0a815b4, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::InventoryComponent
-  _containerId: 1
+  _containerId: npc:Ryan_001.inventory
   _slots: []
   _maxSlots: 21
 --- !u!1 &832575517
@@ -861,7 +861,7 @@ GameObject:
   - component: {fileID: 1011640605}
   m_Layer: 0
   m_Name: gate
-  m_TagString: npcTarget
+  m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
@@ -959,6 +959,20 @@ Transform:
   m_Children: []
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &1011640609
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1011640604}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 4d3cf5cb837f4f24b0af9be26521b2af, type: 3}
+  m_Name:
+  m_EditorClassIdentifier: Assembly-CSharp::NpcLandmark
+  landmarkId: gate
+  displayName: 大门
 --- !u!1 &1368060058
 GameObject:
   m_ObjectHideFlags: 0
@@ -1086,7 +1100,7 @@ GameObject:
   - component: {fileID: 1621335206}
   m_Layer: 0
   m_Name: playerMock
-  m_TagString: npcTarget
+  m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
@@ -1134,7 +1148,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: ce8e89e9c5049814794df304a0a815b4, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::InventoryComponent
-  _containerId: 3
+  _containerId: player:local-player-1.inventory
   _slots: []
   _maxSlots: 21
 --- !u!23 &1621335204
@@ -1230,7 +1244,7 @@ GameObject:
   - component: {fileID: 1832316563}
   m_Layer: 0
   m_Name: warehouse
-  m_TagString: npcTarget
+  m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
@@ -1328,6 +1342,20 @@ Transform:
   m_Children: []
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &1832316567
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1832316562}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 4d3cf5cb837f4f24b0af9be26521b2af, type: 3}
+  m_Name:
+  m_EditorClassIdentifier: Assembly-CSharp::NpcLandmark
+  landmarkId: warehouse
+  displayName: 仓库
 --- !u!1 &1991495249
 GameObject:
   m_ObjectHideFlags: 0

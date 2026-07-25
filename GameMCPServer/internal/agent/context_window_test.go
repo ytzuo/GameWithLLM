@@ -17,7 +17,7 @@ func TestTrimConversationMessagesKeepsRecentAtomicTurns(t *testing.T) {
 	toolTurn := []Message{
 		{Role: "user", Content: "move"},
 		{Role: "assistant", ToolCalls: []ToolCall{{
-			ID: "call-1", Name: "game_npc_move", Arguments: json.RawMessage(`{"targetLandmark":"gate"}`),
+			ID: "call-1", Name: "game_npc_move", Arguments: json.RawMessage(`{"targetId":"landmark:gate"}`),
 		}}},
 		{Role: "tool", ToolCallID: "call-1", Content: `{"ok":true}`},
 		{Role: "assistant", Content: "moving"},

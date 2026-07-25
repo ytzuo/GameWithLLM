@@ -47,10 +47,11 @@ type ToolDefinition struct {
 
 // UnityRegistration 是 Unity 实例建立连接后的完整能力快照。
 type UnityRegistration struct {
-	ProtocolVersion int              `json:"protocolVersion"`
-	InstanceID      string           `json:"instanceId"`
-	Tools           []ToolDefinition `json:"tools"`
-	NPCs            []string         `json:"npcs"`
+	ProtocolVersion int                 `json:"protocolVersion"`
+	InstanceID      string              `json:"instanceId"`
+	Tools           []ToolDefinition    `json:"tools"`
+	NPCs            []string            `json:"npcs"`
+	NPCTools        map[string][]string `json:"npcTools"`
 }
 
 // Validate 校验协议版本、实例标识和完整能力快照。
@@ -61,14 +62,27 @@ func (r UnityRegistration) Validate() error {
 	if r.InstanceID == "" {
 		return fmt.Errorf("instanceId is required")
 	}
-	for _, tool := range r.Tools {
-		if err := tool.Validate(); err != nil {
-			return err
-		}
-	}
+	npcs := make(map[string]struct{}, len(r.NPCs))
 	for _, npcID := range r.NPCs {
 		if npcID == "" {
 			return fmt.Errorf("npcId cannot be empty")
+		}
+		if _, duplicate := npcs[npcID]; duplicate {
+			return fmt.Errorf("duplicate npcId %q", npcID)
+		}
+		npcs[npcID] = struct{}{}
+	}
+	if err := validateCapabilitySnapshot(r.Tools, r.NPCTools); err != nil {
+		return err
+	}
+	for npcID := range npcs {
+		if _, ok := r.NPCTools[npcID]; !ok {
+			return fmt.Errorf("npcTools must include npcId %q", npcID)
+		}
+	}
+	for npcID := range r.NPCTools {
+		if _, ok := npcs[npcID]; !ok {
+			return fmt.Errorf("npcTools contains unknown npcId %q", npcID)
 		}
 	}
 	return nil
@@ -100,8 +114,17 @@ type UnityNPCChangedParams struct {
 
 // UnityToolsChangedParams 携带 Unity 实例最新的完整工具能力快照。
 type UnityToolsChangedParams struct {
-	InstanceID string           `json:"instanceId"`
-	Tools      []ToolDefinition `json:"tools"`
+	InstanceID string              `json:"instanceId"`
+	Tools      []ToolDefinition    `json:"tools"`
+	NPCTools   map[string][]string `json:"npcTools"`
+}
+
+// Validate 校验工具目录和每 NPC 工具名映射的内部一致性。
+func (p UnityToolsChangedParams) Validate() error {
+	if p.InstanceID == "" {
+		return fmt.Errorf("instanceId is required")
+	}
+	return validateCapabilitySnapshot(p.Tools, p.NPCTools)
 }
 
 // ConversationStartParams 标识要建立对话的玩家和 NPC。
@@ -184,4 +207,42 @@ func isJSONObject(raw json.RawMessage) bool {
 	}
 	var value map[string]any
 	return json.Unmarshal(raw, &value) == nil && value != nil
+}
+
+func validateCapabilitySnapshot(
+	tools []ToolDefinition,
+	npcTools map[string][]string,
+) error {
+	if npcTools == nil {
+		return fmt.Errorf("npcTools is required")
+	}
+	toolNames := make(map[string]struct{}, len(tools))
+	for _, tool := range tools {
+		if err := tool.Validate(); err != nil {
+			return err
+		}
+		if _, duplicate := toolNames[tool.Name]; duplicate {
+			return fmt.Errorf("duplicate tool name %q", tool.Name)
+		}
+		toolNames[tool.Name] = struct{}{}
+	}
+	for npcID, names := range npcTools {
+		if npcID == "" {
+			return fmt.Errorf("npcTools contains an empty npcId")
+		}
+		seen := make(map[string]struct{}, len(names))
+		for _, name := range names {
+			if name == "" {
+				return fmt.Errorf("npcTools[%q] contains an empty tool name", npcID)
+			}
+			if _, ok := toolNames[name]; !ok {
+				return fmt.Errorf("npcTools[%q] references unknown tool %q", npcID, name)
+			}
+			if _, duplicate := seen[name]; duplicate {
+				return fmt.Errorf("npcTools[%q] contains duplicate tool %q", npcID, name)
+			}
+			seen[name] = struct{}{}
+		}
+	}
+	return nil
 }

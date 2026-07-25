@@ -63,6 +63,33 @@ public class ToolsRegistry : Singleton<ToolsRegistry>
         return list;
     }
 
+    public List<string> GetToolNamesForNpc(NpcEntity npc)
+    {
+        var names = new List<string>();
+        if (npc == null)
+            return names;
+
+        var context = new NpcToolContext(npc);
+        lock (_lock)
+        {
+            foreach (INpcTool tool in _tools.Values)
+            {
+                try
+                {
+                    if (tool.IsAvailable(context))
+                        names.Add(tool.Name);
+                }
+                catch (Exception ex)
+                {
+                    Debug.LogError(
+                        $"[ToolsRegistry] 检查 NPC '{npc.npcId}' 的工具 '{tool.Name}' 可用性失败: {ex}");
+                }
+            }
+        }
+        names.Sort(StringComparer.Ordinal);
+        return names;
+    }
+
     public ToolExecutionResult Execute(
         string toolName,
         NpcToolContext context,
@@ -84,6 +111,12 @@ public class ToolsRegistry : Singleton<ToolsRegistry>
 
         try
         {
+            if (!tool.IsAvailable(context))
+            {
+                return ToolExecutionResult.Failure(
+                    "TOOL_UNAVAILABLE",
+                    $"工具 '{toolName}' 当前不适用于 NPC '{context?.Npc?.npcId}'。");
+            }
             return tool.Execute(context, argumentsJson);
         }
         catch (Exception ex)

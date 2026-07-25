@@ -45,8 +45,8 @@ func (e *registryToolExecutor) Execute(ctx context.Context, instanceID, npcID, t
 	if instanceID != "" && instanceID != resolvedInstanceID {
 		return nil, fmt.Errorf("%w: requested=%s actual=%s", ErrUnityInstanceOffline, instanceID, resolvedInstanceID)
 	}
-	if !e.registry.HasTool(resolvedInstanceID, tool) {
-		return nil, fmt.Errorf("%w: %s", ErrToolUnavailable, tool)
+	if !e.registry.HasTool(resolvedInstanceID, npcID, tool) {
+		return nil, fmt.Errorf("%w: npc=%s tool=%s", ErrToolUnavailable, npcID, tool)
 	}
 
 	execCtx := ctx

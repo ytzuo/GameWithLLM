@@ -9,16 +9,20 @@ public class InventoryComponent : MonoBehaviour
 {
     // ── Fields ──
 
-    [SerializeField, Tooltip("工具和游戏逻辑使用的稳定容器标识；留空时使用 GameObject 名称。")]
+    [SerializeField, Tooltip("工具和游戏逻辑使用的稳定容器标识；必须显式配置且在场景中唯一。")]
     private string _containerId;
     [SerializeField] private List<InventorySlot> _slots = new List<InventorySlot>();
     [SerializeField] private int _maxSlots = 21;
 
     // ── Properties ──
 
-    /// <summary>容器稳定标识；未显式配置时回退到 GameObject 名称。</summary>
-    public string ContainerId =>
-        string.IsNullOrWhiteSpace(_containerId) ? gameObject.name : _containerId.Trim();
+    /// <summary>容器稳定标识。工具层会拒绝缺失或重复的标识。</summary>
+    public string ContainerId => string.IsNullOrWhiteSpace(_containerId) ? string.Empty : _containerId.Trim();
+
+    internal void ConfigureContainerId(string containerId)
+    {
+        _containerId = string.IsNullOrWhiteSpace(containerId) ? string.Empty : containerId.Trim();
+    }
 
     /// <summary>物品栏最大格子数。</summary>
     public int MaxSlots { get; private set; }
@@ -82,6 +86,12 @@ public class InventoryComponent : MonoBehaviour
     private void OnDisable()
     {
         InventoryViewModel.Instance.UnregisterContainer(this);
+    }
+
+    private void OnValidate()
+    {
+        if (string.IsNullOrWhiteSpace(_containerId))
+            Debug.LogWarning($"[InventoryComponent] '{gameObject.name}' 缺少稳定 containerId。", this);
     }
 
     /// <summary>
@@ -515,14 +525,12 @@ public class InventoryComponent : MonoBehaviour
         }
 
         InventorySlot sourceSlot = _slots[fromSlotIndex];
-
         if (!sourceSlot.CanRemove(quantity))
         {
             Debug.LogWarning($"TransferTo: 源格子 {fromSlotIndex} 数量不足，需要 {quantity}，当前持有 {sourceSlot.Quantity}");
             return false;
         }
 
-        // ── 检查目标物品栏是否有足够空间 ──
         int maxAddable = target.GetMaxAddableAmount(sourceSlot.Item);
         if (maxAddable < quantity)
         {
@@ -530,49 +538,156 @@ public class InventoryComponent : MonoBehaviour
             return false;
         }
 
-        // ── 从源格子移除 ──
-        var item = sourceSlot.Item;
-        sourceSlot.Quantity -= quantity;
-        if (sourceSlot.Quantity <= 0)
-        {
-            sourceSlot.Item = null;
-            sourceSlot.Quantity = 0;
-        }
-
-        NotifySlotChanged(fromSlotIndex);
-
-        // ── 添加到目标物品栏（此时已确保空间足够，不会部分丢失） ──
-        target.AddItem(item, quantity);
-        return true;
+        return TransferAtomically(target, sourceSlot.Item, quantity, fromSlotIndex);
     }
 
     /// <summary>
     /// 按物品类型将指定数量从当前物品栏原子转移到目标物品栏。
-    /// 转移前会完整检查源数量和目标容量，不执行部分转移。
+    /// 转移前会完整规划源扣减和目标写入，不执行部分转移。
     /// </summary>
     public bool TransferItemTo(InventoryComponent target, ItemData item, int quantity = 1)
     {
-        if (target == null || target == this || item == null || quantity <= 0)
-            return false;
-        if (!HasItem(item, quantity))
-            return false;
-        if (!target.CanAddItem(item, quantity))
-            return false;
-        if (!RemoveItem(item, quantity))
-            return false;
-
-        if (target.AddItem(item, quantity))
-            return true;
-
-        // 目标在预检查后仍失败时恢复源物品，避免无声丢失。
-        if (!AddItem(item, quantity))
-        {
-            Debug.LogError(
-                $"TransferItemTo: 转移 '{item.ItemName}' 失败且无法回滚 {quantity} 个物品。");
-        }
-        return false;
+        return TransferAtomically(target, item, quantity, null);
     }
 
+    /// <summary>
+    /// 先为源扣减和目标写入生成完整计划，两个计划都成功后才一次性修改双方槽位。
+    /// sourceSlotIndex 有值时只从指定槽位转移；为空时可跨多个同物品槽位扣减。
+    /// </summary>
+    private bool TransferAtomically(
+        InventoryComponent target,
+        ItemData item,
+        int quantity,
+        int? sourceSlotIndex)
+    {
+        if (target == null || target == this || item == null || quantity <= 0)
+            return false;
+        if (!TryPlanRemoval(item, quantity, sourceSlotIndex, out List<SlotQuantityChange> removals))
+            return false;
+        if (!target.TryPlanAddition(item, quantity, out List<SlotQuantityChange> additions))
+            return false;
+
+        ApplyRemovalPlan(removals);
+        target.ApplyAdditionPlan(item, additions);
+
+        // 双方状态已经全部提交后再通知观察者，避免 UI 或工具看到半完成转移。
+        for (int i = 0; i < removals.Count; i++)
+            NotifySlotChanged(removals[i].SlotIndex);
+        for (int i = 0; i < additions.Count; i++)
+            target.NotifySlotChanged(additions[i].SlotIndex);
+        return true;
+    }
+
+    private bool TryPlanRemoval(
+        ItemData item,
+        int quantity,
+        int? sourceSlotIndex,
+        out List<SlotQuantityChange> removals)
+    {
+        removals = new List<SlotQuantityChange>();
+        if (sourceSlotIndex.HasValue)
+        {
+            int index = sourceSlotIndex.Value;
+            if (!IsValidIndex(index))
+                return false;
+            InventorySlot slot = _slots[index];
+            if (slot.Item != item || !slot.CanRemove(quantity))
+                return false;
+            removals.Add(new SlotQuantityChange(index, quantity));
+            return true;
+        }
+
+        int remaining = quantity;
+        for (int i = 0; i < _slots.Count && remaining > 0; i++)
+        {
+            InventorySlot slot = _slots[i];
+            if (slot.Item != item || slot.IsEmpty)
+                continue;
+            int toRemove = Mathf.Min(slot.Quantity, remaining);
+            removals.Add(new SlotQuantityChange(i, toRemove));
+            remaining -= toRemove;
+        }
+        return remaining == 0;
+    }
+
+    private bool TryPlanAddition(
+        ItemData item,
+        int quantity,
+        out List<SlotQuantityChange> additions)
+    {
+        additions = new List<SlotQuantityChange>();
+        int remaining = quantity;
+
+        for (int i = 0; i < _slots.Count && remaining > 0; i++)
+        {
+            InventorySlot slot = _slots[i];
+            if (slot.IsEmpty || slot.Item != item || slot.IsFull)
+                continue;
+            int toAdd = Mathf.Min(slot.AvailableSpace(), remaining);
+            if (toAdd <= 0)
+                continue;
+            additions.Add(new SlotQuantityChange(i, toAdd));
+            remaining -= toAdd;
+        }
+
+        for (int i = 0; i < _slots.Count && remaining > 0; i++)
+        {
+            InventorySlot slot = _slots[i];
+            if (!slot.IsEmpty)
+                continue;
+            int toAdd = Mathf.Min(item.MaxStackSize, remaining);
+            if (toAdd <= 0)
+                continue;
+            additions.Add(new SlotQuantityChange(i, toAdd));
+            remaining -= toAdd;
+        }
+        return remaining == 0;
+    }
+
+    private void ApplyRemovalPlan(IReadOnlyList<SlotQuantityChange> removals)
+    {
+        for (int i = 0; i < removals.Count; i++)
+        {
+            SlotQuantityChange change = removals[i];
+            InventorySlot slot = _slots[change.SlotIndex];
+            slot.Quantity -= change.Quantity;
+            if (slot.Quantity <= 0)
+            {
+                slot.Item = null;
+                slot.Quantity = 0;
+            }
+        }
+    }
+
+    private void ApplyAdditionPlan(ItemData item, IReadOnlyList<SlotQuantityChange> additions)
+    {
+        for (int i = 0; i < additions.Count; i++)
+        {
+            SlotQuantityChange change = additions[i];
+            InventorySlot slot = _slots[change.SlotIndex];
+            if (slot.IsEmpty)
+            {
+                slot.Item = item;
+                slot.Quantity = change.Quantity;
+            }
+            else
+            {
+                slot.Quantity += change.Quantity;
+            }
+        }
+    }
+
+    private readonly struct SlotQuantityChange
+    {
+        public int SlotIndex { get; }
+        public int Quantity { get; }
+
+        public SlotQuantityChange(int slotIndex, int quantity)
+        {
+            SlotIndex = slotIndex;
+            Quantity = quantity;
+        }
+    }
     // ── Utilities ──
 
     /// <summary>

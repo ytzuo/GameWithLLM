@@ -37,12 +37,12 @@ func TestToolExecutorSendsV1ObjectArgumentsAndReturnsBusinessResult_BitsUT(t *te
 	var execErr error
 	go func() {
 		defer close(done)
-		result, execErr = executor.Execute(context.Background(), "local-game-1", "Ryan_001", "game_npc_move", json.RawMessage(`{"targetLandmark":"warehouse"}`))
+		result, execErr = executor.Execute(context.Background(), "local-game-1", "Ryan_001", "game_npc_move", json.RawMessage(`{"targetId":"landmark:warehouse"}`))
 	}()
 
 	request := mustReceiveMessage(t, conn.writes)
 	assert.Equal(t, methodUnityToolExecute, request.Method)
-	assert.JSONEq(t, `{"npcId":"Ryan_001","tool":"game_npc_move","arguments":{"targetLandmark":"warehouse"}}`, string(request.Params))
+	assert.JSONEq(t, `{"npcId":"Ryan_001","tool":"game_npc_move","arguments":{"targetId":"landmark:warehouse"}}`, string(request.Params))
 	session.complete(jsonRPCMessage{ID: request.ID, Result: json.RawMessage(`{"ok":true,"message":"NPC 已开始移动"}`)})
 	waitForDone(t, done)
 	require.NoError(t, execErr)
@@ -66,7 +66,7 @@ func TestToolExecutorSendsCancelWhenExecutionTimesOut_BitsUT(t *testing.T) {
 
 	done := make(chan error, 1)
 	go func() {
-		_, execErr := executor.Execute(context.Background(), "local-game-1", "Ryan_001", "game_npc_move", json.RawMessage(`{"targetLandmark":"warehouse"}`))
+		_, execErr := executor.Execute(context.Background(), "local-game-1", "Ryan_001", "game_npc_move", json.RawMessage(`{"targetId":"landmark:warehouse"}`))
 		done <- execErr
 	}()
 
@@ -84,5 +84,29 @@ func TestToolExecutorSendsCancelWhenExecutionTimesOut_BitsUT(t *testing.T) {
 		assert.ErrorIs(t, execErr, context.DeadlineExceeded)
 	case <-time.After(time.Second):
 		t.Fatal("tool execution did not time out")
+	}
+}
+
+func TestToolExecutorRejectsToolUnavailableForNPC_BitsUT(t *testing.T) {
+	session, conn := newTestSession(time.Second)
+	registration := testRegistration("local-game-1", "Ryan_001", "Mia_002")
+	registration.NPCTools["Mia_002"] = []string{}
+	_, err := session.registry.Register(session, registration)
+	require.NoError(t, err)
+	executor := NewToolExecutor(session.registry, time.Second)
+
+	_, err = executor.Execute(
+		context.Background(),
+		"local-game-1",
+		"Mia_002",
+		"game_npc_move",
+		json.RawMessage(`{"targetId":"landmark:warehouse"}`),
+	)
+	require.Error(t, err)
+	assert.ErrorIs(t, err, ErrToolUnavailable)
+	select {
+	case message := <-conn.writes:
+		t.Fatalf("unavailable tool should not be sent to Unity: %+v", message)
+	default:
 	}
 }
