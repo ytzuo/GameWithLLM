@@ -203,9 +203,6 @@ func (s *jsonRPCSession) handlePlayerMessage(msg jsonRPCMessage) {
 		_ = s.writeError(msg.ID, -32011, "conversation session is not owned by this Unity connection")
 		return
 	}
-	_ = s.writeNotification(methodAssistantStatus, AssistantStatusParams{
-		Type: "assistant.status", SessionID: params.SessionID, Status: "thinking",
-	})
 	log.Printf("event=player_message_received session_id=%q text_length=%d", params.SessionID, len([]rune(params.Text)))
 	reply, err := s.conversations.SubmitMessageStream(
 		s.ctx,

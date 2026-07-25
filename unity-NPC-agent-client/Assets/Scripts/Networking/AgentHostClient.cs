@@ -46,7 +46,6 @@ public class AgentHostClient : Singleton<AgentHostClient>
             _dispatcher.GetRegisteredNpcIds);
         _gatewayClient.ToolCallReceived += OnGatewayToolCallReceived;
         _gatewayClient.ToolCancellationReceived += OnGatewayToolCancellationReceived;
-        _gatewayClient.AssistantStatusReceived += OnAssistantStatusReceived;
         _gatewayClient.AssistantDeltaReceived += OnAssistantDeltaReceived;
         _gatewayClient.Registered += OnGatewayRegistered;
         _gatewayClient.Info += OnGatewayInfo;
@@ -251,13 +250,6 @@ public class AgentHostClient : Singleton<AgentHostClient>
         _sessionStarts.Clear();
     }
 
-    private void OnAssistantStatusReceived(UnityGatewayAssistantStatus status)
-    {
-        if (status?.Status == "thinking" &&
-            TryGetNpcIdForSession(status.SessionId, out string npcId))
-            EnqueueSystemMessage(npcId, "NPC 正在思考……");
-    }
-
     private void OnAssistantDeltaReceived(UnityGatewayAssistantDelta delta)
     {
         if (delta == null)
@@ -280,6 +272,14 @@ public class AgentHostClient : Singleton<AgentHostClient>
 
     private void OnGatewayToolCallReceived(UnityToolCommand request)
     {
+        if (!string.IsNullOrWhiteSpace(request?.NpcId) &&
+            !string.IsNullOrWhiteSpace(request.Function?.Name))
+        {
+            EnqueueSystemMessage(
+                request.NpcId,
+                $"{request.NpcId}尝试调取工具{request.Function.Name}");
+        }
+
         var trace = new JObject
         {
             ["event"] = "unity_tool_received",
@@ -406,7 +406,6 @@ public class AgentHostClient : Singleton<AgentHostClient>
         {
             _gatewayClient.ToolCallReceived -= OnGatewayToolCallReceived;
             _gatewayClient.ToolCancellationReceived -= OnGatewayToolCancellationReceived;
-            _gatewayClient.AssistantStatusReceived -= OnAssistantStatusReceived;
             _gatewayClient.AssistantDeltaReceived -= OnAssistantDeltaReceived;
             _gatewayClient.Registered -= OnGatewayRegistered;
             _gatewayClient.Info -= OnGatewayInfo;
