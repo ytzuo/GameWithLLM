@@ -33,6 +33,8 @@ public class AgentHostClient : Singleton<AgentHostClient>
             NpcTools = new Dictionary<string, List<string>>()
         };
     private string _activeNpcId;
+    private volatile bool _saveGameOperationInProgress;
+    private volatile bool _conversationRestoreFailed;
 
     protected override void Init()
     {
@@ -82,6 +84,8 @@ public class AgentHostClient : Singleton<AgentHostClient>
 
     public void OnPlayerInteractWithNpc(string npcId)
     {
+        if (_saveGameOperationInProgress || _conversationRestoreFailed)
+            return;
         if (string.IsNullOrWhiteSpace(npcId))
             return;
         _activeNpcId = npcId;
@@ -90,6 +94,16 @@ public class AgentHostClient : Singleton<AgentHostClient>
 
     public void SubmitPlayerInput(string text)
     {
+        if (_saveGameOperationInProgress)
+        {
+            EnqueueSystemMessage("存档操作进行中，请稍候。");
+            return;
+        }
+        if (_conversationRestoreFailed)
+        {
+            EnqueueSystemMessage("对话历史尚未恢复，请在存档界面重试加载。");
+            return;
+        }
         if (string.IsNullOrWhiteSpace(text))
             return;
         string npcId = _activeNpcId;
@@ -207,6 +221,78 @@ public class AgentHostClient : Singleton<AgentHostClient>
         return result.SessionId;
     }
 
+    public bool IsSaveGameOperationInProgress => _saveGameOperationInProgress;
+
+    public async Task<UnityGatewayConversationSaveResult> SaveConversationsForSaveGameAsync(
+        string saveId,
+        string operationId,
+        string mode)
+    {
+        await _conversationSendLock.WaitAsync(_appCts.Token);
+        _saveGameOperationInProgress = true;
+        try
+        {
+            if (_gatewayClient == null || !_gatewayClient.IsRegistered)
+                throw new InvalidOperationException("Go Agent Host 尚未连接或注册。");
+            return await _gatewayClient.SaveConversationsAsync(
+                playerId, saveId, operationId, mode, _appCts.Token);
+        }
+        finally
+        {
+            _saveGameOperationInProgress = false;
+            _conversationSendLock.Release();
+        }
+    }
+
+    public async Task<UnityGatewayConversationLoadResult> LoadConversationsForSaveGameAsync(
+        string saveId,
+        IReadOnlyList<string> npcIds,
+        Action applyWorldState)
+    {
+        await _conversationSendLock.WaitAsync(_appCts.Token);
+        _saveGameOperationInProgress = true;
+        _conversationRestoreFailed = true;
+        try
+        {
+            if (_gatewayClient == null || !_gatewayClient.IsRegistered)
+                throw new InvalidOperationException("Go Agent Host 尚未连接或注册。");
+
+            var oldSessionIds = new List<string>(_sessionsByNpc.Values);
+            foreach (string sessionId in oldSessionIds)
+                await EndConversationSafelyAsync(sessionId);
+            _sessionsByNpc.Clear();
+            _sessionStarts.Clear();
+            ChatViewModel.Instance.ClearAllHistory();
+
+            applyWorldState?.Invoke();
+
+            UnityGatewayConversationLoadResult result = await _gatewayClient.LoadConversationsAsync(
+                playerId, saveId, npcIds ?? Array.Empty<string>(), _appCts.Token);
+            if (result == null)
+                throw new InvalidOperationException("Go Agent Host 未返回加载结果。");
+            if (!result.Ok)
+                return result;
+
+            _sessionsByNpc.Clear();
+            if (result.Contexts != null)
+            {
+                foreach (UnityGatewayLoadedConversationContext context in result.Contexts)
+                {
+                    if (context != null && !string.IsNullOrWhiteSpace(context.NpcId) &&
+                        !string.IsNullOrWhiteSpace(context.SessionId))
+                        _sessionsByNpc[context.NpcId] = context.SessionId;
+                }
+            }
+            ChatViewModel.Instance.ReplaceHistories(result.Contexts);
+            _conversationRestoreFailed = false;
+            return result;
+        }
+        finally
+        {
+            _saveGameOperationInProgress = false;
+            _conversationSendLock.Release();
+        }
+    }
     public async Task SendToolResponseAsync(
         string requestId,
         string text,

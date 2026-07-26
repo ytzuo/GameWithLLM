@@ -109,6 +109,53 @@ public sealed class UnityGatewayClient : IDisposable
         return JsonConvert.DeserializeObject<UnityGatewayAssistantReply>(result);
     }
 
+    public async Task<UnityGatewayConversationSaveResult> SaveConversationsAsync(
+        string playerId,
+        string saveId,
+        string operationId,
+        string mode,
+        CancellationToken cancellationToken)
+    {
+        string requestId = $"save-conversations-{Guid.NewGuid():N}";
+        string result = await SendRequestAsync(
+            requestId,
+            UnityGatewayProtocol.SavegameConversationSaveMethod,
+            new
+            {
+                protocolVersion = UnityGatewayProtocol.Version,
+                instanceId = _instanceId,
+                playerId,
+                saveId,
+                operationId,
+                mode
+            },
+            _requestTimeout,
+            cancellationToken).ConfigureAwait(false);
+        return JsonConvert.DeserializeObject<UnityGatewayConversationSaveResult>(result);
+    }
+
+    public async Task<UnityGatewayConversationLoadResult> LoadConversationsAsync(
+        string playerId,
+        string saveId,
+        IReadOnlyList<string> npcIds,
+        CancellationToken cancellationToken)
+    {
+        string requestId = $"load-conversations-{Guid.NewGuid():N}";
+        string result = await SendRequestAsync(
+            requestId,
+            UnityGatewayProtocol.SavegameConversationLoadMethod,
+            new
+            {
+                protocolVersion = UnityGatewayProtocol.Version,
+                instanceId = _instanceId,
+                playerId,
+                saveId,
+                npcIds
+            },
+            _requestTimeout,
+            cancellationToken).ConfigureAwait(false);
+        return JsonConvert.DeserializeObject<UnityGatewayConversationLoadResult>(result);
+    }
     public Task EndConversationAsync(string sessionId, CancellationToken cancellationToken)
     {
         if (string.IsNullOrWhiteSpace(sessionId) || !_isRegistered)

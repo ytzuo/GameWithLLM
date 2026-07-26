@@ -383,6 +383,29 @@ public class NpcEntity : MonoBehaviour
         if (CommandDispatcher.Instance != null)
             CommandDispatcher.Instance.CompleteRequest(requestId);
     }
+    /// <summary>存档加载专用：丢弃旧世界命令并把 NPC 放回保存位置。</summary>
+    internal void RestoreWorldTransform(Vector3 position, Quaternion rotation)
+    {
+        while (_myPrivateQueue.TryDequeue(out UnityToolCommand queued))
+        {
+            if (CommandDispatcher.Instance != null)
+                CommandDispatcher.Instance.CompleteRequest(queued?.RequestId);
+        }
+        if (_navAgent != null && _navAgent.isOnNavMesh)
+            _navAgent.ResetPath();
+        ClearActiveMovement();
+
+        transform.rotation = rotation;
+        if (_navAgent != null && _navAgent.enabled && _navAgent.isOnNavMesh &&
+            NavMesh.SamplePosition(position, out NavMeshHit hit, 2f, NavMesh.AllAreas))
+        {
+            _navAgent.Warp(hit.position);
+        }
+        else
+        {
+            transform.position = position;
+        }
+    }
     private void OnDestroy()
     {
         if (_activeCommand != null)
