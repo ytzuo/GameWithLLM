@@ -104,3 +104,29 @@ func TestJSONRPCServerShutdownClosesActiveConnections_BitsUT(t *testing.T) {
 	require.NoError(t, server.Shutdown(ctx))
 	assert.Equal(t, websocket.StatusGoingAway, websocket.CloseStatus(<-readErr))
 }
+
+func TestJSONRPCServerShutdownWithoutConnections_BitsUT(t *testing.T) {
+	server := NewJSONRPCServer(time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+
+	require.NoError(t, server.Shutdown(ctx))
+}
+
+func TestJSONRPCServerRejectsMessageOverReadLimit_BitsUT(t *testing.T) {
+	server := NewJSONRPCServer(time.Second)
+	httpServer := httptest.NewServer(http.HandlerFunc(server.HandleWebSocket))
+	defer httpServer.Close()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	conn, _, err := websocket.Dial(ctx, "ws"+strings.TrimPrefix(httpServer.URL, "http"), nil)
+	require.NoError(t, err)
+	defer conn.CloseNow()
+
+	oversized := strings.Repeat("x", maxWebSocketMessageSize+1)
+	require.NoError(t, conn.Write(ctx, websocket.MessageText, []byte(oversized)))
+	_, _, err = conn.Read(ctx)
+	require.Error(t, err)
+	assert.Equal(t, websocket.StatusMessageTooBig, websocket.CloseStatus(err))
+}

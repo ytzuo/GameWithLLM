@@ -182,3 +182,81 @@ func TestConversationService_EndSessionCancelsActiveCompletion(t *testing.T) {
 	require.NoError(t, service.EndSession(context.Background(), session.ID))
 	assert.ErrorIs(t, <-done, context.Canceled)
 }
+
+type toolThenContextLLM struct{}
+
+func (toolThenContextLLM) Complete(ctx context.Context, request CompletionRequest) (*CompletionResult, error) {
+	for _, message := range request.Messages {
+		if message.Role == "tool" {
+			return nil, ctx.Err()
+		}
+	}
+	return &CompletionResult{ToolCalls: []ToolCall{{
+		ID:        "call-blocking",
+		Name:      "game_npc_move",
+		Arguments: json.RawMessage(`{"targetId":"landmark:gate"}`),
+	}}}, nil
+}
+
+type cancellationBlockingRuntime struct {
+	started chan struct{}
+}
+
+func (r *cancellationBlockingRuntime) Capabilities(string) (string, []gametools.Definition, bool) {
+	return "game-1", []gametools.Definition{{
+		Name: "game_npc_move",
+		InputSchema: json.RawMessage(
+			`{"type":"object","properties":{"targetId":{"type":"string"}},"required":["targetId"]}`,
+		),
+	}}, true
+}
+
+func (r *cancellationBlockingRuntime) Execute(
+	ctx context.Context,
+	_, _, _ string,
+	_ json.RawMessage,
+) (ToolExecutionResult, error) {
+	close(r.started)
+	<-ctx.Done()
+	return ToolExecutionResult{}, ctx.Err()
+}
+
+func TestConversationService_EndSessionDuringToolDoesNotRestoreDeletedSession(t *testing.T) {
+	store := NewMemorySessionStore()
+	runtime := &cancellationBlockingRuntime{started: make(chan struct{})}
+	service := NewConversationService(toolThenContextLLM{}, store, runtime, "test-model", 3)
+	session, err := service.StartSession(context.Background(), "player", "npc-1")
+	require.NoError(t, err)
+
+	submitDone := make(chan error, 1)
+	go func() {
+		_, submitErr := service.SubmitMessage(context.Background(), session.ID, "去大门")
+		submitDone <- submitErr
+	}()
+	<-runtime.started
+
+	require.NoError(t, service.EndSession(context.Background(), session.ID))
+	assert.ErrorIs(t, <-submitDone, context.Canceled)
+	_, err = store.Load(context.Background(), session.ID)
+	assert.ErrorIs(t, err, ErrSessionNotFound)
+}
+
+func TestConversationService_SubmitRejectsClosedSession(t *testing.T) {
+	store := NewMemorySessionStore()
+	service := NewConversationService(
+		&scriptedLLM{results: []*CompletionResult{{Content: "不应调用"}}},
+		store,
+		&fakeRuntime{},
+		"test-model",
+		3,
+	)
+	session, err := service.StartSession(context.Background(), "player", "npc-1")
+	require.NoError(t, err)
+
+	session.cancelMu.Lock()
+	session.closed = true
+	session.cancelMu.Unlock()
+
+	_, err = service.SubmitMessage(context.Background(), session.ID, "你好")
+	assert.ErrorIs(t, err, ErrSessionNotFound)
+}

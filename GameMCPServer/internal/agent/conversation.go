@@ -125,6 +125,11 @@ func (s *Service) submitMessage(
 	// 将当前操作的 cancel 暂存到 Session，使 conversation.end 能中止 LLM 或 Unity 工具。
 	operationCtx, cancel := context.WithCancel(ctx)
 	session.cancelMu.Lock()
+	if session.closed {
+		session.cancelMu.Unlock()
+		cancel()
+		return nil, ErrSessionNotFound
+	}
 	session.cancel = cancel
 	session.cancelMu.Unlock()
 	defer func() {
@@ -243,10 +248,15 @@ func (s *Service) EndSession(ctx context.Context, sessionID string) error {
 		return err
 	}
 	session.cancelMu.Lock()
+	session.closed = true
 	if session.cancel != nil {
 		session.cancel()
 	}
 	session.cancelMu.Unlock()
+
+	// 等待进行中的消息处理退出后再删除，防止其在删除后保存共享 Session 指针。
+	session.mu.Lock()
+	defer session.mu.Unlock()
 	return s.store.Delete(ctx, sessionID)
 }
 
