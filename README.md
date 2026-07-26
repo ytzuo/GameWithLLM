@@ -108,6 +108,7 @@ Unity 会自动连接 Go Agent Host 并完成注册。之后在场景中与 NPC 
 * `查看附近 Alice_001 的背包` — 在交互距离内触发 `game_inventory_get_container`
 * `把 1 个 Rock 放进附近的 Alice_001` — 触发 `game_inventory_put_item`
 * `从附近容器取出 1 个 Wood` — 触发 `game_inventory_take_item`
+* 按 `G` — 打开游戏存档界面，可新建、覆盖、重试对话同步或加载世界与 NPC 历史
 
 ## 配置参考
 
@@ -126,6 +127,7 @@ Unity 会自动连接 Go Agent Host 并完成注册。之后在场景中与 NPC 
 | `LLM_MAX_RETRIES` | 429、5xx 或安全网络失败的最大重试次数；已向 UI 输出文本后不重试 | `2` |
 | `LLM_MAX_TOOL_ROUNDS` | 单轮对话最大工具调用次数 | `4` |
 | `LLM_MAX_CONTEXT_CHARS` | 单个会话发送给模型的上下文字符预算；按完整对话轮次裁剪 | `32000` |
+| `CONVERSATION_SAVE_DIR` | Go 自有 NPC 对话快照目录；仅显式加载时读取 | `GameMCPServer/data/conversations` |
 
 ### Unity
 
@@ -182,9 +184,9 @@ node GameMCPServer/test_mcp.js --start-server
 
 ## 协议
 
-两端通过 WebSocket JSON-RPC 2.0 协议通信，唯一入口为 `/unity/ws`。当前协议版本为 `protocolVersion: 1`。
+两端通过 WebSocket JSON-RPC 2.0 协议通信，唯一入口为 `/unity/ws`。当前协议版本为 `protocolVersion: 2`，不包含 v1 兼容分支。
 
-10 个协议方法：
+12 个协议方法：
 
 | 方法 | 方向 | 说明 |
 | --- | --- | --- |
@@ -194,6 +196,8 @@ node GameMCPServer/test_mcp.js --start-server
 | `conversation.start` | Unity→Go | 发起新对话 |
 | `player.message` | Unity→Go | 玩家消息 |
 | `conversation.end` | Unity→Go | 结束对话 |
+| `savegame.conversations.save` | Unity→Go | 保存当前玩家的 NPC 对话快照 |
+| `savegame.conversations.load` | Unity→Go | 加载快照并整体替换 NPC 对话 |
 | `unity.tool.execute` | Go→Unity | 要求执行工具 |
 | `unity.tool.cancel` | Go→Unity | 取消工具执行 |
 | `assistant.status` | Go→Unity | 推送助手状态 |
