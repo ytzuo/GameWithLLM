@@ -41,7 +41,7 @@ func TestRegisterRoutesWithTimeout_BitsUT(t *testing.T) {
 		"id":      "register-1",
 		"method":  "unity.register",
 		"params": map[string]any{
-			"protocolVersion": 1,
+			"protocolVersion": 2,
 			"instanceId":      "router-test",
 			"tools":           []any{},
 			"npcs":            []string{"Ryan_001"},
@@ -54,5 +54,5 @@ func TestRegisterRoutesWithTimeout_BitsUT(t *testing.T) {
 	}
 	require.NoError(t, wsjson.Read(ctx, conn, &message))
 	assert.JSONEq(t, `"register-1"`, string(message.ID))
-	assert.JSONEq(t, `{"accepted":true,"protocolVersion":1}`, string(message.Result))
+	assert.JSONEq(t, `{"accepted":true,"protocolVersion":2}`, string(message.Result))
 }

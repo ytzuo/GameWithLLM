@@ -26,40 +26,40 @@ func TestUnityRegistrationValidation_BitsUT(t *testing.T) {
 		registration UnityRegistration
 		contains     string
 	}{
-		{"wrong version", UnityRegistration{ProtocolVersion: 2, InstanceID: "game"}, "protocolVersion"},
-		{"missing instance", UnityRegistration{ProtocolVersion: 1}, "instanceId"},
-		{"empty npc", UnityRegistration{ProtocolVersion: 1, InstanceID: "game", NPCs: []string{""}}, "npcId"},
+		{"wrong version", UnityRegistration{ProtocolVersion: 1, InstanceID: "game"}, "protocolVersion"},
+		{"missing instance", UnityRegistration{ProtocolVersion: 2}, "instanceId"},
+		{"empty npc", UnityRegistration{ProtocolVersion: 2, InstanceID: "game", NPCs: []string{""}}, "npcId"},
 		{"duplicate npc", UnityRegistration{
-			ProtocolVersion: 1, InstanceID: "game", NPCs: []string{"npc-1", "npc-1"},
+			ProtocolVersion: 2, InstanceID: "game", NPCs: []string{"npc-1", "npc-1"},
 			NPCTools: map[string][]string{"npc-1": {}},
 		}, "duplicate npcId"},
 		{"invalid schema", UnityRegistration{
-			ProtocolVersion: 1, InstanceID: "game",
+			ProtocolVersion: 2, InstanceID: "game",
 			Tools:    []ToolDefinition{{Name: "move", InputSchema: json.RawMessage(`[]`)}},
 			NPCTools: map[string][]string{},
 		}, "inputSchema"},
 		{"duplicate tool", UnityRegistration{
-			ProtocolVersion: 1, InstanceID: "game",
+			ProtocolVersion: 2, InstanceID: "game",
 			Tools: []ToolDefinition{
 				{Name: "move", InputSchema: json.RawMessage(`{"type":"object"}`)},
 				{Name: "move", InputSchema: json.RawMessage(`{"type":"object"}`)},
 			},
 			NPCTools: map[string][]string{},
 		}, "duplicate tool"},
-		{"missing npc tools", UnityRegistration{ProtocolVersion: 1, InstanceID: "game", NPCs: []string{"npc-1"}}, "npcTools"},
+		{"missing npc tools", UnityRegistration{ProtocolVersion: 2, InstanceID: "game", NPCs: []string{"npc-1"}}, "npcTools"},
 		{"unknown mapped tool", UnityRegistration{
-			ProtocolVersion: 1, InstanceID: "game", NPCs: []string{"npc-1"},
+			ProtocolVersion: 2, InstanceID: "game", NPCs: []string{"npc-1"},
 			NPCTools: map[string][]string{"npc-1": {"missing"}},
 		}, "unknown tool"},
 		{"duplicate mapped tool", UnityRegistration{
-			ProtocolVersion: 1, InstanceID: "game", NPCs: []string{"npc-1"},
+			ProtocolVersion: 2, InstanceID: "game", NPCs: []string{"npc-1"},
 			Tools: []ToolDefinition{{
 				Name: "move", InputSchema: json.RawMessage(`{"type":"object"}`),
 			}},
 			NPCTools: map[string][]string{"npc-1": {"move", "move"}},
 		}, "duplicate tool"},
 		{"unknown mapped npc", UnityRegistration{
-			ProtocolVersion: 1, InstanceID: "game", NPCTools: map[string][]string{"npc-1": {}},
+			ProtocolVersion: 2, InstanceID: "game", NPCTools: map[string][]string{"npc-1": {}},
 		}, "unknown npcId"},
 	}
 	for _, tt := range tests {

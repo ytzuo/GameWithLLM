@@ -40,6 +40,7 @@ type Config struct {
 	LLMMaxRetries           int
 	LLMMaxToolRounds        int
 	LLMMaxContextChars      int
+	ConversationSaveDir     string
 }
 
 // Load reads .env.local/.env while allowing real process environment variables
@@ -63,9 +64,26 @@ func Load() Config {
 		LLMMaxRetries:           nonNegativeIntValue("LLM_MAX_RETRIES", values, defaultLLMMaxRetries),
 		LLMMaxToolRounds:        intValue("LLM_MAX_TOOL_ROUNDS", values, defaultLLMMaxToolRounds),
 		LLMMaxContextChars:      intValue("LLM_MAX_CONTEXT_CHARS", values, defaultLLMMaxContextChars),
+		ConversationSaveDir:     conversationSaveDir(values),
 	}
 }
 
+func conversationSaveDir(values map[string]string) string {
+	value := stringValue("CONVERSATION_SAVE_DIR", values, defaultConversationSaveDir())
+	if filepath.IsAbs(value) {
+		return filepath.Clean(value)
+	}
+	if root, ok := findRepoRoot(); ok {
+		return filepath.Join(root, value)
+	}
+	return filepath.Clean(value)
+}
+func defaultConversationSaveDir() string {
+	if root, ok := findRepoRoot(); ok {
+		return filepath.Join(root, "GameMCPServer", "data", "conversations")
+	}
+	return filepath.Join("data", "conversations")
+}
 func stringValue(key string, values map[string]string, fallback string) string {
 	if value := strings.TrimSpace(os.Getenv(key)); value != "" {
 		return value

@@ -24,8 +24,8 @@ func RegisterRoutesWithTimeout(mux *http.ServeMux, timeout time.Duration) *unity
 // RegisterRoutesWithConfig 注册生产路由，并把 LLM 与 ConversationService 装配到 Go Agent Host。
 func RegisterRoutesWithConfig(mux *http.ServeMux, cfg config.Config) *unity.JSONRPCServer {
 	llm := agent.NewOpenAICompatibleClient(cfg.LLMAPIURL, cfg.LLMAPIKey, cfg.LLMModel, cfg.LLMRequestTimeout, cfg.LLMMaxRetries)
-	return registerRoutes(mux, unity.NewJSONRPCServerWithAgent(
-		cfg.UnityToolTimeout, llm, cfg.LLMModel, cfg.LLMMaxToolRounds, cfg.LLMMaxContextChars,
+	return registerRoutes(mux, unity.NewJSONRPCServerWithAgentAndArchive(
+		cfg.UnityToolTimeout, llm, cfg.LLMModel, cfg.LLMMaxToolRounds, cfg.ConversationSaveDir, cfg.LLMMaxContextChars,
 	))
 }
 

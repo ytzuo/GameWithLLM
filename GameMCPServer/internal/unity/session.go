@@ -87,6 +87,10 @@ func (s *jsonRPCSession) readLoop() {
 			go s.handlePlayerMessage(msg)
 		case methodConversationEnd:
 			s.handleConversationEnd(msg)
+		case methodSavegameSave:
+			go s.handleSavegameConversationSave(msg)
+		case methodSavegameLoad:
+			go s.handleSavegameConversationLoad(msg)
 		default:
 			if err := s.writeError(msg.ID, -32601, fmt.Sprintf("method not found: %s", msg.Method)); err != nil {
 				log.Printf("event=jsonrpc_error_response_failed method=%q error=%q", msg.Method, err)
@@ -262,6 +266,79 @@ func (s *jsonRPCSession) handleConversationEnd(msg jsonRPCMessage) {
 	}
 }
 
+func (s *jsonRPCSession) handleSavegameConversationSave(msg jsonRPCMessage) {
+	if len(msg.ID) == 0 {
+		_ = s.writeError(msg.ID, -32600, "savegame.conversations.save requires id")
+		return
+	}
+	if s.conversations == nil {
+		_ = s.writeError(msg.ID, -32010, "Go Agent Host is not configured")
+		return
+	}
+	var params SavegameConversationSaveParams
+	if err := decodeParams(msg.Params, &params); err != nil {
+		_ = s.writeError(msg.ID, -32602, fmt.Sprintf("invalid savegame.conversations.save params: %v", err))
+		return
+	}
+	if err := params.Validate(); err != nil {
+		_ = s.writeError(msg.ID, -32602, err.Error())
+		return
+	}
+	if !s.registry.OwnsInstance(s, params.InstanceID) {
+		_ = s.writeError(msg.ID, -32602, "instanceId is not owned by this Unity connection")
+		return
+	}
+	result := s.conversations.SaveConversations(s.ctx, agent.ConversationSaveRequest{
+		InstanceID: params.InstanceID, PlayerID: params.PlayerID, SaveID: params.SaveID,
+		OperationID: params.OperationID, Mode: params.Mode,
+	})
+	log.Printf("event=conversation_snapshot_save_completed save_id=%q outcome=%t context_count=%d error_code=%q", params.SaveID, result.OK, result.ContextCount, result.ErrorCode)
+	_ = s.writeResult(msg.ID, result)
+}
+
+func (s *jsonRPCSession) handleSavegameConversationLoad(msg jsonRPCMessage) {
+	if len(msg.ID) == 0 {
+		_ = s.writeError(msg.ID, -32600, "savegame.conversations.load requires id")
+		return
+	}
+	if s.conversations == nil {
+		_ = s.writeError(msg.ID, -32010, "Go Agent Host is not configured")
+		return
+	}
+	var params SavegameConversationLoadParams
+	if err := decodeParams(msg.Params, &params); err != nil {
+		_ = s.writeError(msg.ID, -32602, fmt.Sprintf("invalid savegame.conversations.load params: %v", err))
+		return
+	}
+	if err := params.Validate(); err != nil {
+		_ = s.writeError(msg.ID, -32602, err.Error())
+		return
+	}
+	if !s.registry.OwnsInstance(s, params.InstanceID) {
+		_ = s.writeError(msg.ID, -32602, "instanceId is not owned by this Unity connection")
+		return
+	}
+	for _, npcID := range params.NPCIDs {
+		_, owner, online := s.registry.ResolveNPC(npcID)
+		if !online || owner != s {
+			_ = s.writeError(msg.ID, -32602, fmt.Sprintf("npcId is not registered on this Unity connection: %s", npcID))
+			return
+		}
+	}
+	result := s.conversations.LoadConversations(s.ctx, agent.ConversationLoadRequest{
+		InstanceID: params.InstanceID, PlayerID: params.PlayerID, SaveID: params.SaveID, NPCIDs: params.NPCIDs,
+	})
+	if result.OK {
+		s.conversationMu.Lock()
+		s.conversationIDs = make(map[string]struct{}, len(result.Contexts))
+		for _, context := range result.Contexts {
+			s.conversationIDs[context.SessionID] = struct{}{}
+		}
+		s.conversationMu.Unlock()
+	}
+	log.Printf("event=conversation_snapshot_load_completed save_id=%q outcome=%t context_count=%d error_code=%q", params.SaveID, result.OK, len(result.Contexts), result.ErrorCode)
+	_ = s.writeResult(msg.ID, result)
+}
 func (s *jsonRPCSession) ownsConversation(sessionID string) bool {
 	s.conversationMu.Lock()
 	defer s.conversationMu.Unlock()

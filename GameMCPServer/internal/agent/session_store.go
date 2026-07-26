@@ -14,6 +14,8 @@ type SessionStore interface {
 	Load(ctx context.Context, sessionID string) (*Session, error)
 	Save(ctx context.Context, session *Session) error
 	Delete(ctx context.Context, sessionID string) error
+	ListByOwner(ctx context.Context, playerID, instanceID string) ([]*Session, error)
+	ReplaceByOwner(ctx context.Context, playerID, instanceID string, sessions []*Session) error
 }
 
 // MemorySessionStore 使用并发安全的进程内 map 保存 Session。
@@ -57,5 +59,38 @@ func (s *MemorySessionStore) Delete(_ context.Context, sessionID string) error {
 		return ErrSessionNotFound
 	}
 	delete(s.sessions, sessionID)
+	return nil
+}
+
+// ListByOwner 返回指定玩家在指定 Unity 实例中的全部会话引用。
+func (s *MemorySessionStore) ListByOwner(_ context.Context, playerID, instanceID string) ([]*Session, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	result := make([]*Session, 0)
+	for _, session := range s.sessions {
+		if session.PlayerID == playerID && session.UnityInstanceID == instanceID {
+			result = append(result, session)
+		}
+	}
+	return result, nil
+}
+
+// ReplaceByOwner 原子移除旧会话并安装加载后生成的新会话。
+func (s *MemorySessionStore) ReplaceByOwner(_ context.Context, playerID, instanceID string, sessions []*Session) error {
+	for _, session := range sessions {
+		if session == nil || session.ID == "" {
+			return errors.New("replacement session with id is required")
+		}
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for id, session := range s.sessions {
+		if session.PlayerID == playerID && session.UnityInstanceID == instanceID {
+			delete(s.sessions, id)
+		}
+	}
+	for _, session := range sessions {
+		s.sessions[session.ID] = session
+	}
 	return nil
 }

@@ -5,11 +5,13 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+
+	"GameMCPServer/internal/agent"
 )
 
 const (
 	jsonRPCVersion       = "2.0"
-	unityProtocolVersion = 1
+	unityProtocolVersion = 2
 
 	methodUnityRegister     = "unity.register"
 	methodUnityNPCChanged   = "unity.npc.changed"
@@ -19,6 +21,8 @@ const (
 	methodConversationStart = "conversation.start"
 	methodPlayerMessage     = "player.message"
 	methodConversationEnd   = "conversation.end"
+	methodSavegameSave      = "savegame.conversations.save"
+	methodSavegameLoad      = "savegame.conversations.load"
 	methodAssistantStatus   = "assistant.status"
 	methodAssistantDelta    = "assistant.delta"
 )
@@ -149,6 +153,44 @@ type PlayerMessageParams struct {
 // ConversationEndParams 指定要结束并从内存删除的 Session。
 type ConversationEndParams struct {
 	SessionID string `json:"sessionId"`
+}
+
+// SavegameConversationSaveParams 请求保存当前玩家在本实例中的全部 NPC 对话。
+type SavegameConversationSaveParams struct {
+	ProtocolVersion int    `json:"protocolVersion"`
+	InstanceID      string `json:"instanceId"`
+	PlayerID        string `json:"playerId"`
+	SaveID          string `json:"saveId"`
+	OperationID     string `json:"operationId"`
+	Mode            string `json:"mode"`
+}
+
+func (p SavegameConversationSaveParams) Validate() error {
+	if p.ProtocolVersion != unityProtocolVersion {
+		return fmt.Errorf("unsupported protocolVersion: %d", p.ProtocolVersion)
+	}
+	return agent.ValidateSaveConversationRequest(agent.ConversationSaveRequest{
+		InstanceID: p.InstanceID, PlayerID: p.PlayerID, SaveID: p.SaveID,
+		OperationID: p.OperationID, Mode: p.Mode,
+	})
+}
+
+// SavegameConversationLoadParams 请求以文件快照整体替换当前玩家的内存对话。
+type SavegameConversationLoadParams struct {
+	ProtocolVersion int      `json:"protocolVersion"`
+	InstanceID      string   `json:"instanceId"`
+	PlayerID        string   `json:"playerId"`
+	SaveID          string   `json:"saveId"`
+	NPCIDs          []string `json:"npcIds"`
+}
+
+func (p SavegameConversationLoadParams) Validate() error {
+	if p.ProtocolVersion != unityProtocolVersion {
+		return fmt.Errorf("unsupported protocolVersion: %d", p.ProtocolVersion)
+	}
+	return agent.ValidateLoadConversationRequest(agent.ConversationLoadRequest{
+		InstanceID: p.InstanceID, PlayerID: p.PlayerID, SaveID: p.SaveID, NPCIDs: p.NPCIDs,
+	})
 }
 
 // AssistantStatusParams 向 Unity 推送保留的非文本状态。

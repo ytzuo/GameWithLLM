@@ -36,7 +36,7 @@ func TestJSONRPCServerHandleWebSocketRejectsPlainHTTP_BitsUT(t *testing.T) {
 	assert.Equal(t, http.StatusUpgradeRequired, recorder.Code)
 }
 
-func TestJSONRPCServerWebSocketV1Integration_BitsUT(t *testing.T) {
+func TestJSONRPCServerWebSocketV2Integration_BitsUT(t *testing.T) {
 	server := NewJSONRPCServer(time.Second)
 	httpServer := httptest.NewServer(http.HandlerFunc(server.HandleWebSocket))
 	defer httpServer.Close()
@@ -57,7 +57,7 @@ func TestJSONRPCServerWebSocketV1Integration_BitsUT(t *testing.T) {
 	}))
 	var response jsonRPCMessage
 	require.NoError(t, wsjson.Read(ctx, conn, &response))
-	assert.JSONEq(t, `{"accepted":true,"protocolVersion":1}`, string(response.Result))
+	assert.JSONEq(t, `{"accepted":true,"protocolVersion":2}`, string(response.Result))
 
 	fragmentedMessage, err := json.Marshal(jsonRPCMessage{
 		JSONRPC: jsonRPCVersion,

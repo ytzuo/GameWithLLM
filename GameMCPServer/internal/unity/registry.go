@@ -218,6 +218,14 @@ func (r *UnityRegistry) HasTool(instanceID, npcID, toolName string) bool {
 	return globallyDefined && availableForNPC
 }
 
+// OwnsInstance 判断连接是否拥有指定 Unity 实例。
+func (r *UnityRegistry) OwnsInstance(session *jsonRPCSession, instanceID string) bool {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	instance := r.instances[instanceID]
+	return instance != nil && instance.session == session
+}
+
 // IsRegistered 判断连接是否已经完成 unity.register。
 func (r *UnityRegistry) IsRegistered(session *jsonRPCSession) bool {
 	r.mu.RLock()
