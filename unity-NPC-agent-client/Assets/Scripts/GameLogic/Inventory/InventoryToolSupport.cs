@@ -283,7 +283,17 @@ internal static class InventoryToolSupport
     private static float DistanceToContainer(Vector3 origin, InventoryComponent container)
     {
         Collider collider = container.GetComponent<Collider>();
-        Vector3 destination = collider != null && collider.enabled ? collider.ClosestPoint(origin) : container.transform.position;
+        Vector3 destination = container.transform.position;
+        if (collider != null && collider.enabled)
+        {
+            // Unity 的 Collider.ClosestPoint 不支持非凸 MeshCollider，直接调用会在
+            // 查询附近容器时产生运行时错误，并让后续物品交付使用不可靠的距离。
+            // 对该类型使用世界空间包围盒作为稳定的距离近似。
+            MeshCollider meshCollider = collider as MeshCollider;
+            destination = meshCollider != null && !meshCollider.convex
+                ? collider.bounds.ClosestPoint(origin)
+                : collider.ClosestPoint(origin);
+        }
         return Vector3.Distance(origin, destination);
     }
 
