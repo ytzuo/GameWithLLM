@@ -27,20 +27,20 @@ type JSONRPCServer struct {
 
 // NewJSONRPCServer 创建 Unity JSON-RPC WebSocket 服务。
 func NewJSONRPCServer(timeout time.Duration) *JSONRPCServer {
-	return newJSONRPCServer(timeout, nil, "", 0, "")
+	return newJSONRPCServer(timeout, nil, nil, "", 0, "")
 }
 
 // NewJSONRPCServerWithAgent 创建启用 LLM 对话和 Unity 工具循环的生产服务。
-func NewJSONRPCServerWithAgent(timeout time.Duration, llm agent.LLMClient, model string, maxToolRounds int, contextBudgets ...int) *JSONRPCServer {
-	return newJSONRPCServer(timeout, llm, model, maxToolRounds, "", contextBudgets...)
+func NewJSONRPCServerWithAgent(timeout time.Duration, llm agent.LLMClient, profiles *agent.NPCProfileCatalog, model string, maxToolRounds int, contextBudgets ...int) *JSONRPCServer {
+	return newJSONRPCServer(timeout, llm, profiles, model, maxToolRounds, "", contextBudgets...)
 }
 
 // NewJSONRPCServerWithAgentAndArchive 创建启用对话快照持久化的生产服务。
-func NewJSONRPCServerWithAgentAndArchive(timeout time.Duration, llm agent.LLMClient, model string, maxToolRounds int, archiveDir string, contextBudgets ...int) *JSONRPCServer {
-	return newJSONRPCServer(timeout, llm, model, maxToolRounds, archiveDir, contextBudgets...)
+func NewJSONRPCServerWithAgentAndArchive(timeout time.Duration, llm agent.LLMClient, profiles *agent.NPCProfileCatalog, model string, maxToolRounds int, archiveDir string, contextBudgets ...int) *JSONRPCServer {
+	return newJSONRPCServer(timeout, llm, profiles, model, maxToolRounds, archiveDir, contextBudgets...)
 }
 
-func newJSONRPCServer(timeout time.Duration, llm agent.LLMClient, model string, maxToolRounds int, archiveDir string, contextBudgets ...int) *JSONRPCServer {
+func newJSONRPCServer(timeout time.Duration, llm agent.LLMClient, profiles *agent.NPCProfileCatalog, model string, maxToolRounds int, archiveDir string, contextBudgets ...int) *JSONRPCServer {
 	registry := NewUnityRegistry()
 	executor := NewToolExecutor(registry, timeout)
 	server := &JSONRPCServer{
@@ -50,11 +50,11 @@ func newJSONRPCServer(timeout time.Duration, llm agent.LLMClient, model string, 
 	if llm != nil {
 		if archiveDir == "" {
 			server.conversations = agent.NewConversationService(
-				llm, agent.NewMemorySessionStore(), newAgentRuntime(registry, executor), model, maxToolRounds, contextBudgets...,
+				llm, agent.NewMemorySessionStore(), newAgentRuntime(registry, executor), profiles, model, maxToolRounds, contextBudgets...,
 			)
 		} else {
 			server.conversations = agent.NewConversationServiceWithArchive(
-				llm, agent.NewMemorySessionStore(), newAgentRuntime(registry, executor), model, maxToolRounds,
+				llm, agent.NewMemorySessionStore(), newAgentRuntime(registry, executor), profiles, model, maxToolRounds,
 				agent.NewFileConversationArchive(archiveDir), contextBudgets...,
 			)
 		}

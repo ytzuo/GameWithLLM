@@ -63,7 +63,7 @@ func (r *fakeRuntime) Execute(_ context.Context, _, _, name string, arguments js
 
 func TestConversationService_NoToolReplyAndIsolation(t *testing.T) {
 	llm := &scriptedLLM{results: []*CompletionResult{{Content: "hello"}, {Content: "second"}}}
-	service := NewConversationService(llm, NewMemorySessionStore(), &fakeRuntime{}, "test-model", 3)
+	service := NewConversationService(llm, NewMemorySessionStore(), &fakeRuntime{}, testProfileCatalog("npc-1", "npc-2"), "test-model", 3)
 
 	first, err := service.StartSession(context.Background(), "player", "npc-1")
 	require.NoError(t, err)
@@ -86,7 +86,7 @@ func TestConversationService_ToolLoopKeepsAtomicPair(t *testing.T) {
 		{Content: "我去大门。"},
 	}}
 	runtime := &fakeRuntime{}
-	service := NewConversationService(llm, NewMemorySessionStore(), runtime, "test-model", 3)
+	service := NewConversationService(llm, NewMemorySessionStore(), runtime, testProfileCatalog("npc-1"), "test-model", 3)
 	session, err := service.StartSession(context.Background(), "player", "npc-1")
 	require.NoError(t, err)
 
@@ -110,7 +110,7 @@ func TestConversationService_PreservesStructuredToolResult(t *testing.T) {
 	runtime := &fakeRuntime{result: &ToolExecutionResult{
 		OK: true, Data: json.RawMessage(`{"target":"gate","distance":1.5}`),
 	}}
-	service := NewConversationService(llm, NewMemorySessionStore(), runtime, "test-model", 3)
+	service := NewConversationService(llm, NewMemorySessionStore(), runtime, testProfileCatalog("npc-1"), "test-model", 3)
 	session, err := service.StartSession(context.Background(), "player", "npc-1")
 	require.NoError(t, err)
 
@@ -127,7 +127,7 @@ func TestConversationService_ResetsToolRoundTextBeforeFinalReply(t *testing.T) {
 		{Content: "我先看看。", ToolCalls: []ToolCall{{ID: "call-1", Name: "game_npc_move", Arguments: json.RawMessage(`{"targetId":"landmark:gate"}`)}}},
 		{Content: "我已经出发了。"},
 	}}
-	service := NewConversationService(llm, NewMemorySessionStore(), &fakeRuntime{}, "test-model", 3)
+	service := NewConversationService(llm, NewMemorySessionStore(), &fakeRuntime{}, testProfileCatalog("npc-1", "npc-2"), "test-model", 3)
 	session, err := service.StartSession(context.Background(), "player", "npc-1")
 	require.NoError(t, err)
 
@@ -149,7 +149,7 @@ func TestConversationService_ResetsToolRoundTextBeforeFinalReply(t *testing.T) {
 func TestConversationService_RejectsToolLoopPastLimit(t *testing.T) {
 	call := &CompletionResult{ToolCalls: []ToolCall{{ID: "call", Name: "game_npc_move", Arguments: json.RawMessage(`{"targetId":"landmark:gate"}`)}}}
 	llm := &scriptedLLM{results: []*CompletionResult{call, call}}
-	service := NewConversationService(llm, NewMemorySessionStore(), &fakeRuntime{}, "test-model", 1)
+	service := NewConversationService(llm, NewMemorySessionStore(), &fakeRuntime{}, testProfileCatalog("npc-1"), "test-model", 1)
 	session, err := service.StartSession(context.Background(), "player", "npc-1")
 	require.NoError(t, err)
 
@@ -169,7 +169,7 @@ func (l *blockingLLM) Complete(ctx context.Context, _ CompletionRequest) (*Compl
 
 func TestConversationService_EndSessionCancelsActiveCompletion(t *testing.T) {
 	llm := &blockingLLM{started: make(chan struct{})}
-	service := NewConversationService(llm, NewMemorySessionStore(), &fakeRuntime{}, "test-model", 3)
+	service := NewConversationService(llm, NewMemorySessionStore(), &fakeRuntime{}, testProfileCatalog("npc-1", "npc-2"), "test-model", 3)
 	session, err := service.StartSession(context.Background(), "player", "npc-1")
 	require.NoError(t, err)
 
@@ -224,7 +224,7 @@ func (r *cancellationBlockingRuntime) Execute(
 func TestConversationService_EndSessionDuringToolDoesNotRestoreDeletedSession(t *testing.T) {
 	store := NewMemorySessionStore()
 	runtime := &cancellationBlockingRuntime{started: make(chan struct{})}
-	service := NewConversationService(toolThenContextLLM{}, store, runtime, "test-model", 3)
+	service := NewConversationService(toolThenContextLLM{}, store, runtime, testProfileCatalog("npc-1"), "test-model", 3)
 	session, err := service.StartSession(context.Background(), "player", "npc-1")
 	require.NoError(t, err)
 
@@ -247,6 +247,7 @@ func TestConversationService_SubmitRejectsClosedSession(t *testing.T) {
 		&scriptedLLM{results: []*CompletionResult{{Content: "不应调用"}}},
 		store,
 		&fakeRuntime{},
+		testProfileCatalog("npc-1"),
 		"test-model",
 		3,
 	)

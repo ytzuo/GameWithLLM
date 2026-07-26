@@ -236,6 +236,8 @@ func conversationErrorCode(err error) int {
 	switch {
 	case errors.Is(err, agent.ErrSessionNotFound):
 		return -32012
+	case errors.Is(err, agent.ErrNPCProfileNotFound):
+		return -32013
 	case agent.IsTemporaryLLMError(err):
 		return -32022
 	case agent.IsLLMRequestError(err):

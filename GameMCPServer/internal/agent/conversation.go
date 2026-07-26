@@ -38,6 +38,7 @@ type Service struct {
 	store           SessionStore
 	runtime         Runtime
 	policy          gametools.Policy
+	profiles        *NPCProfileCatalog
 	model           string
 	maxContextChars int
 	archive         *FileConversationArchive
@@ -45,22 +46,22 @@ type Service struct {
 }
 
 // NewConversationService 装配模型、会话存储、Unity 运行时和工具/上下文预算。
-func NewConversationService(llm LLMClient, store SessionStore, runtime Runtime, model string, maxToolRounds int, contextBudgets ...int) *Service {
-	return newConversationService(llm, store, runtime, model, maxToolRounds, nil, contextBudgets...)
+func NewConversationService(llm LLMClient, store SessionStore, runtime Runtime, profiles *NPCProfileCatalog, model string, maxToolRounds int, contextBudgets ...int) *Service {
+	return newConversationService(llm, store, runtime, profiles, model, maxToolRounds, nil, contextBudgets...)
 }
 
 // NewConversationServiceWithArchive 启用显式 save/load 请求使用的文件快照仓库。
-func NewConversationServiceWithArchive(llm LLMClient, store SessionStore, runtime Runtime, model string, maxToolRounds int, archive *FileConversationArchive, contextBudgets ...int) *Service {
-	return newConversationService(llm, store, runtime, model, maxToolRounds, archive, contextBudgets...)
+func NewConversationServiceWithArchive(llm LLMClient, store SessionStore, runtime Runtime, profiles *NPCProfileCatalog, model string, maxToolRounds int, archive *FileConversationArchive, contextBudgets ...int) *Service {
+	return newConversationService(llm, store, runtime, profiles, model, maxToolRounds, archive, contextBudgets...)
 }
 
-func newConversationService(llm LLMClient, store SessionStore, runtime Runtime, model string, maxToolRounds int, archive *FileConversationArchive, contextBudgets ...int) *Service {
+func newConversationService(llm LLMClient, store SessionStore, runtime Runtime, profiles *NPCProfileCatalog, model string, maxToolRounds int, archive *FileConversationArchive, contextBudgets ...int) *Service {
 	maxContextChars := defaultMaxContextChars
 	if len(contextBudgets) > 0 && contextBudgets[0] > 0 {
 		maxContextChars = contextBudgets[0]
 	}
 	return &Service{
-		llm: llm, store: store, runtime: runtime, policy: gametools.NewPolicy(maxToolRounds),
+		llm: llm, store: store, runtime: runtime, policy: gametools.NewPolicy(maxToolRounds), profiles: profiles,
 		model: model, maxContextChars: maxContextChars, archive: archive,
 	}
 }
@@ -75,6 +76,10 @@ func (s *Service) StartSession(ctx context.Context, playerID, npcID string) (*Se
 	if strings.TrimSpace(npcID) == "" {
 		return nil, fmt.Errorf("npcId is required")
 	}
+	profile, profileFound := s.profiles.Get(npcID)
+	if !profileFound {
+		return nil, fmt.Errorf("%w: %s", ErrNPCProfileNotFound, npcID)
+	}
 	instanceID, _, ok := s.runtime.Capabilities(npcID)
 	if !ok {
 		return nil, fmt.Errorf("NPC is not registered or offline: %s", npcID)
@@ -82,7 +87,7 @@ func (s *Service) StartSession(ctx context.Context, playerID, npcID string) (*Se
 	now := time.Now().UTC()
 	session := &Session{
 		ID: newSessionID(), PlayerID: playerID, NPCID: npcID, UnityInstanceID: instanceID,
-		SystemPrompt: BuildSystemPrompt(npcID),
+		SystemPrompt: BuildSystemPrompt(profile),
 		Model:        s.model, CreatedAt: now, LastActiveAt: now,
 	}
 	session.Messages = []Message{{Role: "system", Content: session.SystemPrompt}}

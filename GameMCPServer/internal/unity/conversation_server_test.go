@@ -18,6 +18,15 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func testAgentNPCProfile(npcID string) agent.NPCProfile {
+	return agent.NPCProfile{
+		NPCID: npcID, DisplayName: npcID, Identity: "测试 NPC", SpeakingStyle: "简洁",
+		Personality: []string{"可靠"}, Responsibilities: []string{"执行测试任务"},
+		WorldKnowledge:  []string{"测试场景"},
+		ForbiddenTopics: []string{"不得编造结果"},
+	}
+}
+
 type conversationScriptedLLM struct {
 	mu      sync.Mutex
 	results []*agent.CompletionResult
@@ -41,7 +50,9 @@ func TestJSONRPCServer_GoAgentConversationToolLoop(t *testing.T) {
 		{ToolCalls: []agent.ToolCall{{ID: "llm-call-1", Name: "game_npc_move", Arguments: json.RawMessage(`{"targetId":"landmark:gate"}`)}}},
 		{Content: "我现在去大门。"},
 	}}
-	server := NewJSONRPCServerWithAgentAndArchive(2*time.Second, llm, "test-model", 3, t.TempDir())
+	profiles, err := agent.NewNPCProfileCatalog([]agent.NPCProfile{testAgentNPCProfile("Ryan_001")})
+	require.NoError(t, err)
+	server := NewJSONRPCServerWithAgentAndArchive(2*time.Second, llm, profiles, "test-model", 3, t.TempDir())
 	mux := http.NewServeMux()
 	mux.HandleFunc("/unity/ws", server.HandleWebSocket)
 	httpServer := httptest.NewServer(mux)

@@ -28,7 +28,10 @@ func main() {
 
 func run(ctx context.Context, cfg config.Config) error {
 	mux := http.NewServeMux()
-	jsonRPCServer := handler.RegisterRoutesWithConfig(mux, cfg)
+	jsonRPCServer, err := handler.RegisterRoutesWithConfig(mux, cfg)
+	if err != nil {
+		return err
+	}
 	httpServer := &http.Server{
 		Addr:              cfg.ServerAddr,
 		Handler:           mux,

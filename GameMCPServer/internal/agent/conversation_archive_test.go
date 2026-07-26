@@ -21,7 +21,7 @@ func TestConversationArchive_CreateIdempotentOverwriteAndExplicitLoad(t *testing
 	ctx := context.Background()
 	dir := t.TempDir()
 	llm := &scriptedLLM{results: []*CompletionResult{{Content: "answer"}}}
-	service := NewConversationServiceWithArchive(llm, NewMemorySessionStore(), &fakeRuntime{}, "model-a", 3, NewFileConversationArchive(dir))
+	service := NewConversationServiceWithArchive(llm, NewMemorySessionStore(), &fakeRuntime{}, testProfileCatalog("npc-1", "npc-2", "npc-current", "npc-other"), "model-a", 3, NewFileConversationArchive(dir))
 	session, err := service.StartSession(ctx, "player-1", "npc-1")
 	require.NoError(t, err)
 	_, err = service.SubmitMessage(ctx, session.ID, "question")
@@ -47,7 +47,11 @@ func TestConversationArchive_CreateIdempotentOverwriteAndExplicitLoad(t *testing
 	assert.Contains(t, string(raw), "question")
 
 	restoredStore := NewMemorySessionStore()
-	restored := NewConversationServiceWithArchive(&scriptedLLM{}, restoredStore, &fakeRuntime{}, "model-b", 3, NewFileConversationArchive(dir))
+	updatedProfile := testNPCProfile("npc-1")
+	updatedProfile.DisplayName = "更新后的名字"
+	restoredProfiles, err := NewNPCProfileCatalog([]NPCProfile{updatedProfile, testNPCProfile("npc-2")})
+	require.NoError(t, err)
+	restored := NewConversationServiceWithArchive(&scriptedLLM{}, restoredStore, &fakeRuntime{}, restoredProfiles, "model-b", 3, NewFileConversationArchive(dir))
 	loaded := restored.LoadConversations(ctx, ConversationLoadRequest{InstanceID: "game-1", PlayerID: "player-1", SaveID: testSaveID, NPCIDs: []string{"npc-1", "npc-2"}})
 	require.True(t, loaded.OK)
 	require.Len(t, loaded.Contexts, 1)
@@ -57,12 +61,13 @@ func TestConversationArchive_CreateIdempotentOverwriteAndExplicitLoad(t *testing
 	require.NoError(t, err)
 	assert.Equal(t, "model-b", restoredSession.Model)
 	assert.Equal(t, "system", restoredSession.Messages[0].Role)
+	assert.Contains(t, restoredSession.SystemPrompt, "更新后的名字")
 }
 
 func TestConversationArchive_LoadValidationDoesNotReplaceCurrentSessions(t *testing.T) {
 	ctx := context.Background()
 	dir := t.TempDir()
-	service := NewConversationServiceWithArchive(&scriptedLLM{}, NewMemorySessionStore(), &fakeRuntime{}, "model", 3, NewFileConversationArchive(dir))
+	service := NewConversationServiceWithArchive(&scriptedLLM{}, NewMemorySessionStore(), &fakeRuntime{}, testProfileCatalog("npc-1", "npc-2", "npc-current", "npc-other"), "model", 3, NewFileConversationArchive(dir))
 	existing, err := service.StartSession(ctx, "player-1", "npc-current")
 	require.NoError(t, err)
 
@@ -78,7 +83,7 @@ func TestConversationArchive_LoadValidationDoesNotReplaceCurrentSessions(t *test
 
 func TestConversationArchive_BusyAndResponseShapes(t *testing.T) {
 	ctx := context.Background()
-	service := NewConversationServiceWithArchive(&scriptedLLM{}, NewMemorySessionStore(), &fakeRuntime{}, "model", 3, NewFileConversationArchive(t.TempDir()))
+	service := NewConversationServiceWithArchive(&scriptedLLM{}, NewMemorySessionStore(), &fakeRuntime{}, testProfileCatalog("npc-1", "npc-2", "npc-current", "npc-other"), "model", 3, NewFileConversationArchive(t.TempDir()))
 	session, err := service.StartSession(ctx, "player-1", "npc-1")
 	require.NoError(t, err)
 	session.mu.Lock()

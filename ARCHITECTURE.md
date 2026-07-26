@@ -10,12 +10,19 @@ Go Agent Host 负责大模型调用、对话 Session、工具决策、参数校�
 
 Go 是智能决策和会话状态的权威来源，主要包含：
 
-- `agent`：维护对话 Session，调用 LLM，并运行 tool-call 循环。
+- `agent`：严格加载结构化 NPC Profile，维护对话 Session，生成角色 system prompt，调用 LLM，并运行 tool-call 循环。
 - `tools`：根据 Unity 注册的能力生成模型可见工具，完成参数和策略校验。
 - `unity`：维护 Unity 实例、NPC 和工具能力快照，并将工具命令路由到正确连接。
 - `handler`：提供 `/unity/ws`、`/health` 和根路径 HTTP 入口。
 
 Go 不直接操作 Unity 对象，也不保存游戏世界的实时权威状态。运行时 Session 仍使用内存存储；Go 重启后内存为空，仅在 Unity 显式加载存档时从 Go 自有 JSON 快照恢复对应 NPC 上下文。
+### NPC Profile 与提示词
+
+Go 启动时从 `NPC_PROFILE_PATH` 指向的 JSON 文件严格加载不可变 Profile Catalog，默认文件为 `GameMCPServer/config/npc_profiles.json`。每个 Profile 以 `npcId` 唯一标识，结构化声明 `displayName`、性格、说话方式、身份、职责、静态世界背景和禁止透露事项；未知字段、重复 ID、空字段或越界列表会阻止 Agent Host 启动。
+
+`conversation.start` 必须找到对应 Profile，否则返回 JSON-RPC `-32013`。Session 创建时由 Go 的固定模板渲染 system prompt；存档不保存 Profile 或 system prompt，加载时使用当前 Profile 重建，因此配置更新只影响新建或恢复后的 Session。
+
+Profile 的职责描述不构成执行授权。模型每轮可见与实际可执行的工具仍然只来自 Unity 运行时注册，并继续经过 Go 策略和 Schema 校验。Profile 只允许保存静态背景；坐标、距离、路径、库存、任务进度和行为结果等实时状态仍以 Unity 为唯一事实源。
 
 ## Unity 执行端
 
@@ -327,6 +334,7 @@ sequenceDiagram
 | -32010 | Agent Host未配置 |
 | -32011 | 对话不属于当前连接 |
 | -32012 | 对话会话不存在或已失效 |
+| -32013 | NPC Profile 缺失，拒绝创建对话 |
 | -32020 | 未分类的对话处理失败 |
 | -32021 | LLM 永久请求错误，不应自动重试 |
 | -32022 | LLM 临时请求错误，可稍后重试 |

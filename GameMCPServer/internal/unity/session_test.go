@@ -88,6 +88,7 @@ func TestConversationErrorCode_BitsUT(t *testing.T) {
 		want int
 	}{
 		{name: "missing session", err: agent.ErrSessionNotFound, want: -32012},
+		{name: "missing NPC profile", err: agent.ErrNPCProfileNotFound, want: -32013},
 		{name: "permanent provider failure", err: &agent.LLMRequestError{StatusCode: 400}, want: -32021},
 		{name: "temporary provider failure", err: &agent.LLMRequestError{StatusCode: 503, Temporary: true}, want: -32022},
 		{name: "other failure", err: errors.New("boom"), want: -32020},

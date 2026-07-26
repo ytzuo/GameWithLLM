@@ -5,9 +5,12 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
+
+	"GameMCPServer/internal/config"
 
 	"github.com/coder/websocket"
 	"github.com/coder/websocket/wsjson"
@@ -55,4 +58,11 @@ func TestRegisterRoutesWithTimeout_BitsUT(t *testing.T) {
 	require.NoError(t, wsjson.Read(ctx, conn, &message))
 	assert.JSONEq(t, `"register-1"`, string(message.ID))
 	assert.JSONEq(t, `{"accepted":true,"protocolVersion":2}`, string(message.Result))
+}
+func TestRegisterRoutesWithConfigRejectsMissingNPCProfileFile_BitsUT(t *testing.T) {
+	mux := http.NewServeMux()
+	_, err := RegisterRoutesWithConfig(mux, config.Config{
+		NPCProfilePath: filepath.Join(t.TempDir(), "missing-profiles.json"),
+	})
+	require.ErrorContains(t, err, "load NPC profiles")
 }

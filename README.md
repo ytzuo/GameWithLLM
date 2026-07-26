@@ -31,6 +31,11 @@ https://www.bilibili.com/video/BV1cqgv6wEHc/?share_source=copy_web&vd_source=247
 
 详细架构说明见 [ARCHITECTURE.md](https://www.google.com/search?q=./ARCHITECTURE.md)。
 
+## NPC 角色配置
+
+Go 在启动时从 `GameMCPServer/config/npc_profiles.json` 严格加载 NPC Profile。Profile 定义显示名、性格、说话方式、身份、职责、静态世界背景和禁止透露事项，并由统一模板生成 system prompt。缺少对应 `npcId` 的 Profile 时拒绝创建对话。
+
+Profile 中的职责只描述角色承担的事务范围；模型每一轮实际可调用的工具仍然只来自 Unity 运行时注册，Profile 不授予或扩展真实执行权限。实时坐标、路径、库存和行为结果不得写入 Profile，必须通过 Unity 工具查询。
 ## 项目结构
 
 | 目录 | 职责 |
@@ -128,6 +133,7 @@ Unity 会自动连接 Go Agent Host 并完成注册。之后在场景中与 NPC 
 | `LLM_MAX_TOOL_ROUNDS` | 单轮对话最大工具调用次数 | `4` |
 | `LLM_MAX_CONTEXT_CHARS` | 单个会话发送给模型的上下文字符预算；按完整对话轮次裁剪 | `32000` |
 | `CONVERSATION_SAVE_DIR` | Go 自有 NPC 对话快照目录；仅显式加载时读取 | `GameMCPServer/data/conversations` |
+| `NPC_PROFILE_PATH` | Go 侧结构化 NPC 角色配置；启动时严格加载 | `GameMCPServer/config/npc_profiles.json` |
 
 ### Unity
 

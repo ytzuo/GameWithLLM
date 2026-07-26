@@ -419,7 +419,11 @@ func (s *Service) LoadConversations(ctx context.Context, request ConversationLoa
 	replacements := make([]*Session, 0, len(snapshot.Contexts))
 	contexts := make([]LoadedConversationContext, 0, len(snapshot.Contexts))
 	for _, persisted := range snapshot.Contexts {
-		session := &Session{ID: newSessionID(), PlayerID: request.PlayerID, NPCID: persisted.NPCID, UnityInstanceID: request.InstanceID, SystemPrompt: BuildSystemPrompt(persisted.NPCID), Model: s.model, CreatedAt: persisted.CreatedAt, LastActiveAt: persisted.LastActiveAt}
+		profile, profileFound := s.profiles.Get(persisted.NPCID)
+		if !profileFound {
+			return failedLoad("NPC_PROFILE_NOT_FOUND", fmt.Sprintf("NPC profile is missing: %s", persisted.NPCID))
+		}
+		session := &Session{ID: newSessionID(), PlayerID: request.PlayerID, NPCID: persisted.NPCID, UnityInstanceID: request.InstanceID, SystemPrompt: BuildSystemPrompt(profile), Model: s.model, CreatedAt: persisted.CreatedAt, LastActiveAt: persisted.LastActiveAt}
 		session.Messages = []Message{{Role: "system", Content: session.SystemPrompt}}
 		for _, message := range persisted.HistoryMessages {
 			session.Messages = append(session.Messages, cloneMessage(message))
