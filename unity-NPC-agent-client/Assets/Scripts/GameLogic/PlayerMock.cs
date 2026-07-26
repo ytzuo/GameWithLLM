@@ -66,6 +66,8 @@ public class PlayerMock : MonoBehaviour
 
     private void Awake()
     {
+        WorldModelInitial.Attach(gameObject, "P");
+
         // F —— 打开聊天界面
         _interactAction = new InputAction("Interact", binding: "<Keyboard>/f");
         // ESC —— 退出界面

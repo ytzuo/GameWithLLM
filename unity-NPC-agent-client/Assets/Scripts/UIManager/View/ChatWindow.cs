@@ -368,6 +368,13 @@ public class ChatWindow : BaseWindow
 
         label.text = messageText;
 
+        if (template == _opponentMessageTemplate)
+        {
+            Label avatarLabel = container.Q<Label>("avatar-label");
+            if (avatarLabel != null && !string.IsNullOrWhiteSpace(_activeNpcId))
+                avatarLabel.text = char.ToUpperInvariant(_activeNpcId.Trim()[0]).ToString();
+        }
+
         // A player message is added and the input field is reset in the same frame.
         // Scrolling from the message's scheduler can run before the ScrollView has
         // recalculated its content height. Wait for the new row's first layout pass
@@ -423,5 +430,73 @@ public class ChatWindow : BaseWindow
 
         _latestOpponentMessageLabel.text = message;
         RootElement.schedule.Execute(() => ScrollToLatestMessage());
+    }
+}
+
+public sealed class WorldModelInitial : MonoBehaviour
+{
+    private const string LabelObjectName = "ModelInitial";
+    private Transform _labelTransform;
+    private Camera _camera;
+
+    public static void Attach(GameObject owner, string initial)
+    {
+        if (owner == null || string.IsNullOrWhiteSpace(initial))
+            return;
+
+        WorldModelInitial marker = owner.GetComponent<WorldModelInitial>();
+        if (marker == null)
+            marker = owner.AddComponent<WorldModelInitial>();
+
+        marker.SetInitial(initial.Trim().Substring(0, 1).ToUpperInvariant());
+    }
+
+    private void SetInitial(string initial)
+    {
+        Transform existing = transform.Find(LabelObjectName);
+        GameObject labelObject = existing != null ? existing.gameObject : new GameObject(LabelObjectName);
+        labelObject.transform.SetParent(transform, false);
+        labelObject.transform.localPosition = new Vector3(0f, CalculateLabelHeight(), 0f);
+
+        TextMesh textMesh = labelObject.GetComponent<TextMesh>();
+        if (textMesh == null)
+            textMesh = labelObject.AddComponent<TextMesh>();
+
+        textMesh.text = initial;
+        textMesh.anchor = TextAnchor.MiddleCenter;
+        textMesh.alignment = TextAlignment.Center;
+        textMesh.fontSize = 64;
+        textMesh.characterSize = 0.12f;
+        textMesh.fontStyle = FontStyle.Bold;
+        textMesh.color = Color.white;
+
+        MeshRenderer textRenderer = textMesh.GetComponent<MeshRenderer>();
+        if (textRenderer != null)
+            textRenderer.sortingOrder = 10;
+
+        _labelTransform = labelObject.transform;
+    }
+
+    private float CalculateLabelHeight()
+    {
+        Renderer ownerRenderer = GetComponent<Renderer>();
+        return ownerRenderer == null
+            ? 1.5f
+            : ownerRenderer.bounds.max.y - transform.position.y + 0.35f;
+    }
+
+    private void LateUpdate()
+    {
+        if (_labelTransform == null)
+            return;
+
+        if (_camera == null)
+            _camera = Camera.main;
+        if (_camera == null)
+            return;
+
+        _labelTransform.rotation = Quaternion.LookRotation(
+            _labelTransform.position - _camera.transform.position,
+            _camera.transform.up);
     }
 }

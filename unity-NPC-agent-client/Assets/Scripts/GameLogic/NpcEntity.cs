@@ -113,6 +113,7 @@ public class NpcEntity : MonoBehaviour
 
     private void Start()
     {
+        WorldModelInitial.Attach(gameObject, npcId);
         _navAgent = GetComponent<NavMeshAgent>();
         if (_navAgent == null)
             Debug.LogError($"[NPC:{npcId}] NavMeshAgent is missing.", this);
