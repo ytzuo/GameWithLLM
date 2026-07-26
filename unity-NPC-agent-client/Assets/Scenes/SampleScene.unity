@@ -634,6 +634,8 @@ MonoBehaviour:
     uxmlAsset: {fileID: 9197481963319205126, guid: 5a071f35b8c8ecb46b8ffdc7e611fda2, type: 3}
   - WindowName: ItemDispenserWindow
     uxmlAsset: {fileID: 9197481963319205126, guid: 0b95635808ffd644bb406cb01565ed81, type: 3}
+  - WindowName: SaveGameWindow
+    uxmlAsset: {fileID: 9197481963319205126, guid: 4cdd6e1d8f954d32a49e45cc65987e94, type: 3}
 --- !u!1 &614615628
 GameObject:
   m_ObjectHideFlags: 0

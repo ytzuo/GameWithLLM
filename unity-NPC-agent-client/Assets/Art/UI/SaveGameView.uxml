@@ -1,0 +1,24 @@
+<ui:UXML xmlns:ui="UnityEngine.UIElements">
+    <Style src="project://database/Assets/Art/UI/SaveGameStyle.uss" />
+    <ui:VisualElement class="save-root">
+        <ui:VisualElement class="save-panel">
+            <ui:VisualElement class="save-header">
+                <ui:Label text="游戏存档" class="save-title" />
+                <ui:Button name="save-close" text="关闭" class="save-close" />
+            </ui:VisualElement>
+            <ui:TextField name="save-name" label="新存档名称" value="" class="save-name" />
+            <ui:Button name="save-create" text="保存为新存档" class="save-primary" />
+            <ui:Label text="已有存档" class="save-section" />
+            <ui:ScrollView class="save-scroll" mode="Vertical">
+                <ui:VisualElement name="save-list" class="save-list" />
+            </ui:ScrollView>
+            <ui:VisualElement class="save-actions">
+                <ui:Button name="save-overwrite" text="覆盖所选" />
+                <ui:Button name="save-retry" text="重试对话同步" />
+                <ui:Button name="save-load" text="加载所选" class="save-primary" />
+            </ui:VisualElement>
+            <ui:Label name="save-status" text="" class="save-status" />
+            <ui:Label text="加载会丢弃当前未保存的世界状态" class="save-hint" />
+        </ui:VisualElement>
+    </ui:VisualElement>
+</ui:UXML>
