@@ -56,7 +56,7 @@ Go 发往 Unity：
 - Unity 侧 LLM DTO、HttpClient、API Key 或本地对话历史
 - `OPENAI_API_KEY`、`MCP_SERVER_ADDR`、`MCP_BASE_URL` 等旧配置名称
 
-`protocolVersion: 1` 是当前内部协议版本，不代表兼容旧实现。服务端只接受当前版本。
+`protocolVersion: 2` 是当前内部协议版本，不代表兼容旧实现。服务端只接受当前版本。
 
 ## 4. Go 代码地图
 
@@ -67,6 +67,7 @@ Go 发往 Unity：
 | `internal/handler/router.go` | `/unity/ws`、`/health` 和精确根路径路由 |
 | `internal/agent/llm_client.go` | OpenAI-compatible Chat Completions 客户端 |
 | `internal/agent/conversation.go` | 对话编排、tool loop、最大轮数 |
+| `internal/agent/profile.go` | Go 侧 NPC Profile 严格加载、校验与不可变目录 |
 | `internal/agent/session*.go` | Session 模型与内存存储 |
 | `internal/tools/catalog.go` | 模型可见工具结构 |
 | `internal/tools/validator.go` | JSON Schema 参数校验 |
@@ -108,6 +109,9 @@ Go Agent Host：
 - `LLM_REQUEST_TIMEOUT_SECONDS`
 - `LLM_MAX_RETRIES`
 - `LLM_MAX_TOOL_ROUNDS`
+- `LLM_MAX_CONTEXT_CHARS`
+- `CONVERSATION_SAVE_DIR`
+- `NPC_PROFILE_PATH`
 
 Unity：
 
@@ -123,6 +127,7 @@ Unity：
 - 所有 WebSocket 写入必须经过发送锁。
 - pending 请求必须支持超时、取消、断线清理和重复响应隔离。
 - 新工具必须先在 Unity 注册 Schema 和执行逻辑，再由 Go 动态发现；禁止在 Go 硬编码一份重复 Schema。
+- NPC Profile 只描述人格、职责和静态背景；实际工具权限仍以 Unity 运行时注册为准，实时世界状态禁止写入 Profile。
 - 日志只记录事件、ID、NPC、工具、长度、耗时和结果，不记录玩家正文、模型回复全文或密钥。
 - 不为未来功能预建兼容分支。确有版本升级时，先更新 `ARCHITECTURE.md` 并明确迁移和删除日期。
 

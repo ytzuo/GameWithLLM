@@ -148,3 +148,37 @@ func registerForTest(registry *UnityRegistry, session *jsonRPCSession, registrat
 	_, err := registry.Register(session, registration)
 	return err
 }
+
+func TestUnityRegistryRejectsDuplicateNPCFromDifferentInstance_BitsUT(t *testing.T) {
+	registry := NewUnityRegistry()
+	first, _ := newTestSession(time.Second)
+	second, _ := newTestSession(time.Second)
+	require.NoError(t, registerForTest(registry, first, testRegistration("game-1", "Ryan_001")))
+
+	_, err := registry.Register(second, testRegistration("game-2", "Ryan_001"))
+	require.ErrorContains(t, err, `npcId "Ryan_001" is already registered`)
+
+	instanceID, owner, ok := registry.ResolveNPC("Ryan_001")
+	require.True(t, ok)
+	assert.Equal(t, "game-1", instanceID)
+	assert.Same(t, first, owner)
+	instances, npcs := registry.Counts()
+	assert.Equal(t, 1, instances)
+	assert.Equal(t, 1, npcs)
+}
+
+func TestUnityRegistryRejectsDuplicateNPCOnlineChange_BitsUT(t *testing.T) {
+	registry := NewUnityRegistry()
+	first, _ := newTestSession(time.Second)
+	second, _ := newTestSession(time.Second)
+	require.NoError(t, registerForTest(registry, first, testRegistration("game-1", "Ryan_001")))
+	require.NoError(t, registerForTest(registry, second, testRegistration("game-2", "Alice_001")))
+
+	err := registry.UpdateNPC(second, UnityNPCChangedParams{
+		InstanceID: "game-2",
+		NPCID:      "Ryan_001",
+		Online:     true,
+	})
+	require.ErrorContains(t, err, `npcId "Ryan_001" is already registered`)
+	assert.False(t, registry.HasTool("game-2", "Ryan_001", "game_npc_move"))
+}

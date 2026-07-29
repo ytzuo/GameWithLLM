@@ -1,6 +1,7 @@
 package config
 
 import (
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -17,6 +18,7 @@ func TestLoad_AgentHostAndLLMConfiguration(t *testing.T) {
 	t.Setenv("LLM_MAX_TOOL_ROUNDS", "3")
 	t.Setenv("LLM_MAX_RETRIES", "1")
 	t.Setenv("LLM_MAX_CONTEXT_CHARS", "12345")
+	t.Setenv("NPC_PROFILE_PATH", "testdata/profiles.json")
 
 	cfg := Load()
 	assert.Equal(t, "127.0.0.1:19090", cfg.ServerAddr)
@@ -28,4 +30,13 @@ func TestLoad_AgentHostAndLLMConfiguration(t *testing.T) {
 	assert.Equal(t, 3, cfg.LLMMaxToolRounds)
 	assert.Equal(t, 1, cfg.LLMMaxRetries)
 	assert.Equal(t, 12345, cfg.LLMMaxContextChars)
+	assert.Equal(t, filepath.Join(findRepoRootForTest(t), "testdata", "profiles.json"), cfg.NPCProfilePath)
+}
+func findRepoRootForTest(t *testing.T) string {
+	t.Helper()
+	root, ok := findRepoRoot()
+	if !ok {
+		t.Fatal("repository root not found")
+	}
+	return root
 }

@@ -43,6 +43,21 @@ func (r *UnityRegistry) Register(session *jsonRPCSession, registration UnityRegi
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
+	for _, npcID := range registration.NPCs {
+		ownerID := r.npcToInstance[npcID]
+		if ownerID == "" || ownerID == registration.InstanceID {
+			continue
+		}
+		owner := r.instances[ownerID]
+		if owner != nil && owner.session != session {
+			return false, fmt.Errorf(
+				"npcId %q is already registered by Unity instance %q",
+				npcID,
+				ownerID,
+			)
+		}
+	}
+
 	if previousInstanceID := r.sessionToInstance[session]; previousInstanceID != "" {
 		r.unregisterSessionLocked(session, previousInstanceID)
 	}
@@ -116,6 +131,13 @@ func (r *UnityRegistry) UpdateNPC(session *jsonRPCSession, change UnityNPCChange
 		return fmt.Errorf("npcId is required")
 	}
 	if change.Online {
+		if ownerID := r.npcToInstance[change.NPCID]; ownerID != "" && ownerID != change.InstanceID {
+			return fmt.Errorf(
+				"npcId %q is already registered by Unity instance %q",
+				change.NPCID,
+				ownerID,
+			)
+		}
 		instance.npcs[change.NPCID] = struct{}{}
 		if instance.npcTools[change.NPCID] == nil {
 			instance.npcTools[change.NPCID] = make(map[string]struct{})
@@ -216,6 +238,14 @@ func (r *UnityRegistry) HasTool(instanceID, npcID, toolName string) bool {
 	_, globallyDefined := instance.tools[toolName]
 	_, availableForNPC := instance.npcTools[npcID][toolName]
 	return globallyDefined && availableForNPC
+}
+
+// OwnsInstance 判断连接是否拥有指定 Unity 实例。
+func (r *UnityRegistry) OwnsInstance(session *jsonRPCSession, instanceID string) bool {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	instance := r.instances[instanceID]
+	return instance != nil && instance.session == session
 }
 
 // IsRegistered 判断连接是否已经完成 unity.register。

@@ -18,6 +18,15 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func testAgentNPCProfile(npcID string) agent.NPCProfile {
+	return agent.NPCProfile{
+		NPCID: npcID, DisplayName: npcID, Identity: "测试 NPC", SpeakingStyle: "简洁",
+		Personality: []string{"可靠"}, Responsibilities: []string{"执行测试任务"},
+		WorldKnowledge:  []string{"测试场景"},
+		ForbiddenTopics: []string{"不得编造结果"},
+	}
+}
+
 type conversationScriptedLLM struct {
 	mu      sync.Mutex
 	results []*agent.CompletionResult
@@ -41,7 +50,9 @@ func TestJSONRPCServer_GoAgentConversationToolLoop(t *testing.T) {
 		{ToolCalls: []agent.ToolCall{{ID: "llm-call-1", Name: "game_npc_move", Arguments: json.RawMessage(`{"targetId":"landmark:gate"}`)}}},
 		{Content: "我现在去大门。"},
 	}}
-	server := NewJSONRPCServerWithAgent(2*time.Second, llm, "test-model", 3)
+	profiles, err := agent.NewNPCProfileCatalog([]agent.NPCProfile{testAgentNPCProfile("Ryan_001")})
+	require.NoError(t, err)
+	server := NewJSONRPCServerWithAgentAndArchive(2*time.Second, llm, profiles, "test-model", 3, t.TempDir())
 	mux := http.NewServeMux()
 	mux.HandleFunc("/unity/ws", server.HandleWebSocket)
 	httpServer := httptest.NewServer(mux)
@@ -62,7 +73,7 @@ func TestJSONRPCServer_GoAgentConversationToolLoop(t *testing.T) {
 	require.NoError(t, wsjson.Write(ctx, conn, map[string]any{
 		"jsonrpc": "2.0", "id": "register", "method": "unity.register",
 		"params": UnityRegistration{
-			ProtocolVersion: 1,
+			ProtocolVersion: 2,
 			InstanceID:      "game-1",
 			NPCs:            []string{"Ryan_001"},
 			Tools:           []ToolDefinition{tool},
@@ -110,4 +121,32 @@ func TestJSONRPCServer_GoAgentConversationToolLoop(t *testing.T) {
 	require.NoError(t, json.Unmarshal(message.Result, &reply))
 	assert.Equal(t, "assistant.message", reply.Type)
 	assert.Equal(t, "我现在去大门。", reply.Text)
+
+	require.NoError(t, wsjson.Write(ctx, conn, map[string]any{
+		"jsonrpc": "2.0", "id": "save", "method": methodSavegameSave,
+		"params": SavegameConversationSaveParams{ProtocolVersion: 2, InstanceID: "game-1", PlayerID: "player-1", SaveID: "3d594650-3436-4fe6-9d31-0f2e29c88f25", OperationID: "d40ef166-40ec-4402-b928-12eb53e18d5e", Mode: "create"},
+	}))
+	require.NoError(t, wsjson.Read(ctx, conn, &message))
+	var saved agent.ConversationSaveResult
+	require.NoError(t, json.Unmarshal(message.Result, &saved))
+	assert.True(t, saved.OK)
+	assert.Equal(t, 1, saved.ContextCount)
+
+	require.NoError(t, wsjson.Write(ctx, conn, map[string]any{
+		"jsonrpc": "2.0", "id": "end", "method": methodConversationEnd,
+		"params": ConversationEndParams{SessionID: started.SessionID},
+	}))
+	require.NoError(t, wsjson.Read(ctx, conn, &message))
+
+	require.NoError(t, wsjson.Write(ctx, conn, map[string]any{
+		"jsonrpc": "2.0", "id": "load", "method": methodSavegameLoad,
+		"params": SavegameConversationLoadParams{ProtocolVersion: 2, InstanceID: "game-1", PlayerID: "player-1", SaveID: "3d594650-3436-4fe6-9d31-0f2e29c88f25", NPCIDs: []string{"Ryan_001"}},
+	}))
+	require.NoError(t, wsjson.Read(ctx, conn, &message))
+	var loaded agent.ConversationLoadResult
+	require.NoError(t, json.Unmarshal(message.Result, &loaded))
+	require.True(t, loaded.OK)
+	require.Len(t, loaded.Contexts, 1)
+	assert.NotEqual(t, started.SessionID, loaded.Contexts[0].SessionID)
+	assert.Equal(t, []agent.VisibleMessage{{Index: 0, Role: "user", Text: "去大门"}, {Index: 1, Role: "assistant", Text: "我现在去大门。"}}, loaded.Contexts[0].VisibleMessages)
 }

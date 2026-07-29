@@ -1,0 +1,153 @@
+.save-root {
+    width: 100%;
+    height: 100%;
+    align-items: center;
+    justify-content: center;
+    background-color: rgba(7, 10, 18, 0.90);
+}
+
+.save-panel {
+    width: 760px;
+    height: 720px;
+    padding: 26px;
+    background-color: rgb(20, 27, 42);
+    border-width: 2px;
+    border-color: rgb(103, 139, 191);
+    border-radius: 12px;
+}
+
+.save-header {
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 18px;
+}
+
+.save-title {
+    color: rgb(250, 252, 255);
+    font-size: 28px;
+    -unity-font-style: bold;
+}
+
+.save-close {
+    width: 90px;
+    height: 42px;
+    color: rgb(245, 249, 255);
+    font-size: 17px;
+}
+
+.save-name {
+    color: rgb(240, 246, 255);
+    margin-bottom: 12px;
+    font-size: 18px;
+}
+
+.save-name > .unity-base-field__label {
+    min-width: 120px;
+    color: rgb(240, 246, 255);
+    font-size: 18px;
+    -unity-font-style: bold;
+}
+
+.save-name > .unity-text-field__input {
+    min-height: 44px;
+    padding: 9px 12px;
+    color: rgb(250, 252, 255);
+    background-color: rgb(11, 18, 30);
+    border-width: 2px;
+    border-color: rgb(91, 128, 181);
+    border-radius: 7px;
+    font-size: 18px;
+    --unity-cursor-color: rgb(116, 199, 255);
+    --unity-selection-color: rgba(54, 143, 255, 0.55);
+}
+
+.save-name:focus > .unity-text-field__input,
+.save-name > .unity-text-field__input:focus {
+    background-color: rgb(15, 26, 43);
+    border-color: rgb(101, 176, 255);
+}
+
+.save-section {
+    color: rgb(205, 221, 244);
+    font-size: 19px;
+    -unity-font-style: bold;
+    margin-top: 20px;
+    margin-bottom: 10px;
+}
+
+.save-scroll {
+    flex-grow: 1;
+    min-height: 310px;
+    background-color: rgba(7, 10, 18, 0.50);
+    border-width: 1px;
+    border-color: rgb(62, 84, 118);
+    border-radius: 7px;
+    padding: 8px;
+}
+
+.save-list {
+    flex-grow: 1;
+}
+
+.save-row {
+    height: 76px;
+    margin-bottom: 8px;
+    padding: 10px 12px;
+    color: rgb(244, 248, 255);
+    background-color: rgb(33, 44, 64);
+    font-size: 18px;
+    -unity-text-align: middle-left;
+}
+
+.save-row--selected {
+    background-color: rgb(52, 82, 126);
+    border-width: 2px;
+    border-color: rgb(114, 171, 255);
+}
+
+.save-empty {
+    color: rgb(205, 221, 244);
+    font-size: 17px;
+    margin: 20px;
+}
+
+.save-actions {
+    flex-direction: row;
+    margin-top: 14px;
+}
+
+.save-actions > Button {
+    flex-grow: 1;
+    margin-right: 8px;
+    height: 44px;
+    color: rgb(245, 249, 255);
+    font-size: 17px;
+}
+
+.save-primary {
+    height: 44px;
+    color: rgb(255, 255, 255);
+    background-color: rgb(48, 105, 181);
+    font-size: 17px;
+    -unity-font-style: bold;
+}
+
+.save-status {
+    min-height: 28px;
+    margin-top: 12px;
+    color: rgb(158, 231, 177);
+    font-size: 17px;
+    -unity-font-style: bold;
+    white-space: normal;
+}
+
+.save-status--error {
+    color: rgb(255, 151, 151);
+}
+
+.save-hint {
+    margin-top: 4px;
+    color: rgb(238, 197, 126);
+    font-size: 15px;
+}

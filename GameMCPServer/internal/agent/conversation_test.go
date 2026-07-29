@@ -63,7 +63,7 @@ func (r *fakeRuntime) Execute(_ context.Context, _, _, name string, arguments js
 
 func TestConversationService_NoToolReplyAndIsolation(t *testing.T) {
 	llm := &scriptedLLM{results: []*CompletionResult{{Content: "hello"}, {Content: "second"}}}
-	service := NewConversationService(llm, NewMemorySessionStore(), &fakeRuntime{}, "test-model", 3)
+	service := NewConversationService(llm, NewMemorySessionStore(), &fakeRuntime{}, testProfileCatalog("npc-1", "npc-2"), "test-model", 3)
 
 	first, err := service.StartSession(context.Background(), "player", "npc-1")
 	require.NoError(t, err)
@@ -86,7 +86,7 @@ func TestConversationService_ToolLoopKeepsAtomicPair(t *testing.T) {
 		{Content: "我去大门。"},
 	}}
 	runtime := &fakeRuntime{}
-	service := NewConversationService(llm, NewMemorySessionStore(), runtime, "test-model", 3)
+	service := NewConversationService(llm, NewMemorySessionStore(), runtime, testProfileCatalog("npc-1"), "test-model", 3)
 	session, err := service.StartSession(context.Background(), "player", "npc-1")
 	require.NoError(t, err)
 
@@ -110,7 +110,7 @@ func TestConversationService_PreservesStructuredToolResult(t *testing.T) {
 	runtime := &fakeRuntime{result: &ToolExecutionResult{
 		OK: true, Data: json.RawMessage(`{"target":"gate","distance":1.5}`),
 	}}
-	service := NewConversationService(llm, NewMemorySessionStore(), runtime, "test-model", 3)
+	service := NewConversationService(llm, NewMemorySessionStore(), runtime, testProfileCatalog("npc-1"), "test-model", 3)
 	session, err := service.StartSession(context.Background(), "player", "npc-1")
 	require.NoError(t, err)
 
@@ -127,7 +127,7 @@ func TestConversationService_ResetsToolRoundTextBeforeFinalReply(t *testing.T) {
 		{Content: "我先看看。", ToolCalls: []ToolCall{{ID: "call-1", Name: "game_npc_move", Arguments: json.RawMessage(`{"targetId":"landmark:gate"}`)}}},
 		{Content: "我已经出发了。"},
 	}}
-	service := NewConversationService(llm, NewMemorySessionStore(), &fakeRuntime{}, "test-model", 3)
+	service := NewConversationService(llm, NewMemorySessionStore(), &fakeRuntime{}, testProfileCatalog("npc-1", "npc-2"), "test-model", 3)
 	session, err := service.StartSession(context.Background(), "player", "npc-1")
 	require.NoError(t, err)
 
@@ -149,7 +149,7 @@ func TestConversationService_ResetsToolRoundTextBeforeFinalReply(t *testing.T) {
 func TestConversationService_RejectsToolLoopPastLimit(t *testing.T) {
 	call := &CompletionResult{ToolCalls: []ToolCall{{ID: "call", Name: "game_npc_move", Arguments: json.RawMessage(`{"targetId":"landmark:gate"}`)}}}
 	llm := &scriptedLLM{results: []*CompletionResult{call, call}}
-	service := NewConversationService(llm, NewMemorySessionStore(), &fakeRuntime{}, "test-model", 1)
+	service := NewConversationService(llm, NewMemorySessionStore(), &fakeRuntime{}, testProfileCatalog("npc-1"), "test-model", 1)
 	session, err := service.StartSession(context.Background(), "player", "npc-1")
 	require.NoError(t, err)
 
@@ -169,7 +169,7 @@ func (l *blockingLLM) Complete(ctx context.Context, _ CompletionRequest) (*Compl
 
 func TestConversationService_EndSessionCancelsActiveCompletion(t *testing.T) {
 	llm := &blockingLLM{started: make(chan struct{})}
-	service := NewConversationService(llm, NewMemorySessionStore(), &fakeRuntime{}, "test-model", 3)
+	service := NewConversationService(llm, NewMemorySessionStore(), &fakeRuntime{}, testProfileCatalog("npc-1", "npc-2"), "test-model", 3)
 	session, err := service.StartSession(context.Background(), "player", "npc-1")
 	require.NoError(t, err)
 
@@ -181,4 +181,83 @@ func TestConversationService_EndSessionCancelsActiveCompletion(t *testing.T) {
 	<-llm.started
 	require.NoError(t, service.EndSession(context.Background(), session.ID))
 	assert.ErrorIs(t, <-done, context.Canceled)
+}
+
+type toolThenContextLLM struct{}
+
+func (toolThenContextLLM) Complete(ctx context.Context, request CompletionRequest) (*CompletionResult, error) {
+	for _, message := range request.Messages {
+		if message.Role == "tool" {
+			return nil, ctx.Err()
+		}
+	}
+	return &CompletionResult{ToolCalls: []ToolCall{{
+		ID:        "call-blocking",
+		Name:      "game_npc_move",
+		Arguments: json.RawMessage(`{"targetId":"landmark:gate"}`),
+	}}}, nil
+}
+
+type cancellationBlockingRuntime struct {
+	started chan struct{}
+}
+
+func (r *cancellationBlockingRuntime) Capabilities(string) (string, []gametools.Definition, bool) {
+	return "game-1", []gametools.Definition{{
+		Name: "game_npc_move",
+		InputSchema: json.RawMessage(
+			`{"type":"object","properties":{"targetId":{"type":"string"}},"required":["targetId"]}`,
+		),
+	}}, true
+}
+
+func (r *cancellationBlockingRuntime) Execute(
+	ctx context.Context,
+	_, _, _ string,
+	_ json.RawMessage,
+) (ToolExecutionResult, error) {
+	close(r.started)
+	<-ctx.Done()
+	return ToolExecutionResult{}, ctx.Err()
+}
+
+func TestConversationService_EndSessionDuringToolDoesNotRestoreDeletedSession(t *testing.T) {
+	store := NewMemorySessionStore()
+	runtime := &cancellationBlockingRuntime{started: make(chan struct{})}
+	service := NewConversationService(toolThenContextLLM{}, store, runtime, testProfileCatalog("npc-1"), "test-model", 3)
+	session, err := service.StartSession(context.Background(), "player", "npc-1")
+	require.NoError(t, err)
+
+	submitDone := make(chan error, 1)
+	go func() {
+		_, submitErr := service.SubmitMessage(context.Background(), session.ID, "去大门")
+		submitDone <- submitErr
+	}()
+	<-runtime.started
+
+	require.NoError(t, service.EndSession(context.Background(), session.ID))
+	assert.ErrorIs(t, <-submitDone, context.Canceled)
+	_, err = store.Load(context.Background(), session.ID)
+	assert.ErrorIs(t, err, ErrSessionNotFound)
+}
+
+func TestConversationService_SubmitRejectsClosedSession(t *testing.T) {
+	store := NewMemorySessionStore()
+	service := NewConversationService(
+		&scriptedLLM{results: []*CompletionResult{{Content: "不应调用"}}},
+		store,
+		&fakeRuntime{},
+		testProfileCatalog("npc-1"),
+		"test-model",
+		3,
+	)
+	session, err := service.StartSession(context.Background(), "player", "npc-1")
+	require.NoError(t, err)
+
+	session.cancelMu.Lock()
+	session.closed = true
+	session.cancelMu.Unlock()
+
+	_, err = service.SubmitMessage(context.Background(), session.ID, "你好")
+	assert.ErrorIs(t, err, ErrSessionNotFound)
 }

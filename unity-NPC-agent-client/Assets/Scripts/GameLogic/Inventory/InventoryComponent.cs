@@ -463,6 +463,35 @@ public class InventoryComponent : MonoBehaviour
         NotifyInventoryChanged();
     }
 
+    /// <summary>
+    /// 存档加载专用：校验全部格子后一次性替换内容，并只发送一次整体变更事件。
+    /// </summary>
+    internal bool RestoreSlots(IReadOnlyList<ItemData> items, IReadOnlyList<int> quantities, out string error)
+    {
+        if (items == null || quantities == null || items.Count != _slots.Count || quantities.Count != _slots.Count)
+        {
+            error = $"容器 '{ContainerId}' 的存档格子数量与当前容量不一致。";
+            return false;
+        }
+        for (int i = 0; i < _slots.Count; i++)
+        {
+            ItemData item = items[i];
+            int quantity = quantities[i];
+            if ((item == null && quantity != 0) || (item != null && (quantity <= 0 || quantity > item.MaxStackSize)))
+            {
+                error = $"容器 '{ContainerId}' 的第 {i} 格数据无效。";
+                return false;
+            }
+        }
+        for (int i = 0; i < _slots.Count; i++)
+        {
+            _slots[i].Item = items[i];
+            _slots[i].Quantity = quantities[i];
+        }
+        NotifyInventoryChanged();
+        error = null;
+        return true;
+    }
     // ── Transfer ──
 
     /// <summary>

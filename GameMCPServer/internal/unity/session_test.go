@@ -36,7 +36,7 @@ func TestJSONRPCSessionReadLoopStartsWithUnityRegistration_BitsUT(t *testing.T) 
 	}}
 	response := mustReceiveMessage(t, conn.writes)
 	require.Nil(t, response.Error)
-	assert.JSONEq(t, `{"accepted":true,"protocolVersion":1}`, string(response.Result))
+	assert.JSONEq(t, `{"accepted":true,"protocolVersion":2}`, string(response.Result))
 
 	stopReadLoop(conn)
 	waitForDone(t, done)
@@ -88,6 +88,7 @@ func TestConversationErrorCode_BitsUT(t *testing.T) {
 		want int
 	}{
 		{name: "missing session", err: agent.ErrSessionNotFound, want: -32012},
+		{name: "missing NPC profile", err: agent.ErrNPCProfileNotFound, want: -32013},
 		{name: "permanent provider failure", err: &agent.LLMRequestError{StatusCode: 400}, want: -32021},
 		{name: "temporary provider failure", err: &agent.LLMRequestError{StatusCode: 503, Temporary: true}, want: -32022},
 		{name: "other failure", err: errors.New("boom"), want: -32020},

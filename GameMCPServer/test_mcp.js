@@ -132,7 +132,7 @@ async function runProtocolTests() {
     ws.send({
       jsonrpc: "2.0", id: "register-1", method: "unity.register",
       params: {
-        protocolVersion: 1,
+        protocolVersion: 2,
         instanceId,
         tools,
         npcs: ["Ryan_001"],
@@ -143,7 +143,7 @@ async function runProtocolTests() {
     console.log("  recv", JSON.stringify(registered));
     assert(registered.id === "register-1", "连接后首条服务端消息是注册响应");
     assert(registered?.result?.accepted === true, "unity.register 注册成功");
-    assert(registered?.result?.protocolVersion === 1, "服务端确认内部协议版本 1");
+    assert(registered?.result?.protocolVersion === 2, "服务端确认内部协议版本 2");
 
     ws.send({
       jsonrpc: "2.0", id: "conversation-start-1", method: "conversation.start",

@@ -31,6 +31,11 @@ https://www.bilibili.com/video/BV1cqgv6wEHc/?share_source=copy_web&vd_source=247
 
 详细架构说明见 [ARCHITECTURE.md](https://www.google.com/search?q=./ARCHITECTURE.md)。
 
+## NPC 角色配置
+
+Go 在启动时从 `GameMCPServer/config/npc_profiles.json` 严格加载 NPC Profile。Profile 定义显示名、性格、说话方式、身份、职责、静态世界背景和禁止透露事项，并由统一模板生成 system prompt。缺少对应 `npcId` 的 Profile 时拒绝创建对话。
+
+Profile 中的职责只描述角色承担的事务范围；模型每一轮实际可调用的工具仍然只来自 Unity 运行时注册，Profile 不授予或扩展真实执行权限。实时坐标、路径、库存和行为结果不得写入 Profile，必须通过 Unity 工具查询。
 ## 项目结构
 
 | 目录 | 职责 |
@@ -108,6 +113,7 @@ Unity 会自动连接 Go Agent Host 并完成注册。之后在场景中与 NPC 
 * `查看附近 Alice_001 的背包` — 在交互距离内触发 `game_inventory_get_container`
 * `把 1 个 Rock 放进附近的 Alice_001` — 触发 `game_inventory_put_item`
 * `从附近容器取出 1 个 Wood` — 触发 `game_inventory_take_item`
+* 按 `G` — 打开游戏存档界面，可新建、覆盖、重试对话同步或加载世界与 NPC 历史
 
 ## 配置参考
 
@@ -126,6 +132,8 @@ Unity 会自动连接 Go Agent Host 并完成注册。之后在场景中与 NPC 
 | `LLM_MAX_RETRIES` | 429、5xx 或安全网络失败的最大重试次数；已向 UI 输出文本后不重试 | `2` |
 | `LLM_MAX_TOOL_ROUNDS` | 单轮对话最大工具调用次数 | `4` |
 | `LLM_MAX_CONTEXT_CHARS` | 单个会话发送给模型的上下文字符预算；按完整对话轮次裁剪 | `32000` |
+| `CONVERSATION_SAVE_DIR` | Go 自有 NPC 对话快照目录；仅显式加载时读取 | `GameMCPServer/data/conversations` |
+| `NPC_PROFILE_PATH` | Go 侧结构化 NPC 角色配置；启动时严格加载 | `GameMCPServer/config/npc_profiles.json` |
 
 ### Unity
 
@@ -182,9 +190,9 @@ node GameMCPServer/test_mcp.js --start-server
 
 ## 协议
 
-两端通过 WebSocket JSON-RPC 2.0 协议通信，唯一入口为 `/unity/ws`。当前协议版本为 `protocolVersion: 1`。
+两端通过 WebSocket JSON-RPC 2.0 协议通信，唯一入口为 `/unity/ws`。当前协议版本为 `protocolVersion: 2`，不包含 v1 兼容分支。
 
-10 个协议方法：
+12 个协议方法：
 
 | 方法 | 方向 | 说明 |
 | --- | --- | --- |
@@ -194,6 +202,8 @@ node GameMCPServer/test_mcp.js --start-server
 | `conversation.start` | Unity→Go | 发起新对话 |
 | `player.message` | Unity→Go | 玩家消息 |
 | `conversation.end` | Unity→Go | 结束对话 |
+| `savegame.conversations.save` | Unity→Go | 保存当前玩家的 NPC 对话快照 |
+| `savegame.conversations.load` | Unity→Go | 加载快照并整体替换 NPC 对话 |
 | `unity.tool.execute` | Go→Unity | 要求执行工具 |
 | `unity.tool.cancel` | Go→Unity | 取消工具执行 |
 | `assistant.status` | Go→Unity | 推送助手状态 |

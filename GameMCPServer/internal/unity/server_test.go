@@ -36,7 +36,7 @@ func TestJSONRPCServerHandleWebSocketRejectsPlainHTTP_BitsUT(t *testing.T) {
 	assert.Equal(t, http.StatusUpgradeRequired, recorder.Code)
 }
 
-func TestJSONRPCServerWebSocketV1Integration_BitsUT(t *testing.T) {
+func TestJSONRPCServerWebSocketV2Integration_BitsUT(t *testing.T) {
 	server := NewJSONRPCServer(time.Second)
 	httpServer := httptest.NewServer(http.HandlerFunc(server.HandleWebSocket))
 	defer httpServer.Close()
@@ -57,7 +57,7 @@ func TestJSONRPCServerWebSocketV1Integration_BitsUT(t *testing.T) {
 	}))
 	var response jsonRPCMessage
 	require.NoError(t, wsjson.Read(ctx, conn, &response))
-	assert.JSONEq(t, `{"accepted":true,"protocolVersion":1}`, string(response.Result))
+	assert.JSONEq(t, `{"accepted":true,"protocolVersion":2}`, string(response.Result))
 
 	fragmentedMessage, err := json.Marshal(jsonRPCMessage{
 		JSONRPC: jsonRPCVersion,
@@ -103,4 +103,30 @@ func TestJSONRPCServerShutdownClosesActiveConnections_BitsUT(t *testing.T) {
 
 	require.NoError(t, server.Shutdown(ctx))
 	assert.Equal(t, websocket.StatusGoingAway, websocket.CloseStatus(<-readErr))
+}
+
+func TestJSONRPCServerShutdownWithoutConnections_BitsUT(t *testing.T) {
+	server := NewJSONRPCServer(time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+
+	require.NoError(t, server.Shutdown(ctx))
+}
+
+func TestJSONRPCServerRejectsMessageOverReadLimit_BitsUT(t *testing.T) {
+	server := NewJSONRPCServer(time.Second)
+	httpServer := httptest.NewServer(http.HandlerFunc(server.HandleWebSocket))
+	defer httpServer.Close()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	conn, _, err := websocket.Dial(ctx, "ws"+strings.TrimPrefix(httpServer.URL, "http"), nil)
+	require.NoError(t, err)
+	defer conn.CloseNow()
+
+	oversized := strings.Repeat("x", maxWebSocketMessageSize+1)
+	require.NoError(t, conn.Write(ctx, websocket.MessageText, []byte(oversized)))
+	_, _, err = conn.Read(ctx)
+	require.Error(t, err)
+	assert.Equal(t, websocket.StatusMessageTooBig, websocket.CloseStatus(err))
 }

@@ -10,12 +10,19 @@ Go Agent Host 负责大模型调用、对话 Session、工具决策、参数校�
 
 Go 是智能决策和会话状态的权威来源，主要包含：
 
-- `agent`：维护对话 Session，调用 LLM，并运行 tool-call 循环。
+- `agent`：严格加载结构化 NPC Profile，维护对话 Session，生成角色 system prompt，调用 LLM，并运行 tool-call 循环。
 - `tools`：根据 Unity 注册的能力生成模型可见工具，完成参数和策略校验。
 - `unity`：维护 Unity 实例、NPC 和工具能力快照，并将工具命令路由到正确连接。
 - `handler`：提供 `/unity/ws`、`/health` 和根路径 HTTP 入口。
 
-Go 不直接操作 Unity 对象，也不保存游戏世界的实时权威状态。当前 Session 使用内存存储，Go 重启后不会恢复旧对话。
+Go 不直接操作 Unity 对象，也不保存游戏世界的实时权威状态。运行时 Session 仍使用内存存储；Go 重启后内存为空，仅在 Unity 显式加载存档时从 Go 自有 JSON 快照恢复对应 NPC 上下文。
+### NPC Profile 与提示词
+
+Go 启动时从 `NPC_PROFILE_PATH` 指向的 JSON 文件严格加载不可变 Profile Catalog，默认文件为 `GameMCPServer/config/npc_profiles.json`。每个 Profile 以 `npcId` 唯一标识，结构化声明 `displayName`、性格、说话方式、身份、职责、静态世界背景和禁止透露事项；未知字段、重复 ID、空字段或越界列表会阻止 Agent Host 启动。
+
+`conversation.start` 必须找到对应 Profile，否则返回 JSON-RPC `-32013`。Session 创建时由 Go 的固定模板渲染 system prompt；存档不保存 Profile 或 system prompt，加载时使用当前 Profile 重建，因此配置更新只影响新建或恢复后的 Session。
+
+Profile 的职责描述不构成执行授权。模型每轮可见与实际可执行的工具仍然只来自 Unity 运行时注册，并继续经过 Go 策略和 Schema 校验。Profile 只允许保存静态背景；坐标、距离、路径、库存、任务进度和行为结果等实时状态仍以 Unity 为唯一事实源。
 
 ## Unity 执行端
 
@@ -31,8 +38,9 @@ Unity 是游戏世界和行为结果的权威来源，主要包含：
 - `NpcEntity`：调用 NavMesh 等 Unity API 执行行为，并返回稳定的工具结果。
 - `InventoryComponent`：物品容器的权威状态和原子转移逻辑；`containerId` 必须显式配置且唯一。
 - `InventoryViewModel`：维护运行时容器登记、玩家背包引用和当前 `ItemDataList` 静态物品表。
+- `SaveGameService`：在 `Application.persistentDataPath/SaveGames` 原子保存/加载 Unity 世界状态；存档保存玩家/NPC 变换和稳定 `containerId` 对应的物品栏格子。
 
-Unity 不直接调用 LLM，不保存 LLM API Key，也不维护模型对话历史。
+Unity 不直接调用 LLM，不保存 LLM API Key，也不维护模型使用的完整对话历史；加载成功后只缓存 Go 投影返回的 user/最终 assistant 可见消息。
 
 ### Unity 工具扩展模型
 
@@ -101,8 +109,9 @@ Unity 运行时声明 `game_scene_get_targets`，从当前激活的 `NpcEntity`�
 - NPC、GameObject、NavMesh 和行为结果：Unity 权威。
 - 实际可执行工具 Schema：Unity 提供，Go 按会话和 NPC 筛选。
 - UI 消息列表：Unity 只保存展示缓存，不作为模型历史。
+- 世界存档：Unity 权威；对话快照：Go 权威。两端文件只用 Unity 生成的 canonical UUID `saveId` 一一关联。
 
-系统只使用当前内部协议版本 `protocolVersion: 1`，不包含旧协议兼容层，也不实现标准 MCP 外部接口。
+系统只使用当前内部协议版本 `protocolVersion: 2`，不包含 v1 兼容层，也不实现标准 MCP 外部接口。
 
 ---
 
@@ -126,7 +135,7 @@ Unity 运行时声明 `game_scene_get_targets`，从当前激活的 `NpcEntity`�
 }
 ```
 
-### 二、协议方法常量（10个）
+### 二、协议方法常量（12个）
 
 | 方法名 | 方向 | 请求/通知 | 含义 |
 |---|---|---|---|
@@ -138,6 +147,8 @@ Unity 运行时声明 `game_scene_get_targets`，从当前激活的 `NpcEntity`�
 | `conversation.start` | Unity→Go | 请求（需id） | 玩家发起新对话 |
 | `player.message` | Unity→Go | 请求（需id） | 玩家发送消息文本 |
 | `conversation.end` | Unity→Go | 通知（id可选） | 结束对话 |
+| `savegame.conversations.save` | Unity→Go | 请求（需id） | 按 `saveId` 保存当前玩家在本实例中的全部 NPC 上下文 |
+| `savegame.conversations.load` | Unity→Go | 请求（需id） | 校验 Go JSON 快照后整体替换内存上下文并返回新 Session 映射 |
 | `assistant.status` | Go→Unity | 通知（无id） | 保留的助手非文本状态通知；聊天窗口不展示 thinking |
 | `assistant.delta` | Go→Unity | 通知（无id） | Go推送模型文本增量；`reset:true` 撤回当前未完成草稿 |
 
@@ -147,7 +158,7 @@ Unity 运行时声明 `game_scene_get_targets`，从当前激活的 `NpcEntity`�
 
 | DTO | 字段 | 说明 |
 |---|---|---|
-| `UnityGatewayProtocol` | `Version = 1` | 静态协议常量类，含10个方法字符串 |
+| `UnityGatewayProtocol` | `Version = 2` | 静态协议常量类，含12个方法字符串 |
 | `UnityGatewayToolDefinition` | `Name`, `Description`, `InputSchema(JObject)` | 单个工具定义 |
 | `UnityGatewayCapabilitySnapshot` | `Tools`, `Npcs`, `NpcTools` | Unity 主线程生成的完整能力快照 |
 | `UnityGatewayRegistration` | `ProtocolVersion`, `InstanceId`, `Tools`, `Npcs`, `NpcTools` | 注册时提交的完整能力快照 |
@@ -158,6 +169,8 @@ Unity 运行时声明 `game_scene_get_targets`，从当前激活的 `NpcEntity`�
 | `UnityGatewayAssistantReply` | `Type`, `SessionId`, `NpcId`, `Text` | 助手文本回复 |
 | `UnityGatewayAssistantStatus` | `Type`, `SessionId`, `Status` | 助手状态推送 |
 | `UnityGatewayAssistantDelta` | `Type`, `SessionId`, `Text`, `Reset` | 助手文本增量推送；Reset撤回当前草稿 |
+| `UnityGatewayConversationSaveResult` | `Ok`, `ErrorCode`, `SaveId`, `OperationId`, `ContextCount`, `SavedAt` | 对话快照保存结果 |
+| `UnityGatewayConversationLoadResult` | `Ok`, `ErrorCode`, `SaveId`, `Contexts`, `LoadedAt` | 恢复后的 NPC→新 Session 映射和可见历史 |
 
 **文件**: `Assets/Scripts/Models/Models.cs`
 
@@ -183,6 +196,8 @@ Unity 运行时声明 `game_scene_get_targets`，从当前激活的 `NpcEntity`�
 | `ConversationStartResult` | `SessionID`, `NPCID` | 对话开始结果 |
 | `PlayerMessageParams` | `Type`, `SessionID`, `Text` | 玩家消息 |
 | `ConversationEndParams` | `SessionID` | 对话结束 |
+| `SavegameConversationSaveParams` | `ProtocolVersion`, `InstanceID`, `PlayerID`, `SaveID`, `OperationID`, `Mode` | 对话快照保存请求 |
+| `SavegameConversationLoadParams` | `ProtocolVersion`, `InstanceID`, `PlayerID`, `SaveID`, `NPCIDs` | 对话快照加载请求 |
 | `AssistantStatusParams` | `Type`, `SessionID`, `Status` | 状态推送 |
 | `AssistantDeltaParams` | `Type`, `SessionID`, `Text`, `Reset` | 文本增量推送；Reset撤回当前草稿 |
 | `UnityToolExecuteParams` | `NPCID`, `Tool`, `Arguments` | 工具执行+Validate()检查是JSON对象 |
@@ -199,8 +214,9 @@ Unity 运行时声明 `game_scene_get_targets`，从当前激活的 `NpcEntity`�
 
 | 类型 | 说明 |
 |---|---|
-| `SessionStore` 接口 | `Load`, `Save`, `Delete` |
-| `MemorySessionStore` | 内存实现 |
+| `SessionStore` 接口 | `Load`, `Save`, `Delete`, `ListByOwner`, `ReplaceByOwner` |
+| `MemorySessionStore` | 运行时内存实现；加载时按 `playerId+instanceId` 原子替换 |
+| `FileConversationArchive` | Go 自有 JSON 快照；临时文件提交，不在启动时扫描 |
 
 ### 五、Go Session Handler（消息路由核心）
 
@@ -222,6 +238,8 @@ Unity 运行时声明 `game_scene_get_targets`，从当前激活的 `NpcEntity`�
 - `conversation.start` → `handleConversationStart()` 创建Session
 - `player.message` → `handlePlayerMessage()` (goroutine) 处理消息 → LLM调用 → 返回回复
 - `conversation.end` → `handleConversationEnd()` 结束对话
+- `savegame.conversations.save` → 校验连接所有权并异步保存一致快照
+- `savegame.conversations.load` → 完整校验后整体替换 Session，并重建本连接 `conversationIDs`
 - 默认 → JSON-RPC error -32601
 
 关键辅助方法：
@@ -249,6 +267,8 @@ Unity 运行时声明 `game_scene_get_targets`，从当前激活的 `NpcEntity`�
 - `StartSession()` - 创建Session，生成system prompt，存储
 - `SubmitMessageStream()` - 追加user消息，进入tool loop：SSE LLM调用 → 推送文本增量 → 判断tool calls → 调用Runtime.Execute → 追加tool结果 → 循环
 - `EndSession()` - 取消进行中的操作，删除Session
+- `SaveConversations()` - 非阻塞取得所有目标 Session 锁，保存无 system/sessionId 的一致快照；相同 operationId 幂等
+- `LoadConversations()` - 先校验文件、playerId 和 NPC 集合，再以当前 system prompt/model 生成新 Session 并原子替换
 
 ### 九、Go Tool Loop 流程
 
@@ -314,6 +334,7 @@ sequenceDiagram
 | -32010 | Agent Host未配置 |
 | -32011 | 对话不属于当前连接 |
 | -32012 | 对话会话不存在或已失效 |
+| -32013 | NPC Profile 缺失，拒绝创建对话 |
 | -32020 | 未分类的对话处理失败 |
 | -32021 | LLM 永久请求错误，不应自动重试 |
 | -32022 | LLM 临时请求错误，可稍后重试 |
@@ -321,3 +342,12 @@ sequenceDiagram
 业务层错误通过 `{ok:false, errorCode:"...", message:"..."}` 返回，不走JSON-RPC error。
 
 Unity 仅在收到 `-32011` 或 `-32012` 时丢弃本地会话映射，并尽力发送 `conversation.end`；LLM 临时或永久错误不会清空 Session，避免丢失已有上下文。
+
+## 游戏存档与对话快照
+
+- Unity 初次进入默认场景只注册运行时能力，不自动请求历史。
+- 按 `G` 打开存档界面。新建和覆盖都先原子提交 Unity 世界 JSON，再调用 `savegame.conversations.save`；失败时世界文件保留 `conversationSynced:false` 和原 `operationId`，可显式重试。
+- 加载时先等待当前玩家消息结束并结束旧 Session，再在 Unity 主线程应用世界状态，随后调用 `savegame.conversations.load`。成功后整体替换 NPC→Session 映射和聊天 UI 缓存；失败时不混用旧对话，聊天保持禁用直到重试加载成功。
+- Unity 世界文件和 Go 对话文件互不读取，只以同一个 canonical lowercase UUID `saveId` 关联。覆盖沿用 saveId；operationId 标识一次保存动作。
+- Go 快照目录由 `CONVERSATION_SAVE_DIR` 配置，默认是仓库内 `GameMCPServer/data/conversations`。该目录不提交版本控制。
+- 业务失败使用 `SAVE_ALREADY_EXISTS`、`SAVE_NOT_FOUND`、`PLAYER_MISMATCH`、`NPC_SET_MISMATCH`、`CONVERSATION_BUSY`、`SNAPSHOT_INVALID`、`STORAGE_IO_ERROR`；非法字段或 UUID 仍返回 JSON-RPC `-32602`。

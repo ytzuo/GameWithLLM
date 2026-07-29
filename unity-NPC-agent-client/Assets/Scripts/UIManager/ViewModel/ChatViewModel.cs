@@ -315,6 +315,39 @@ public class ChatViewModel
 		}
 	}
 
+	/// <summary>
+	/// 用 Go 加载结果整体替换所有 NPC 的 UI 可见历史，不与旧世界消息合并。
+	/// </summary>
+	public void ReplaceHistories(IReadOnlyList<UnityGatewayLoadedConversationContext> contexts)
+	{
+		lock (_lock)
+		{
+			_npcHistories.Clear();
+			_streamingOpponentMessageIndexes.Clear();
+			if (contexts != null)
+			{
+				foreach (UnityGatewayLoadedConversationContext context in contexts)
+				{
+					if (context == null || string.IsNullOrWhiteSpace(context.NpcId)) continue;
+					var history = new List<Message>();
+					if (context.VisibleMessages != null)
+					{
+						foreach (UnityGatewayVisibleMessage visible in context.VisibleMessages)
+						{
+							if (visible == null || string.IsNullOrWhiteSpace(visible.Text)) continue;
+							ChatWindow.Role role = string.Equals(visible.Role, "user", StringComparison.Ordinal)
+								? ChatWindow.Role.Player
+								: ChatWindow.Role.Opponent;
+							history.Add(new Message(role, visible.Text));
+						}
+					}
+					_npcHistories[context.NpcId] = history;
+				}
+			}
+		}
+		try { OnHistoryChanged?.Invoke(); }
+		catch (Exception e) { Debug.LogWarning($"ChatViewModel: OnHistoryChanged error: {e.Message}"); }
+	}
 	// ── 历史同步 ───────────────────────────────────────────
 
 	/// <summary>

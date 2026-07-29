@@ -22,4 +22,5 @@ type Session struct {
 	mu       sync.Mutex
 	cancelMu sync.Mutex
 	cancel   context.CancelFunc
+	closed   bool
 }

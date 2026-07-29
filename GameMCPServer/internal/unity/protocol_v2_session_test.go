@@ -19,7 +19,7 @@ func TestSessionUnityRegister_BitsUT(t *testing.T) {
 	session.handleUnityRegister(jsonRPCMessage{ID: json.RawMessage(`"register-1"`), Method: methodUnityRegister, Params: params})
 	response := mustReceiveMessage(t, conn.writes)
 	require.Nil(t, response.Error)
-	assert.JSONEq(t, `{"accepted":true,"protocolVersion":1}`, string(response.Result))
+	assert.JSONEq(t, `{"accepted":true,"protocolVersion":2}`, string(response.Result))
 	instanceID, resolved, ok := session.registry.ResolveNPC("Ryan_001")
 	assert.True(t, ok)
 	assert.Equal(t, "local-game-1", instanceID)

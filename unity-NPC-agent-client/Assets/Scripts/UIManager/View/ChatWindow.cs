@@ -368,6 +368,13 @@ public class ChatWindow : BaseWindow
 
         label.text = messageText;
 
+        if (template == _opponentMessageTemplate)
+        {
+            Label avatarLabel = container.Q<Label>("avatar-label");
+            if (avatarLabel != null && !string.IsNullOrWhiteSpace(_activeNpcId))
+                avatarLabel.text = char.ToUpperInvariant(_activeNpcId.Trim()[0]).ToString();
+        }
+
         // A player message is added and the input field is reset in the same frame.
         // Scrolling from the message's scheduler can run before the ScrollView has
         // recalculated its content height. Wait for the new row's first layout pass

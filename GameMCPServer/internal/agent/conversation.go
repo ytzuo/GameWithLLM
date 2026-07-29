@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"log"
 	"strings"
+	"sync"
 	"time"
 
 	gametools "GameMCPServer/internal/tools"
@@ -27,6 +28,8 @@ type ConversationService interface {
 	SubmitMessage(ctx context.Context, sessionID, text string) (*AssistantReply, error)
 	SubmitMessageStream(ctx context.Context, sessionID, text string, onStreamEvent func(AssistantStreamEvent) error) (*AssistantReply, error)
 	EndSession(ctx context.Context, sessionID string) error
+	SaveConversations(ctx context.Context, request ConversationSaveRequest) ConversationSaveResult
+	LoadConversations(ctx context.Context, request ConversationLoadRequest) ConversationLoadResult
 }
 
 // Service 是 ConversationService 的内存实现；每个 Session 内部串行处理玩家消息。
@@ -35,29 +38,47 @@ type Service struct {
 	store           SessionStore
 	runtime         Runtime
 	policy          gametools.Policy
+	profiles        *NPCProfileCatalog
 	model           string
 	maxContextChars int
+	archive         *FileConversationArchive
+	lifecycleMu     sync.Mutex
 }
 
 // NewConversationService 装配模型、会话存储、Unity 运行时和工具/上下文预算。
-func NewConversationService(llm LLMClient, store SessionStore, runtime Runtime, model string, maxToolRounds int, contextBudgets ...int) *Service {
+func NewConversationService(llm LLMClient, store SessionStore, runtime Runtime, profiles *NPCProfileCatalog, model string, maxToolRounds int, contextBudgets ...int) *Service {
+	return newConversationService(llm, store, runtime, profiles, model, maxToolRounds, nil, contextBudgets...)
+}
+
+// NewConversationServiceWithArchive 启用显式 save/load 请求使用的文件快照仓库。
+func NewConversationServiceWithArchive(llm LLMClient, store SessionStore, runtime Runtime, profiles *NPCProfileCatalog, model string, maxToolRounds int, archive *FileConversationArchive, contextBudgets ...int) *Service {
+	return newConversationService(llm, store, runtime, profiles, model, maxToolRounds, archive, contextBudgets...)
+}
+
+func newConversationService(llm LLMClient, store SessionStore, runtime Runtime, profiles *NPCProfileCatalog, model string, maxToolRounds int, archive *FileConversationArchive, contextBudgets ...int) *Service {
 	maxContextChars := defaultMaxContextChars
 	if len(contextBudgets) > 0 && contextBudgets[0] > 0 {
 		maxContextChars = contextBudgets[0]
 	}
 	return &Service{
-		llm: llm, store: store, runtime: runtime, policy: gametools.NewPolicy(maxToolRounds),
-		model: model, maxContextChars: maxContextChars,
+		llm: llm, store: store, runtime: runtime, policy: gametools.NewPolicy(maxToolRounds), profiles: profiles,
+		model: model, maxContextChars: maxContextChars, archive: archive,
 	}
 }
 
 // StartSession 校验 NPC 在线状态，生成系统提示词并创建内存 Session。
 func (s *Service) StartSession(ctx context.Context, playerID, npcID string) (*Session, error) {
+	s.lifecycleMu.Lock()
+	defer s.lifecycleMu.Unlock()
 	if strings.TrimSpace(playerID) == "" {
 		return nil, fmt.Errorf("playerId is required")
 	}
 	if strings.TrimSpace(npcID) == "" {
 		return nil, fmt.Errorf("npcId is required")
+	}
+	profile, profileFound := s.profiles.Get(npcID)
+	if !profileFound {
+		return nil, fmt.Errorf("%w: %s", ErrNPCProfileNotFound, npcID)
 	}
 	instanceID, _, ok := s.runtime.Capabilities(npcID)
 	if !ok {
@@ -66,7 +87,7 @@ func (s *Service) StartSession(ctx context.Context, playerID, npcID string) (*Se
 	now := time.Now().UTC()
 	session := &Session{
 		ID: newSessionID(), PlayerID: playerID, NPCID: npcID, UnityInstanceID: instanceID,
-		SystemPrompt: BuildSystemPrompt(npcID),
+		SystemPrompt: BuildSystemPrompt(profile),
 		Model:        s.model, CreatedAt: now, LastActiveAt: now,
 	}
 	session.Messages = []Message{{Role: "system", Content: session.SystemPrompt}}
@@ -109,6 +130,11 @@ func (s *Service) submitMessage(
 	// 将当前操作的 cancel 暂存到 Session，使 conversation.end 能中止 LLM 或 Unity 工具。
 	operationCtx, cancel := context.WithCancel(ctx)
 	session.cancelMu.Lock()
+	if session.closed {
+		session.cancelMu.Unlock()
+		cancel()
+		return nil, ErrSessionNotFound
+	}
 	session.cancel = cancel
 	session.cancelMu.Unlock()
 	defer func() {
@@ -217,6 +243,8 @@ func (s *Service) trimSessionMessages(session *Session) {
 
 // EndSession 取消正在进行的模型/工具操作，并幂等删除内存 Session。
 func (s *Service) EndSession(ctx context.Context, sessionID string) error {
+	s.lifecycleMu.Lock()
+	defer s.lifecycleMu.Unlock()
 	session, err := s.store.Load(ctx, sessionID)
 	if err != nil {
 		if errors.Is(err, ErrSessionNotFound) {
@@ -225,10 +253,15 @@ func (s *Service) EndSession(ctx context.Context, sessionID string) error {
 		return err
 	}
 	session.cancelMu.Lock()
+	session.closed = true
 	if session.cancel != nil {
 		session.cancel()
 	}
 	session.cancelMu.Unlock()
+
+	// 等待进行中的消息处理退出后再删除，防止其在删除后保存共享 Session 指针。
+	session.mu.Lock()
+	defer session.mu.Unlock()
 	return s.store.Delete(ctx, sessionID)
 }
 
