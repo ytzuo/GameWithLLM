@@ -6,6 +6,7 @@ using System.Threading.Tasks;
 using GameWithLLM.AgentRuntime;
 using UnityEngine;
 
+// 将网络命令切换到 Unity 主线程，并保证同一实体上的工具调用 FIFO 串行执行。
 public class CommandDispatcher : Singleton<CommandDispatcher>
 {
     private sealed class PendingInvocation
@@ -91,6 +92,7 @@ public class CommandDispatcher : Singleton<CommandDispatcher>
         EntityCapabilitiesChanged?.Invoke(entity.EntityId);
     }
 
+    // 网络线程只负责入队；返回的 Task 在主线程完成工具执行后结束。
     public Task<AgentToolResult> ExecuteAsync(
         RuntimeCommand command,
         Action<double, string> progress,
@@ -117,6 +119,7 @@ public class CommandDispatcher : Singleton<CommandDispatcher>
         return completion.Task;
     }
 
+    // Update 在主线程合并入队命令，并为每个空闲实体启动一个调用。
     private void Update()
     {
         while (_completedEntities.TryDequeue(out string completedEntityId))
@@ -172,6 +175,7 @@ public class CommandDispatcher : Singleton<CommandDispatcher>
         }
     }
 
+    // async void 仅由 Update 启动；所有完成路径都释放该实体的 FIFO 占用。
     private async void ExecuteOnMainThreadAsync(
         PendingInvocation invocation,
         IAgentEntity entity)

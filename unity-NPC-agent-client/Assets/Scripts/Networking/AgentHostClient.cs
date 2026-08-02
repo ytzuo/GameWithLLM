@@ -6,6 +6,7 @@ using System.Threading.Tasks;
 using GameWithLLM.AgentRuntime;
 using UnityEngine;
 
+// 场景级门面：编排 A2A、Runtime Bridge、主线程工具执行和存档协调。
 public class AgentHostClient : Singleton<AgentHostClient>
 {
     public string a2aUrl = "http://127.0.0.1:8080/a2a";
@@ -32,6 +33,7 @@ public class AgentHostClient : Singleton<AgentHostClient>
     private volatile bool _saveBusy;
     private volatile bool _restoreFailed;
 
+    // Init 装配唯一的出站 Runtime 连接，并发布当前场景的实体与工具 Manifest。
     protected override void Init()
     {
         DotEnvConfig config = DotEnvConfig.Load();
@@ -99,6 +101,7 @@ public class AgentHostClient : Singleton<AgentHostClient>
             _ = SubmitAsync(_activeNpcId, text);
     }
 
+    // 对话与存档共用发送锁，避免快照期间新的 tool loop 改写世界状态。
     private async Task SubmitAsync(string npcId, string text)
     {
         await _sendLock.WaitAsync(_appCts.Token);
@@ -129,6 +132,7 @@ public class AgentHostClient : Singleton<AgentHostClient>
     public Task CancelActiveResponseAsync() =>
         _a2a.CancelActiveTaskAsync(_appCts.Token);
 
+    // 网络线程只转换事件并投递 UI 回调，实际 Unity API 在 Update 中执行。
     private void HandleResponseEvent(string npcId, AgentResponseEvent responseEvent)
     {
         if (responseEvent is TextDelta delta)
@@ -156,6 +160,7 @@ public class AgentHostClient : Singleton<AgentHostClient>
 
     public bool IsSaveGameOperationInProgress => _saveBusy;
 
+    // 先冻结新对话并保存 Unity 世界，再 prepare/commit 对应的 Agent 快照。
     public async Task<AgentSnapshotSaveResult> SaveWorldAndConversationsForSaveGameAsync(
         Func<SaveGameFile> saveWorld)
     {
@@ -223,6 +228,7 @@ public class AgentHostClient : Singleton<AgentHostClient>
         }
     }
 
+    // 恢复顺序固定为世界与实体优先，随后恢复对话并替换 Context ID。
     public async Task<AgentSnapshotLoadResult> LoadConversationsForSaveGameAsync(
         string saveId,
         IReadOnlyList<string> npcIds,
@@ -262,6 +268,7 @@ public class AgentHostClient : Singleton<AgentHostClient>
     private void OnCapabilitiesChanged(string _) => PublishManifest();
     private void OnToolsChanged() => PublishManifest();
 
+    // 持续消费 Transport 命令；连接与重连由 RuntimeGatewayClient 内部维护。
     private async Task RunRuntimeAsync()
     {
         try
@@ -282,6 +289,7 @@ public class AgentHostClient : Singleton<AgentHostClient>
         }
     }
 
+    // 将网络命令交给主线程 Dispatcher，并把最终业务结果返回 Gateway。
     private async Task ExecuteRuntimeCommandAsync(RuntimeCommand command)
     {
         try
@@ -349,6 +357,7 @@ public class AgentHostClient : Singleton<AgentHostClient>
         }
     }
 
+    // 每次实体或工具能力变化都生成并发布完整 Manifest，而不是增量补丁。
     private void PublishManifest()
     {
         RefreshManifest();

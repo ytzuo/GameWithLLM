@@ -11,6 +11,7 @@ using GameWithLLM.AgentRuntime;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 
+// Unity 侧唯一的 Runtime Bridge 传输：主动连接 Gateway，并维护重连和调用取消。
 public sealed class RuntimeGatewayClient : IRuntimeTransport, IDisposable
 {
     private sealed class InvocationRoute
@@ -50,6 +51,7 @@ public sealed class RuntimeGatewayClient : IRuntimeTransport, IDisposable
             : token;
     }
 
+    // 保存初始 Manifest 并启动后台连接循环，不阻塞 Unity 主线程。
     public Task StartAsync(
         RuntimeManifest manifest,
         CancellationToken cancellationToken)
@@ -65,6 +67,7 @@ public sealed class RuntimeGatewayClient : IRuntimeTransport, IDisposable
         return Task.CompletedTask;
     }
 
+    // 始终保留最新完整 Manifest；离线时由下一次 initialize 重新发布。
     public async Task UpdateManifestAsync(
         RuntimeManifest manifest,
         CancellationToken cancellationToken)
@@ -97,6 +100,7 @@ public sealed class RuntimeGatewayClient : IRuntimeTransport, IDisposable
         }
     }
 
+    // 从线程安全队列向上层暴露已校验的工具命令。
     public async IAsyncEnumerable<RuntimeCommand> ReadCommandsAsync(
         [EnumeratorCancellation] CancellationToken cancellationToken)
     {
@@ -109,6 +113,7 @@ public sealed class RuntimeGatewayClient : IRuntimeTransport, IDisposable
         }
     }
 
+    // 结果只发送到接收该调用的 socket，避免重连后的迟到结果串入新连接。
     public async Task SendResultAsync(
         string invocationId,
         AgentToolResult result,
@@ -173,6 +178,7 @@ public sealed class RuntimeGatewayClient : IRuntimeTransport, IDisposable
             cancellationToken);
     }
 
+    // RunAsync 负责主动建连、initialize、接收循环和退避重连的完整生命周期。
     private async Task RunAsync(CancellationToken cancellationToken)
     {
         int failures = 0;
@@ -280,6 +286,7 @@ public sealed class RuntimeGatewayClient : IRuntimeTransport, IDisposable
         }
     }
 
+    // 校验协议字段并剥离路由用 entityId，再将业务参数投递给主线程消费者。
     private async Task QueueToolCallAsync(
         ClientWebSocket socket,
         JObject message,
@@ -341,6 +348,7 @@ public sealed class RuntimeGatewayClient : IRuntimeTransport, IDisposable
         route.Cancellation.Dispose();
     }
 
+    // 断线只取消属于该 socket 的调用，隔离新旧连接 generation。
     private void CancelInvocations(ClientWebSocket socket)
     {
         foreach (KeyValuePair<string, InvocationRoute> pair in _invocations)
@@ -488,6 +496,7 @@ public sealed class RuntimeGatewayClient : IRuntimeTransport, IDisposable
         }
     }
 
+    // 所有 WebSocket 写入共用发送锁，并拒绝向已被替换的 socket 写入。
     private async Task SendAsync(
         ClientWebSocket socket,
         object value,

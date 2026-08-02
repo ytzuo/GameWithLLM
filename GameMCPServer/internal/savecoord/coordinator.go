@@ -41,6 +41,7 @@ func New(service SnapshotService, bearerToken string) *Coordinator {
 	return &Coordinator{service: service, bearerToken: bearerToken, operations: make(map[string]operation)}
 }
 
+// Handle 实现 prepare、commit、restore 和 status，并在内存中记录显式操作状态。
 func (c *Coordinator) Handle(w http.ResponseWriter, r *http.Request) {
 	if c.bearerToken == "" || r.Header.Get("Authorization") != "Bearer "+c.bearerToken {
 		http.Error(w, "unauthorized", http.StatusUnauthorized)

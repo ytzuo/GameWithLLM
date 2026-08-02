@@ -20,6 +20,7 @@ public abstract class NpcTool<TArgs> : IAgentTool where TArgs : ToolArgsBase
     public virtual bool IsAvailable(AgentToolContext context) =>
         context?.Entity is NpcEntity;
 
+    // 将 SDK 工具调用适配为强类型参数，并统一执行参数与领域校验。
     public ValueTask<AgentToolResult> ExecuteAsync(
         AgentToolContext context,
         string argumentsJson,

@@ -71,7 +71,7 @@ func (s *Service) StartSession(ctx context.Context, playerID, npcID string) (*Se
 	return s.StartSessionForRuntime(ctx, "game-1", playerID, npcID)
 }
 
-// StartSessionForRuntime creates an A2A context bound to one authenticated runtime and entity.
+// StartSessionForRuntime 创建绑定到单个 Unity Runtime、玩家和实体的 A2A Context。
 func (s *Service) StartSessionForRuntime(ctx context.Context, instanceID, playerID, npcID string) (*Session, error) {
 	s.lifecycleMu.Lock()
 	defer s.lifecycleMu.Unlock()
@@ -104,8 +104,7 @@ func (s *Service) StartSessionForRuntime(ctx context.Context, instanceID, player
 	return session, nil
 }
 
-// ValidateSessionOwner prevents an A2A context ID from being reused across
-// runtime, player, or entity ownership boundaries.
+// ValidateSessionOwner 防止 A2A Context ID 跨 Runtime、玩家或实体复用。
 func (s *Service) ValidateSessionOwner(ctx context.Context, sessionID, instanceID, playerID, npcID string) error {
 	session, err := s.store.Load(ctx, sessionID)
 	if err != nil {
@@ -131,6 +130,7 @@ func (s *Service) SubmitMessageStream(
 	return s.submitMessage(ctx, sessionID, text, onStreamEvent)
 }
 
+// submitMessage 串行推进一次完整的 LLM/tool loop，并在每轮后持久化内存 Session。
 func (s *Service) submitMessage(
 	ctx context.Context,
 	sessionID, text string,
@@ -258,6 +258,7 @@ func (s *Service) submitMessage(
 	}
 }
 
+// trimSessionMessages 在保留系统提示词和完整工具轮次的前提下限制上下文大小。
 func (s *Service) trimSessionMessages(session *Session) {
 	before := len(session.Messages)
 	session.Messages = trimConversationMessages(session.Messages, s.maxContextChars)

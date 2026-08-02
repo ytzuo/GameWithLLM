@@ -8,31 +8,78 @@
 系统由 Unity Agent Runtime、Go Agent Service 和 Runtime Gateway 组成。
 Agent Service 与 Gateway 当前装配在同一个 Go 进程中，但代码职责独立。
 
-```text
-Unity Game
-├─ UI / NPC / NavMesh / Inventory / SaveGame
-├─ Unity Agent Runtime SDK contracts
-├─ A2AClientAdapter ── HTTP/SSE ─────────► A2A Server
-└─ RuntimeGatewayClient ── WebSocket ────► Runtime Gateway
-                                              │
-Go process                                    ├─ Runtime Registry
-├─ Conversation Engine / LLM                  ├─ Virtual MCP Endpoint
-├─ MCP Agent Runtime Adapter ◄────────────────┘
-└─ Save Coordinator
+```mermaid
+flowchart LR
+    subgraph Unity["Unity Game（使用 Agent Runtime SDK 公共契约）"]
+        direction TB
+        UI["UI / AgentHostClient"]
+        A2AClient["A2AClientAdapter"]
+        RuntimeClient["RuntimeGatewayClient<br/>WebSocket Client"]
+        SaveClient["SaveCoordinationClient"]
+        Dispatcher["CommandDispatcher<br/>Unity 主线程"]
+        Game["IAgentEntity / IAgentTool<br/>NPC / NavMesh / Inventory"]
+
+        UI --> A2AClient
+        UI --> RuntimeClient
+        UI --> SaveClient
+        RuntimeClient --> Dispatcher
+        Dispatcher --> Game
+    end
+
+    subgraph Go["Go Process"]
+        direction TB
+        subgraph AgentService["Agent Service"]
+            direction TB
+            A2AServer["A2A Server"]
+            Conversation["Conversation / LLM Tool Loop"]
+            MCPAdapter["MCP Agent Runtime Adapter"]
+            SaveCoordinator["Save Coordinator"]
+
+            A2AServer --> Conversation
+            Conversation --> MCPAdapter
+            SaveCoordinator -->|"Snapshot / Restore"| Conversation
+        end
+
+        subgraph Gateway["Runtime Gateway"]
+            direction TB
+            RuntimeWS["/runtime/ws<br/>WebSocket Server"]
+            Registry["Runtime Registry<br/>Manifest / Generation / Pending"]
+            MCPEndpoint["可选外部 MCP Endpoint"]
+
+            MCPAdapter --> Registry
+            Registry <--> RuntimeWS
+            MCPEndpoint --> Registry
+        end
+    end
+
+    LLM["OpenAI-compatible LLM API"]
+    ExternalMCP["外部 MCP Client（可选）"]
+
+    A2AClient -->|"HTTP / SSE"| A2AServer
+    SaveClient -->|"REST / JSON"| SaveCoordinator
+    RuntimeClient -.->|"主动建立 WebSocket"| RuntimeWS
+    RuntimeClient -->|"initialize / manifest.changed / progress / result"| RuntimeWS
+    RuntimeWS -->|"tools.call / cancelled"| RuntimeClient
+    Conversation -->|"HTTP / SSE"| LLM
+    ExternalMCP -->|"MCP JSON-RPC"| MCPEndpoint
 ```
 
 协议分工：
 
 - **A2A**：玩家消息、Conversation Context、Agent Task、流式文本和取消。
 - **MCP**：Agent Service 内部的工具抽象，以及可选的外部标准工具入口。
-- **Runtime Bridge**：Gateway 与 Unity 之间的反向注册、工具调用、结果和取消。
+- **Runtime Bridge**：Unity Runtime 与 Gateway 之间的连接注册、工具调用、
+  结果和取消。
 - **Save Coordination API**：Unity 世界存档与 Agent 对话快照的协调。
 
-本地与远程没有两套 Runtime 实现。Unity 始终主动连接 Gateway：
+Runtime Bridge 的连接模型如下：Unity 中的 `RuntimeGatewayClient` 是
+WebSocket 客户端，Gateway 是 WebSocket 服务端。Unity 启动或断线重连时，
+始终由 Unity 主动连接 Gateway 的 `/runtime/ws`。同机部署和跨网络部署使用
+相同的实现与协议，仅连接地址、WS/WSS 和凭据不同：
 
 ```text
-本地：ws://127.0.0.1:8080/runtime/ws
-远程：wss://agent.example.com/runtime/ws
+同机部署：ws://127.0.0.1:8080/runtime/ws
+跨网络部署：wss://agent.example.com/runtime/ws
 ```
 
 ## 2. 网络协议
@@ -69,7 +116,7 @@ A2A、MCP 和 Runtime Bridge 都使用 JSON-RPC 2.0 信封，但它们是三种�
 
 - A2A 方法描述 Message、Task 和 Context。
 - MCP 方法描述工具发现和调用。
-- Runtime Bridge 方法只承载 Gateway 与 Unity Runtime 之间的反向执行。
+- Runtime Bridge 方法只承载 Gateway 与 Unity Runtime 之间的工具执行交互。
 - Save Coordination 使用 REST，不使用 JSON-RPC。
 
 ### 2.3 A2A 对话平面
@@ -113,6 +160,10 @@ https://gamewithllm.dev/extensions/game-context/v1
 UI 只消费这些事件，不依赖 A2A JSON 字段。
 
 ### 2.4 Runtime Bridge
+
+连接建立方向固定为 Unity → Gateway。WebSocket 建立后为全双工通道：Unity
+发送注册、Manifest 更新、进度和工具结果；Gateway 通过同一连接发送工具调用
+和取消通知。
 
 | 方向 | 方法或响应 | 作用 |
 |---|---|---|
@@ -226,7 +277,8 @@ ConversationService
 ### 5.1 启动和注册
 
 1. Unity 反射发现 `IAgentTool`，注册 `IAgentEntity`，生成完整 Manifest。
-2. `RuntimeGatewayClient` 连接 `/runtime/ws` 并发送 `runtime.initialize`。
+2. `RuntimeGatewayClient` 作为 WebSocket 客户端主动连接 Gateway 的
+   `/runtime/ws`，并发送 `runtime.initialize`。
 3. Gateway 验证 token，登记 `instanceId`、Manifest 和 generation。
 4. Entity 或工具变化时，Unity 发送完整 `runtime.manifest.changed`。
 
@@ -261,8 +313,8 @@ A2A Task 取消沿 Go Context 传播到 LLM、在途 MCP 调用、Runtime Bridge
 Unity CancellationToken。移动取消会重置 NavMesh path。每次调用只完成一次，
 连接 generation 隔离迟到响应。
 
-网络恢复后 Unity 重新连接并发布完整 Manifest；Gateway 不复用旧连接的
-pending 或能力快照。
+网络恢复后 `RuntimeGatewayClient` 主动重新连接 Gateway 并发布完整 Manifest；
+Gateway 不复用旧连接的 pending 或能力快照。
 
 ### 5.5 保存和恢复
 

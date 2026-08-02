@@ -9,6 +9,7 @@ using GameWithLLM.AgentRuntime;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 
+// 将 A2A JSON-RPC/SSE 响应映射为 SDK AgentResponseEvent。
 public sealed class A2AClientAdapter : IDisposable
 {
     public const string GameContextExtension =
@@ -29,6 +30,7 @@ public sealed class A2AClientAdapter : IDisposable
             new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", bearerToken);
     }
 
+    // 发送带 Game Context Extension 的玩家消息，并持续消费 Task SSE 事件。
     public async Task<ResponseCompleted> SendStreamingAsync(
         string contextId,
         string instanceId,
@@ -123,6 +125,7 @@ public sealed class A2AClientAdapter : IDisposable
         }
     }
 
+    // 取消当前已获得 Task ID 的流式请求；尚未开始的请求由调用方 Context 取消。
     public async Task CancelActiveTaskAsync(CancellationToken cancellationToken)
     {
         string taskId = _activeTaskId;

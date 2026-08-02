@@ -27,6 +27,7 @@ type AgentRuntime struct {
 
 func NewAgentRuntime(resolver ClientResolver) *AgentRuntime { return &AgentRuntime{resolver: resolver} }
 
+// Capabilities 从 Unity Manifest 构造模型可见工具目录，并隐藏服务端绑定字段。
 func (r *AgentRuntime) Capabilities(ctx context.Context, instanceID, entityID string) ([]gametools.Definition, error) {
 	client, ok := r.resolver.ResolveClient(instanceID)
 	if !ok {
@@ -77,6 +78,7 @@ func modelVisibleSchema(schema json.RawMessage) json.RawMessage {
 	return encoded
 }
 
+// Execute 绑定当前 A2A 实体，调用 Runtime 工具，并转换 MCP 业务结果。
 func (r *AgentRuntime) Execute(ctx context.Context, instanceID, entityID, tool string, arguments json.RawMessage) (agent.ToolExecutionResult, error) {
 	client, ok := r.resolver.ResolveClient(instanceID)
 	if !ok {
@@ -100,6 +102,7 @@ func (r *AgentRuntime) Execute(ctx context.Context, instanceID, entityID, tool s
 	return converted, nil
 }
 
+// BindEntityID 在服务端注入已认证实体，并拒绝模型伪造其他 entityId。
 func BindEntityID(arguments json.RawMessage, entityID string) (json.RawMessage, error) {
 	if strings.TrimSpace(entityID) == "" {
 		return nil, errors.New("entityId is required")
