@@ -61,6 +61,7 @@ public sealed class SaveCoordinationClient : IDisposable
             new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", bearerToken);
     }
 
+    // prepare 成功后才 commit，使世界存档和 Agent 快照共享同一 operationId。
     public async Task<AgentSnapshotSaveResult> PrepareAndCommitAsync(
         string saveId,
         string operationId,
@@ -88,6 +89,7 @@ public sealed class SaveCoordinationClient : IDisposable
         return prepared.Result;
     }
 
+    // 请求 Agent Service 恢复快照，并返回新创建的 Context ID 列表。
     public async Task<AgentSnapshotLoadResult> RestoreAsync(
         string saveId,
         string operationId,

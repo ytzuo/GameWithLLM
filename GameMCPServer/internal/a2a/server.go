@@ -97,6 +97,7 @@ type Artifact struct {
 	Parts      []Part `json:"parts"`
 }
 
+// HandleAgentCard 发布 Unity 发现 A2A 能力所需的 Agent Card。
 func (s *Server) HandleAgentCard(w http.ResponseWriter, _ *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{
 		"name":        "Game NPC Agent Service",
@@ -113,6 +114,7 @@ func (s *Server) HandleAgentCard(w http.ResponseWriter, _ *http.Request) {
 	})
 }
 
+// Handle 是 A2A JSON-RPC 的统一入口，负责认证、解码和方法分发。
 func (s *Server) Handle(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
@@ -122,6 +124,7 @@ func (s *Server) Handle(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "unauthorized", http.StatusUnauthorized)
 		return
 	}
+	// 解析 JSON-RPC 请求
 	var request rpcRequest
 	decoder := json.NewDecoder(http.MaxBytesReader(w, r.Body, 1<<20))
 	decoder.DisallowUnknownFields()
@@ -141,6 +144,7 @@ func (s *Server) Handle(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// handleMessage 将 A2A 消息绑定到游戏 Context，并按需返回普通或 SSE 响应。
 func (s *Server) handleMessage(w http.ResponseWriter, r *http.Request, request rpcRequest, stream bool) {
 	var params messageParams
 	if json.Unmarshal(request.Params, &params) != nil {
@@ -212,6 +216,7 @@ func (s *Server) handleMessage(w http.ResponseWriter, r *http.Request, request r
 	log.Printf("event=a2a_task_completed task_id=%q context_id=%q instance_id=%q agent_id=%q text_length=%d", taskID, contextID, gameContext.InstanceID, gameContext.AgentID, len([]rune(reply.Text)))
 }
 
+// handleCancel 通过 Task ID 取消仍在运行的 LLM 或工具调用链。
 func (s *Server) handleCancel(w http.ResponseWriter, request rpcRequest) {
 	var params cancelParams
 	if json.Unmarshal(request.Params, &params) != nil || strings.TrimSpace(params.ID) == "" {
@@ -229,6 +234,7 @@ func (s *Server) handleCancel(w http.ResponseWriter, request rpcRequest) {
 	writeJSON(w, http.StatusOK, rpcResponse{JSONRPC: "2.0", ID: request.ID, Result: Task{ID: params.ID, Status: status("cancelled", nil)}})
 }
 
+// validateMessage 同时校验 A2A 文本消息和必需的 Game Context Extension。
 func validateMessage(message Message) (GameContext, string, error) {
 	if message.Role != "user" {
 		return GameContext{}, "", errors.New("A2A message role must be user")

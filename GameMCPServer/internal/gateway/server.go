@@ -1,4 +1,4 @@
-// Package gateway implements the reverse Runtime Bridge and virtual MCP endpoints.
+// Package gateway implements the Unity-initiated Runtime Bridge and virtual MCP endpoints.
 package gateway
 
 import (
@@ -46,9 +46,12 @@ type Registry struct {
 	generations map[string]uint64
 }
 
+// NewRegistry 创建按 Unity instanceId 索引当前活动连接的 Runtime Registry。
 func NewRegistry() *Registry {
 	return &Registry{runtimes: make(map[string]*runtimeSession), generations: make(map[string]uint64)}
 }
+
+// register 用递增 generation 替换同 instanceId 的旧连接，隔离迟到响应。
 func (r *Registry) register(session *runtimeSession) uint64 {
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -68,6 +71,8 @@ func (r *Registry) unregister(session *runtimeSession) {
 		delete(r.runtimes, session.manifest.InstanceID)
 	}
 }
+
+// ResolveClient 只返回当前仍在线的 Runtime 连接。
 func (r *Registry) ResolveClient(instanceID string) (mcp.Client, bool) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
@@ -87,6 +92,7 @@ func NewServer(registry *Registry, runtimeToken, serviceToken string) *Server {
 	return &Server{registry: registry, runtimeToken: runtimeToken, serviceToken: serviceToken, connections: make(map[*websocket.Conn]struct{})}
 }
 
+// HandleRuntimeWebSocket 接受 Unity 主动建立的连接，并要求首帧完成认证和 Manifest 注册。
 func (s *Server) HandleRuntimeWebSocket(w http.ResponseWriter, r *http.Request) {
 	conn, err := websocket.Accept(w, r, nil)
 	if err != nil {
@@ -126,6 +132,7 @@ func (s *Server) HandleRuntimeWebSocket(w http.ResponseWriter, r *http.Request) 
 	session.readLoop()
 }
 
+// HandleVirtualMCP 将可选的外部 MCP 请求路由到指定的在线 Unity Runtime。
 func (s *Server) HandleVirtualMCP(w http.ResponseWriter, r *http.Request) {
 	// This endpoint is service-to-service. Browser-originated requests are not
 	// accepted, which also prevents DNS-rebinding access to a local deployment.
@@ -189,6 +196,7 @@ func (s *Server) HandleVirtualMCP(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// Shutdown 关闭所有 Runtime WebSocket，使客户端进入各自的重连流程。
 func (s *Server) Shutdown(ctx context.Context) error {
 	s.connectionsMu.Lock()
 	connections := make([]*websocket.Conn, 0, len(s.connections))
@@ -228,6 +236,8 @@ func (s *runtimeSession) ListTools(context.Context) ([]mcp.Tool, error) {
 	copy(result, s.manifest.Tools)
 	return result, nil
 }
+
+// CallTool 登记 pending 调用并等待对应结果；Context 取消会通知 Unity 停止执行。
 func (s *runtimeSession) CallTool(ctx context.Context, name string, arguments json.RawMessage) (mcp.CallToolResult, error) {
 	if s.closed.Load() {
 		return mcp.CallToolResult{}, errors.New("runtime disconnected")
@@ -263,6 +273,7 @@ func (s *runtimeSession) CallTool(ctx context.Context, name string, arguments js
 	}
 }
 
+// validateManifest 拒绝空值、重复项和非对象 Schema，避免污染全局工具目录。
 func validateManifest(manifest Manifest) error {
 	if strings.TrimSpace(manifest.InstanceID) == "" {
 		return errors.New("instanceId is required")
@@ -293,6 +304,8 @@ func validateManifest(manifest Manifest) error {
 	}
 	return nil
 }
+
+// readLoop 应用完整 Manifest 更新，并将工具结果按 request ID 交给对应 pending 调用。
 func (s *runtimeSession) readLoop() {
 	for {
 		var message bridgeMessage
@@ -326,6 +339,8 @@ func (s *runtimeSession) readLoop() {
 		}
 	}
 }
+
+// write 串行化同一 WebSocket 的所有写入。
 func (s *runtimeSession) write(message bridgeMessage) error {
 	s.writeMu.Lock()
 	defer s.writeMu.Unlock()
@@ -334,6 +349,8 @@ func (s *runtimeSession) write(message bridgeMessage) error {
 	}
 	return wsjson.Write(s.ctx, s.conn, message)
 }
+
+// close 只执行一次，并用断线错误完成该 generation 的全部 pending 调用。
 func (s *runtimeSession) close(reason error) {
 	if !s.closed.CompareAndSwap(false, true) {
 		return

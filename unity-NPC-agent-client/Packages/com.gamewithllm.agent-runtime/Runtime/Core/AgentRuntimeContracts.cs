@@ -87,7 +87,11 @@ namespace GameWithLLM.AgentRuntime
     public interface IAgentTool
     {
         AgentToolDescriptor Descriptor { get; }
+
+        /// <summary>按调用时刻的实体与世界状态判断工具是否可执行。</summary>
         bool IsAvailable(AgentToolContext context);
+
+        /// <summary>执行工具并以 AgentToolResult 表达游戏业务成功或失败。</summary>
         ValueTask<AgentToolResult> ExecuteAsync(
             AgentToolContext context,
             string argumentsJson,

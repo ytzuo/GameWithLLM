@@ -24,6 +24,7 @@ func (a *App) Shutdown(ctx context.Context) error {
 	return a.Gateway.Shutdown(ctx)
 }
 
+// RegisterRoutesWithConfig 装配单进程内的 A2A、Runtime Gateway、MCP 和存档端点。
 func RegisterRoutesWithConfig(mux *http.ServeMux, cfg config.Config) (*App, error) {
 	profiles, err := agent.LoadNPCProfileCatalog(cfg.NPCProfilePath)
 	if err != nil {

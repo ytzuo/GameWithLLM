@@ -15,11 +15,13 @@ import (
 
 const maxResponseBytes = 1 << 20
 
+// Client 是 Agent Service 访问任意 MCP 工具提供方的最小边界。
 type Client interface {
 	ListTools(context.Context) ([]Tool, error)
 	CallTool(context.Context, string, json.RawMessage) (CallToolResult, error)
 }
 
+// HTTPClient 实现可选的外部 MCP HTTP 客户端；内部 Runtime 调用不经过 HTTP 环回。
 type HTTPClient struct {
 	endpoint Endpoint
 	http     *http.Client
@@ -49,6 +51,7 @@ func (c *HTTPClient) ListTools(ctx context.Context) ([]Tool, error) {
 	return result.Tools, nil
 }
 
+// CallTool 保证 arguments 在协议边界上保持 JSON 对象而不是二次编码字符串。
 func (c *HTTPClient) CallTool(ctx context.Context, name string, arguments json.RawMessage) (CallToolResult, error) {
 	if strings.TrimSpace(name) == "" {
 		return CallToolResult{}, errors.New("MCP tool name is required")
@@ -64,6 +67,7 @@ func (c *HTTPClient) CallTool(ctx context.Context, name string, arguments json.R
 	return result, nil
 }
 
+// initialize 完成 MCP 版本协商，并发送 initialized 通知。
 func (c *HTTPClient) initialize(ctx context.Context) error {
 	var result struct {
 		ProtocolVersion string `json:"protocolVersion"`
@@ -81,6 +85,7 @@ func (c *HTTPClient) initialize(ctx context.Context) error {
 	return c.notify(ctx, "notifications/initialized", map[string]any{})
 }
 
+// call 为请求分配 ID，并在 tools/call 被取消时尽力发送取消通知。
 func (c *HTTPClient) call(ctx context.Context, method string, params any, target any) error {
 	id := fmt.Sprintf("mcp-%d", c.nextID.Add(1))
 	if method == "tools/call" {

@@ -7,6 +7,7 @@ using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using UnityEngine;
 
+// Unity 工具的唯一注册表，同时生成对外 Runtime Manifest Schema。
 public class ToolsRegistry : Singleton<ToolsRegistry>
 {
     private readonly Dictionary<string, IAgentTool> _tools =
@@ -21,6 +22,7 @@ public class ToolsRegistry : Singleton<ToolsRegistry>
         AgentToolDiscovery.RegisterAll(this);
     }
 
+    // 注册时立即验证名称和 Schema，避免把无效契约发布给 Gateway。
     public void RegisterTool(IAgentTool tool)
     {
         if (tool == null)
@@ -61,6 +63,7 @@ public class ToolsRegistry : Singleton<ToolsRegistry>
         ToolsChanged?.Invoke();
     }
 
+    // 在业务 Schema 外层注入必需的 entityId；业务工具本身无需声明路由字段。
     public List<AgentToolDescriptor> GetRuntimeTools()
     {
         var list = new List<AgentToolDescriptor>();
@@ -106,6 +109,7 @@ public class ToolsRegistry : Singleton<ToolsRegistry>
         return list;
     }
 
+    // 按实体实时探测工具能力，用于触发完整 Manifest 更新。
     public List<string> GetAvailableToolNames(IAgentEntity entity)
     {
         var names = new List<string>();
@@ -133,6 +137,7 @@ public class ToolsRegistry : Singleton<ToolsRegistry>
         return names;
     }
 
+    // 执行前重新校验工具注册和实时可用性，并将业务异常转换为 AgentToolResult。
     public async ValueTask<AgentToolResult> ExecuteAsync(
         string toolName,
         AgentToolContext context,

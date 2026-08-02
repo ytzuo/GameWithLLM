@@ -46,6 +46,7 @@ public class NpcEntity : MonoBehaviour, IGameObjectAgentEntity
     internal float InventoryInteractionRange => inventoryInteractionRange;
     internal bool IsOnNavMesh => _navAgent != null && _navAgent.isOnNavMesh;
 
+    // 按调用时刻读取实时世界状态，不把动态状态写入静态 NPC Profile。
     internal JToken CreateRuntimeStateData()
     {
         Vector3 position = transform.position;
@@ -139,6 +140,7 @@ public class NpcEntity : MonoBehaviour, IGameObjectAgentEntity
             UpdateActiveMovement();
     }
 
+    // 仅在工具可用集合变化时通知 Dispatcher，避免无意义地刷新 Manifest。
     private void RefreshCapabilitiesIfNeeded()
     {
         if (Time.unscaledTime < _nextCapabilityCheckAt)
@@ -165,6 +167,7 @@ public class NpcEntity : MonoBehaviour, IGameObjectAgentEntity
         CommandDispatcher.Instance.NotifyEntityCapabilitiesChanged(this);
     }
 
+    // 长时移动直到到达、失败或取消才完成对应 Runtime 工具调用。
     internal ValueTask<AgentToolResult> MoveToTargetAsync(
         MoveArgs args,
         AgentToolContext context,
@@ -252,6 +255,7 @@ public class NpcEntity : MonoBehaviour, IGameObjectAgentEntity
         return true;
     }
 
+    // 每帧检查取消、目标变化、寻路状态和超时，并报告有限进度。
     private void UpdateActiveMovement()
     {
         if (_activeMovementCompletion == null || _activeMoveTarget == null)
