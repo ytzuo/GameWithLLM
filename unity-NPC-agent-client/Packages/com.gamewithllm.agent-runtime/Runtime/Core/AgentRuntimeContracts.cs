@@ -6,6 +6,11 @@ using UnityEngine;
 
 namespace GameWithLLM.AgentRuntime
 {
+    [AttributeUsage(AttributeTargets.Class, Inherited = false)]
+    public sealed class AgentToolAttribute : Attribute
+    {
+    }
+
     public interface IAgentEntity
     {
         string EntityId { get; }

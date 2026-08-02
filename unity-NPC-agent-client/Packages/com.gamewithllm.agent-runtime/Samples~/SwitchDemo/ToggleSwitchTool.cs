@@ -5,6 +5,7 @@ using GameWithLLM.AgentRuntime;
 
 namespace GameWithLLM.AgentRuntime.Samples.SwitchDemo
 {
+    [AgentTool]
     public sealed class ToggleSwitchTool : IAgentTool
     {
         [Serializable]

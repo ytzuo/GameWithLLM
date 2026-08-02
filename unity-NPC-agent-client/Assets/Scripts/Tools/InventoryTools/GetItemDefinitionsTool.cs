@@ -1,6 +1,7 @@
+using GameWithLLM.AgentRuntime;
 using UnityEngine.Scripting;
 
-[NpcTool]
+[AgentTool]
 [Preserve]
 public sealed class GetItemDefinitionsTool : NpcTool<EmptyInventoryToolArgs>
 {
@@ -10,11 +11,12 @@ public sealed class GetItemDefinitionsTool : NpcTool<EmptyInventoryToolArgs>
         "获取当前游戏定义的全部物品种类及其 itemId、名称、描述和最大堆叠数量。" +
         "查询物品标识时使用此工具，不会读取任何运行时背包。";
 
-    protected override ToolExecutionResult ExecuteCore(
-        NpcToolContext context,
+    protected override AgentToolResult ExecuteCore(
+        AgentToolContext context,
+        NpcEntity npc,
         EmptyInventoryToolArgs args)
     {
-        return ToolExecutionResult.Success(InventoryToolSupport.CreateItemDefinitionsData(
+        return Success(InventoryToolSupport.CreateItemDefinitionsData(
             InventoryToolSupport.RequireItemCatalog()));
     }
 }

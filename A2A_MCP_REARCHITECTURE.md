@@ -551,7 +551,8 @@ Gateway 只负责：
 
 ## 15. Runtime Bridge 内部协议
 
-远程模式无法完全避免 Unity 到 Gateway 的内部传输协议。该协议的目标不是成为新的公共 Agent 协议，而是承载反向 MCP 执行。
+统一 Runtime Transport 仍需要 Unity 到 Gateway 的内部传输协议。该协议的
+目标不是成为新的公共 Agent 协议，而是承载反向 MCP 执行。
 
 建议特点：
 
@@ -570,25 +571,34 @@ Gateway 只负责：
 public interface IRuntimeTransport
 {
     Task StartAsync(RuntimeManifest manifest, CancellationToken cancellationToken);
+    Task UpdateManifestAsync(RuntimeManifest manifest, CancellationToken cancellationToken);
     IAsyncEnumerable<RuntimeCommand> ReadCommandsAsync(CancellationToken cancellationToken);
-    Task SendResultAsync(RuntimeToolResult result, CancellationToken cancellationToken);
-    Task SendProgressAsync(RuntimeToolProgress progress, CancellationToken cancellationToken);
+    Task SendResultAsync(
+        string invocationId,
+        AgentToolResult result,
+        CancellationToken cancellationToken);
+    Task SendProgressAsync(
+        string invocationId,
+        double progress,
+        string message,
+        CancellationToken cancellationToken);
 }
 ```
 
-本地 MCP Server 与 Reverse Gateway Transport 共用同一 Tool Runtime。
+当前生产实现中，`RuntimeGatewayClient` 直接实现该接口；本地和远程使用
+同一实现，不再存在本地 MCP Transport。
 
 ## 16. 部署模式选择
 
-| 运行环境 | 推荐模式 |
+| 运行环境 | Runtime Transport |
 |---|---|
-| Unity Editor | 本地 MCP 或 Mock Runtime |
-| PC 单机 + 本地模型 Host | 本地 MCP |
-| PC 游戏 + 云端 Agent | Runtime Gateway |
-| Mobile | Runtime Gateway |
+| Unity Editor | Runtime Gateway loopback |
+| PC 单机 + 本地模型 Host | Runtime Gateway loopback |
+| PC 游戏 + 云端 Agent | Runtime Gateway WSS |
+| Mobile | Runtime Gateway WSS |
 | Console | Runtime Gateway，按平台网络能力适配 |
 | WebGL | WebSocket Runtime Gateway |
-| CI/协议测试 | Headless Mock Runtime 或本地 MCP |
+| CI/协议测试 | Headless Mock Runtime |
 
 ---
 
@@ -655,14 +665,14 @@ public interface IAgentTool
 
     ValueTask<AgentToolResult> ExecuteAsync(
         AgentToolContext context,
-        AgentJsonObject arguments,
+        string argumentsJson,
         CancellationToken cancellationToken);
 }
 ```
 
 保留现有优秀能力：
 
-- attribute discovery；
+- `AgentToolAttribute` discovery；
 - IL2CPP preserve；
 - C# 类型生成 JSON Schema；
 - `additionalProperties=false`；

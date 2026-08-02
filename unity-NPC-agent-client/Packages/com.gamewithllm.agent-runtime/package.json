@@ -1,6 +1,6 @@
 {
   "name": "com.gamewithllm.agent-runtime",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "displayName": "GameWithLLM Agent Runtime",
   "description": "Protocol-independent Unity entity, tool, threading and conversation contracts.",
   "unity": "2022.3",

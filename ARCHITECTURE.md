@@ -57,8 +57,9 @@ GET /.well-known/agent.json
 | 调用方 | 被调用方 | 契约 |
 |---|---|---|
 | Unity UI / `AgentHostClient` | `A2AClientAdapter` | C# 方法调用和 `AgentResponseEvent`：`ResponseStarted`、`TextDelta`、`StatusChanged`、`ResponseCompleted`、`ResponseFailed` |
-| `RuntimeGatewayClient` | `CommandDispatcher` | `AgentToolCommand` 投递到线程安全队列；网络线程不得调用 Unity API |
-| `CommandDispatcher` | `IAgentEntity` / `IAgentTool` | SDK 的 Entity、Tool、Context、Progress 和一次性 Completion 契约 |
+| `RuntimeGatewayClient` | `AgentHostClient` | SDK `IRuntimeTransport`：产生 `RuntimeCommand`，接收 `RuntimeManifest`，发送 `AgentToolResult` 和 Progress |
+| `AgentHostClient` | `CommandDispatcher` | SDK `RuntimeCommand` 投递到线程安全队列并异步等待 `AgentToolResult`；网络线程不得调用 Unity API |
+| `CommandDispatcher` | `IAgentEntity` / `IAgentTool` | SDK Entity Registry、Tool Registry、`AgentToolContext`、CancellationToken 和按实体串行执行契约 |
 | Go A2A Server | `ConversationService` | Go 方法调用；传递已验证的 Game Context、Context ID 和流式事件回调 |
 | `ConversationService` | `mcp.AgentRuntime` | Go `agent.Runtime` 接口；使用 MCP Tool、Schema 和 `CallToolResult` 语义 |
 | `mcp.AgentRuntime` | Runtime Registry | 按 `instanceId` 解析当前 `mcp.Client`；本地与远程没有 fallback 分支 |
@@ -232,18 +233,33 @@ Packages/com.gamewithllm.agent-runtime/
 类型。Warehouse 是现有 NPC/NavMesh/Inventory 示例；SwitchDemo 展示非
 NPC 游戏实体复用相同 SDK。
 
-SampleScene 的适配层：
+UPM 契约是生产运行链的唯一公共类型源，不允许在 `Assets` 中再定义平行的
+Tool、Result、Command、Manifest 或 Transport 类型。当前生产链直接使用：
+
+- `ToolsRegistry` 保存和发现 `IAgentTool`，Manifest 使用
+  `AgentToolDescriptor`。
+- `CommandDispatcher` 保存 `IAgentEntity`，接收 `RuntimeCommand`，
+  并按实体串行执行工具。
+- 工具同步或异步返回 `AgentToolResult`；长时移动的
+  `ValueTask<AgentToolResult>` 只有在真实到达、失败或取消后才结束。
+- `AgentHostClient` 只依赖 `IRuntimeTransport` 编排命令、结果和进度。
+- `RuntimeGatewayClient` 是 `IRuntimeTransport` 的 WebSocket/WSS 实现。
+- `NpcEntity` 是 `IGameObjectAgentEntity` 的 Warehouse 游戏适配实现。
+
+SampleScene 的生产适配层：
 
 - `ToolsRegistry`：反射发现工具、生成严格 Schema、合并 `entityId`。
-- `CommandDispatcher`：线程安全入站队列、实体路由、取消与重复结果隔离。
-- `AgentToolCommand`：协议无关命令，使用一次性 completion/progress 回调。
-- `NpcEntity`：主线程执行 NavMesh 行为；只有真实到达才完成移动。
-- `RuntimeGatewayClient`：本地和远程共用的出站 WebSocket Transport。
+- `CommandDispatcher`：`IAgentEntity` 注册、线程安全入站队列、实体路由
+  和每实体 FIFO 执行。
+- `NpcTool<TArgs>`：把 Warehouse 参数校验和 `NpcEntity` 能力适配到
+  `IAgentTool`，不是第二套工具接口。
+- `NpcEntity`：主线程执行 NavMesh 行为并完成 `AgentToolResult`。
+- `RuntimeGatewayClient`：本地和远程共用的 `IRuntimeTransport` 实现。
 - `A2AClientAdapter`：A2A SSE 到 UI 事件的适配。
 
 移动工具每 0.5 秒最多报告一次不含参数或内部状态的 `moving` 进度。
-取消后 NavMesh path 被重置；迟到 completion 由命令的一次性完成保护和
-Gateway connection generation 隔离。
+取消后 NavMesh path 被重置；CancellationToken、Transport invocation route
+和 Gateway connection generation 共同隔离迟到结果。
 
 ## 7. 统一 Runtime Transport
 

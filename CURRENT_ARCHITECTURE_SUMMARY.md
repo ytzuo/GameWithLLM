@@ -41,6 +41,9 @@ Go Agent Service                         │
 - Unity API 只在主线程执行，网络回调只向线程安全队列投递命令。
 - 工具 Schema 只由 Unity Runtime 生成，Go 不维护第二份目录。
 - 工具参数在所有协议边界上都是 JSON 对象。
+- UPM 包中的 `IAgentEntity`、`IAgentTool`、`AgentToolResult`、
+  `RuntimeCommand`、`RuntimeManifest` 和 `IRuntimeTransport` 是 Unity
+  生产链的唯一公共运行时类型；`Assets` 中不再维护平行 DTO。
 
 模块间协议速查：
 
@@ -140,10 +143,13 @@ Unity 保存世界状态；Agent Service 只保存非 system 的对话上下文�
 2. 模型请求工具，例如 `game_npc_move(targetId=landmark:gate)`。
 3. Agent Service 校验参数并绑定当前 `entityId`。
 4. MCP Runtime Adapter 经 Gateway 发送 `runtime.tools.call`。
-5. Unity 网络层把协议无关命令投递到 `CommandDispatcher`。
-6. `NpcEntity` 在主线程执行真实 NavMesh 行为并返回结构化结果。
-7. Agent Service 将结果写回模型上下文，继续 tool loop。
-8. 最终回复通过 A2A SSE 返回 UI。
+5. `RuntimeGatewayClient : IRuntimeTransport` 产生 SDK `RuntimeCommand`。
+6. `CommandDispatcher` 按 `IAgentEntity` 路由到 `IAgentTool`，并在主线程
+   执行。
+7. `NpcEntity : IGameObjectAgentEntity` 完成真实 NavMesh 行为并返回
+   `AgentToolResult`。
+8. Agent Service 将结果写回模型上下文，继续 tool loop。
+9. 最终回复通过 A2A SSE 返回 UI。
 
 ### 3.4 取消与重连
 

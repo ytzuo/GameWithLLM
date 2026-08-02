@@ -23,10 +23,10 @@ public class AgentHostClient : Singleton<AgentHostClient>
     private readonly object _manifestLock = new object();
     private A2AClientAdapter _a2a;
     private SaveCoordinationClient _saveCoordinator;
-    private RuntimeGatewayClient _gateway;
+    private IRuntimeTransport _runtimeTransport;
     private CommandDispatcher _dispatcher;
     private ToolsRegistry _tools;
-    private RuntimeManifestSnapshot _manifest = new RuntimeManifestSnapshot();
+    private RuntimeManifest _manifest;
     private long _manifestRevision;
     private string _activeNpcId;
     private volatile bool _saveBusy;
@@ -49,8 +49,8 @@ public class AgentHostClient : Singleton<AgentHostClient>
             player.ConfigureWorldTargetId(playerId);
         _dispatcher = CommandDispatcher.Instance;
         _tools = ToolsRegistry.Instance;
-        _dispatcher.NpcChanged += OnRuntimeChanged;
-        _dispatcher.NpcCapabilitiesChanged += OnCapabilitiesChanged;
+        _dispatcher.EntityChanged += OnRuntimeChanged;
+        _dispatcher.EntityCapabilitiesChanged += OnCapabilitiesChanged;
         _tools.ToolsChanged += OnToolsChanged;
         RefreshManifest();
         _a2a = new A2AClientAdapter(
@@ -62,14 +62,13 @@ public class AgentHostClient : Singleton<AgentHostClient>
             config.Get("A2A_BEARER_TOKEN", string.Empty),
             TimeSpan.FromSeconds(30));
 
-        _gateway = new RuntimeGatewayClient(
+        var gateway = new RuntimeGatewayClient(
             runtimeGatewayWsUrl,
-            config.Get("RUNTIME_GATEWAY_TOKEN", string.Empty),
-            GetManifest,
-            _dispatcher);
-        _gateway.Info += message => Debug.Log($"[Agent Runtime] {message}");
-        _gateway.Warning += message => Debug.LogWarning($"[Agent Runtime] {message}");
-        _gateway.Start(_appCts.Token);
+            config.Get("RUNTIME_GATEWAY_TOKEN", string.Empty));
+        gateway.Info += message => Debug.Log($"[Agent Runtime] {message}");
+        gateway.Warning += message => Debug.LogWarning($"[Agent Runtime] {message}");
+        _runtimeTransport = gateway;
+        _ = RunRuntimeAsync();
     }
 
     private void Update()
@@ -262,35 +261,121 @@ public class AgentHostClient : Singleton<AgentHostClient>
     private void OnRuntimeChanged(string _, bool __) => PublishManifest();
     private void OnCapabilitiesChanged(string _) => PublishManifest();
     private void OnToolsChanged() => PublishManifest();
+
+    private async Task RunRuntimeAsync()
+    {
+        try
+        {
+            await _runtimeTransport.StartAsync(GetManifest(), _appCts.Token);
+            await foreach (RuntimeCommand command in
+                           _runtimeTransport.ReadCommandsAsync(_appCts.Token))
+            {
+                _ = ExecuteRuntimeCommandAsync(command);
+            }
+        }
+        catch (OperationCanceledException) when (_appCts.IsCancellationRequested)
+        {
+        }
+        catch (Exception ex)
+        {
+            Debug.LogError($"[Agent Runtime] Transport stopped: {ex}");
+        }
+    }
+
+    private async Task ExecuteRuntimeCommandAsync(RuntimeCommand command)
+    {
+        try
+        {
+            AgentToolResult result = await _dispatcher.ExecuteAsync(
+                command,
+                (progress, message) =>
+                    _ = SendRuntimeProgressAsync(
+                        command.InvocationId,
+                        progress,
+                        message),
+                _appCts.Token);
+            await _runtimeTransport.SendResultAsync(
+                command.InvocationId,
+                result,
+                _appCts.Token);
+        }
+        catch (OperationCanceledException) when (
+            command.CancellationToken.IsCancellationRequested ||
+            _appCts.IsCancellationRequested)
+        {
+        }
+        catch (Exception ex)
+        {
+            Debug.LogWarning(
+                $"[Agent Runtime] Invocation '{command.InvocationId}' failed: {ex.Message}");
+            try
+            {
+                await _runtimeTransport.SendResultAsync(
+                    command.InvocationId,
+                    AgentToolResult.Failure(
+                        "RUNTIME_EXECUTION_FAILED",
+                        "Unity Runtime failed to execute the tool."),
+                    _appCts.Token);
+            }
+            catch (Exception sendError)
+            {
+                Debug.LogWarning(
+                    $"[Agent Runtime] Invocation error response " +
+                    $"'{command.InvocationId}' failed: {sendError.Message}");
+            }
+        }
+    }
+
+    private async Task SendRuntimeProgressAsync(
+        string invocationId,
+        double progress,
+        string message)
+    {
+        try
+        {
+            await _runtimeTransport.SendProgressAsync(
+                invocationId,
+                progress,
+                message,
+                _appCts.Token);
+        }
+        catch (OperationCanceledException) when (_appCts.IsCancellationRequested)
+        {
+        }
+        catch (Exception ex)
+        {
+            Debug.LogWarning(
+                $"[Agent Runtime] Progress '{invocationId}' failed: {ex.Message}");
+        }
+    }
+
     private void PublishManifest()
     {
         RefreshManifest();
-        if (_gateway != null)
-            _ = _gateway.NotifyManifestChangedAsync(_appCts.Token);
+        if (_runtimeTransport != null)
+            _ = _runtimeTransport.UpdateManifestAsync(
+                GetManifest(),
+                _appCts.Token);
     }
     private void RefreshManifest()
     {
         lock (_manifestLock)
         {
-            _manifest = new RuntimeManifestSnapshot
-            {
-                InstanceId = unityInstanceId,
-                Revision = Interlocked.Increment(ref _manifestRevision),
-                Entities = _dispatcher.GetRegisteredNpcIds(),
-                Tools = _tools.GetRuntimeTools()
-            };
+            _manifest = new RuntimeManifest(
+                unityInstanceId,
+                _dispatcher.GetRegisteredEntityIds(),
+                _tools.GetRuntimeTools(),
+                Interlocked.Increment(ref _manifestRevision));
         }
     }
-    private RuntimeManifestSnapshot GetManifest()
+    private RuntimeManifest GetManifest()
     {
         lock (_manifestLock)
-            return new RuntimeManifestSnapshot
-            {
-                InstanceId = _manifest.InstanceId,
-                Revision = _manifest.Revision,
-                Entities = new List<string>(_manifest.Entities),
-                Tools = new List<RuntimeToolDefinition>(_manifest.Tools)
-            };
+            return new RuntimeManifest(
+                _manifest.InstanceId,
+                new List<string>(_manifest.EntityIds),
+                new List<AgentToolDescriptor>(_manifest.Tools),
+                _manifest.Revision);
     }
     private void CancelStream(string npcId) =>
         _mainThread.Enqueue(() => ChatViewModel.Instance.CancelOpponentMessageStream(npcId));
@@ -302,12 +387,12 @@ public class AgentHostClient : Singleton<AgentHostClient>
     {
         if (_dispatcher != null)
         {
-            _dispatcher.NpcChanged -= OnRuntimeChanged;
-            _dispatcher.NpcCapabilitiesChanged -= OnCapabilitiesChanged;
+            _dispatcher.EntityChanged -= OnRuntimeChanged;
+            _dispatcher.EntityCapabilitiesChanged -= OnCapabilitiesChanged;
         }
         if (_tools != null) _tools.ToolsChanged -= OnToolsChanged;
         _appCts.Cancel();
-        _gateway?.Dispose();
+        (_runtimeTransport as IDisposable)?.Dispose();
         _a2a?.Dispose();
         _saveCoordinator?.Dispose();
         _sendLock.Dispose();
