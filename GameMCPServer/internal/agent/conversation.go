@@ -18,8 +18,8 @@ import (
 
 // Runtime 是 Agent 访问 Unity 实时能力和执行游戏工具的唯一边界。
 type Runtime interface {
-	Capabilities(npcID string) (instanceID string, definitions []gametools.Definition, ok bool)
-	Execute(ctx context.Context, instanceID, npcID, tool string, arguments json.RawMessage) (ToolExecutionResult, error)
+	Capabilities(ctx context.Context, instanceID, entityID string) ([]gametools.Definition, error)
+	Execute(ctx context.Context, instanceID, entityID, tool string, arguments json.RawMessage) (ToolExecutionResult, error)
 }
 
 // ConversationService 管理 Session 生命周期，并编排 LLM 与 Unity 工具循环。
@@ -68,8 +68,16 @@ func newConversationService(llm LLMClient, store SessionStore, runtime Runtime, 
 
 // StartSession 校验 NPC 在线状态，生成系统提示词并创建内存 Session。
 func (s *Service) StartSession(ctx context.Context, playerID, npcID string) (*Session, error) {
+	return s.StartSessionForRuntime(ctx, "game-1", playerID, npcID)
+}
+
+// StartSessionForRuntime creates an A2A context bound to one authenticated runtime and entity.
+func (s *Service) StartSessionForRuntime(ctx context.Context, instanceID, playerID, npcID string) (*Session, error) {
 	s.lifecycleMu.Lock()
 	defer s.lifecycleMu.Unlock()
+	if strings.TrimSpace(instanceID) == "" {
+		return nil, fmt.Errorf("instanceId is required")
+	}
 	if strings.TrimSpace(playerID) == "" {
 		return nil, fmt.Errorf("playerId is required")
 	}
@@ -80,9 +88,8 @@ func (s *Service) StartSession(ctx context.Context, playerID, npcID string) (*Se
 	if !profileFound {
 		return nil, fmt.Errorf("%w: %s", ErrNPCProfileNotFound, npcID)
 	}
-	instanceID, _, ok := s.runtime.Capabilities(npcID)
-	if !ok {
-		return nil, fmt.Errorf("NPC is not registered or offline: %s", npcID)
+	if _, err := s.runtime.Capabilities(ctx, instanceID, npcID); err != nil {
+		return nil, fmt.Errorf("runtime entity is unavailable: %w", err)
 	}
 	now := time.Now().UTC()
 	session := &Session{
@@ -95,6 +102,19 @@ func (s *Service) StartSession(ctx context.Context, playerID, npcID string) (*Se
 		return nil, err
 	}
 	return session, nil
+}
+
+// ValidateSessionOwner prevents an A2A context ID from being reused across
+// runtime, player, or entity ownership boundaries.
+func (s *Service) ValidateSessionOwner(ctx context.Context, sessionID, instanceID, playerID, npcID string) error {
+	session, err := s.store.Load(ctx, sessionID)
+	if err != nil {
+		return err
+	}
+	if session.UnityInstanceID != instanceID || session.PlayerID != playerID || session.NPCID != npcID {
+		return errors.New("A2A context ownership mismatch")
+	}
+	return nil
 }
 
 // SubmitMessage 以非流式回调方式处理一条玩家消息。
@@ -127,7 +147,7 @@ func (s *Service) submitMessage(
 	session.mu.Lock()
 	defer session.mu.Unlock()
 
-	// 将当前操作的 cancel 暂存到 Session，使 conversation.end 能中止 LLM 或 Unity 工具。
+	// 将当前操作的 cancel 暂存到 Session，使 A2A tasks/cancel 能中止 LLM 或 MCP 工具。
 	operationCtx, cancel := context.WithCancel(ctx)
 	session.cancelMu.Lock()
 	if session.closed {
@@ -145,9 +165,9 @@ func (s *Service) submitMessage(
 		session.CurrentToolCallID = ""
 	}()
 
-	instanceID, definitions, ok := s.runtime.Capabilities(session.NPCID)
-	if !ok || instanceID != session.UnityInstanceID {
-		return nil, fmt.Errorf("Unity instance or NPC is offline for session %s", sessionID)
+	definitions, err := s.runtime.Capabilities(operationCtx, session.UnityInstanceID, session.NPCID)
+	if err != nil {
+		return nil, fmt.Errorf("runtime or entity is offline for session %s: %w", sessionID, err)
 	}
 	session.Messages = append(session.Messages, Message{Role: "user", Content: text})
 	s.trimSessionMessages(session)
@@ -159,7 +179,8 @@ func (s *Service) submitMessage(
 	toolRounds := 0
 	for {
 		llmStartedAt := time.Now()
-		log.Printf("event=llm_request_started session_id=%q npc_id=%q model=%q message_count=%d tool_count=%d tool_round=%d", session.ID, session.NPCID, session.Model, len(session.Messages), len(definitions), toolRounds)
+		messageCount := len(session.Messages)
+		toolCount := len(definitions)
 		streamedText := false
 		var onTextDelta func(string) error
 		if onStreamEvent != nil {
@@ -173,10 +194,10 @@ func (s *Service) submitMessage(
 			Tools: definitions, OnTextDelta: onTextDelta,
 		})
 		if err != nil {
-			log.Printf("event=llm_request_completed session_id=%q outcome=error duration_ms=%d error=%q", session.ID, time.Since(llmStartedAt).Milliseconds(), err)
+			log.Printf("event=llm_request_completed session_id=%q npc_id=%q outcome=error duration_ms=%d message_count=%d tool_count=%d tool_round=%d error=%q", session.ID, session.NPCID, time.Since(llmStartedAt).Milliseconds(), messageCount, toolCount, toolRounds, err)
 			return nil, err
 		}
-		log.Printf("event=llm_request_completed session_id=%q outcome=success duration_ms=%d tool_call_count=%d text_length=%d", session.ID, time.Since(llmStartedAt).Milliseconds(), len(completion.ToolCalls), len([]rune(completion.Content)))
+		log.Printf("event=llm_request_completed session_id=%q npc_id=%q outcome=success duration_ms=%d message_count=%d tool_count=%d tool_round=%d tool_call_count=%d text_length=%d", session.ID, session.NPCID, time.Since(llmStartedAt).Milliseconds(), messageCount, toolCount, toolRounds, len(completion.ToolCalls), len([]rune(completion.Content)))
 		// 工具调用前的文本只是临时草稿，先通知 Unity 撤回，再执行工具。
 		if len(completion.ToolCalls) > 0 && streamedText && onStreamEvent != nil {
 			if err := onStreamEvent(AssistantStreamEvent{Reset: true}); err != nil {
@@ -211,15 +232,19 @@ func (s *Service) submitMessage(
 				result.Message = err.Error()
 			} else {
 				toolStartedAt := time.Now()
-				log.Printf("event=agent_tool_call_started session_id=%q call_id=%q npc_id=%q tool=%q round=%d", session.ID, call.ID, session.NPCID, call.Name, toolRounds)
+
 				executed, executeErr := s.runtime.Execute(operationCtx, session.UnityInstanceID, session.NPCID, call.Name, call.Arguments)
 				if executeErr != nil {
 					result.ErrorCode = "TOOL_EXECUTION_ERROR"
 					result.Message = executeErr.Error()
-					log.Printf("event=agent_tool_call_completed session_id=%q call_id=%q tool=%q outcome=host_error duration_ms=%d error=%q", session.ID, call.ID, call.Name, time.Since(toolStartedAt).Milliseconds(), executeErr)
+					log.Printf("event=agent_tool_call_completed session_id=%q call_id=%q npc_id=%q tool=%q round=%d outcome=runtime_error duration_ms=%d error=%q", session.ID, call.ID, session.NPCID, call.Name, toolRounds, time.Since(toolStartedAt).Milliseconds(), executeErr)
 				} else {
 					result = executed
-					log.Printf("event=agent_tool_call_completed session_id=%q call_id=%q tool=%q outcome=%q duration_ms=%d error_code=%q", session.ID, call.ID, call.Name, toolResultOutcome(result), time.Since(toolStartedAt).Milliseconds(), result.ErrorCode)
+					if result.OK {
+						log.Printf("event=agent_tool_call_completed session_id=%q call_id=%q npc_id=%q tool=%q round=%d outcome=success duration_ms=%d", session.ID, call.ID, session.NPCID, call.Name, toolRounds, time.Since(toolStartedAt).Milliseconds())
+					} else {
+						log.Printf("event=agent_tool_call_completed session_id=%q call_id=%q npc_id=%q tool=%q round=%d outcome=%q duration_ms=%d error_code=%q", session.ID, call.ID, session.NPCID, call.Name, toolRounds, toolResultOutcome(result), time.Since(toolStartedAt).Milliseconds(), result.ErrorCode)
+					}
 				}
 			}
 			encodedResult, _ := json.Marshal(result)

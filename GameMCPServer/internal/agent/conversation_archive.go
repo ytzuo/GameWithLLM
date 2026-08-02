@@ -390,8 +390,7 @@ func (s *Service) LoadConversations(ctx context.Context, request ConversationLoa
 		if _, ok := requestedNPCs[context.NPCID]; !ok {
 			return failedLoad("NPC_SET_MISMATCH", "Conversation snapshot contains an NPC that is not present in the loaded world.")
 		}
-		instanceID, _, ok := s.runtime.Capabilities(context.NPCID)
-		if !ok || instanceID != request.InstanceID {
+		if _, err := s.runtime.Capabilities(ctx, request.InstanceID, context.NPCID); err != nil {
 			return failedLoad("NPC_SET_MISMATCH", "Conversation snapshot contains an NPC unavailable on this Unity instance.")
 		}
 	}

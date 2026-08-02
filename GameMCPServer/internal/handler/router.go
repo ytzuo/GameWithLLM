@@ -1,42 +1,58 @@
-// Package handler 负责注册 Unity JSON-RPC WebSocket 入口和健康检查入口。
+// Package handler wires the A2A conversation plane, MCP tool plane, Runtime
+// Gateway, save coordination, and health endpoints.
 package handler
 
 import (
+	"context"
 	"fmt"
 	"net/http"
-	"time"
 
+	"GameMCPServer/internal/a2a"
 	"GameMCPServer/internal/agent"
 	"GameMCPServer/internal/config"
-
-	"GameMCPServer/internal/unity"
+	"GameMCPServer/internal/gateway"
+	"GameMCPServer/internal/mcp"
+	"GameMCPServer/internal/savecoord"
 )
 
-// RegisterRoutes 注册所有 HTTP 路由。
-func RegisterRoutes(mux *http.ServeMux) {
-	_ = RegisterRoutesWithTimeout(mux, 10*time.Second)
+type App struct{ Gateway *gateway.Server }
+
+func (a *App) Shutdown(ctx context.Context) error {
+	if a == nil || a.Gateway == nil {
+		return nil
+	}
+	return a.Gateway.Shutdown(ctx)
 }
 
-// RegisterRoutesWithTimeout 注册不启用 Go Agent Host 的测试路由。
-func RegisterRoutesWithTimeout(mux *http.ServeMux, timeout time.Duration) *unity.JSONRPCServer {
-	return registerRoutes(mux, unity.NewJSONRPCServer(timeout))
-}
-
-// RegisterRoutesWithConfig 注册生产路由，并把 LLM 与 ConversationService 装配到 Go Agent Host。
-func RegisterRoutesWithConfig(mux *http.ServeMux, cfg config.Config) (*unity.JSONRPCServer, error) {
+func RegisterRoutesWithConfig(mux *http.ServeMux, cfg config.Config) (*App, error) {
 	profiles, err := agent.LoadNPCProfileCatalog(cfg.NPCProfilePath)
 	if err != nil {
 		return nil, fmt.Errorf("load NPC profiles: %w", err)
 	}
 	llm := agent.NewOpenAICompatibleClient(cfg.LLMAPIURL, cfg.LLMAPIKey, cfg.LLMModel, cfg.LLMRequestTimeout, cfg.LLMMaxRetries)
-	return registerRoutes(mux, unity.NewJSONRPCServerWithAgentAndArchive(
-		cfg.UnityToolTimeout, llm, profiles, cfg.LLMModel, cfg.LLMMaxToolRounds, cfg.ConversationSaveDir, cfg.LLMMaxContextChars,
-	)), nil
+	registry := gateway.NewRegistry()
+	runtime := mcp.NewAgentRuntime(registry)
+	conversations := agent.NewConversationServiceWithArchive(
+		llm, agent.NewMemorySessionStore(), runtime, profiles, cfg.LLMModel,
+		cfg.LLMMaxToolRounds, agent.NewFileConversationArchive(cfg.ConversationSaveDir), cfg.LLMMaxContextChars)
+	a2aServer := a2a.NewServer(conversations, cfg.BaseURL, cfg.A2ABearerToken)
+	gatewayServer := gateway.NewServer(registry, cfg.RuntimeGatewayToken, cfg.GatewayServiceToken)
+	saveCoordinator := savecoord.New(conversations, cfg.A2ABearerToken)
+
+	mux.HandleFunc("/.well-known/agent-card.json", a2aServer.HandleAgentCard)
+	mux.HandleFunc("/.well-known/agent.json", a2aServer.HandleAgentCard)
+	mux.HandleFunc("/a2a", a2aServer.Handle)
+	mux.HandleFunc("/runtime/ws", gatewayServer.HandleRuntimeWebSocket)
+	mux.HandleFunc("/mcp/runtimes/", gatewayServer.HandleVirtualMCP)
+	mux.HandleFunc("/game-saves/", saveCoordinator.Handle)
+	mux.HandleFunc("/health", handleHealth)
+	mux.HandleFunc("/{$}", func(w http.ResponseWriter, _ *http.Request) { _, _ = w.Write([]byte("Game Agent Service is running!")) })
+	return &App{Gateway: gatewayServer}, nil
 }
 
-func registerRoutes(mux *http.ServeMux, jsonRPCServer *unity.JSONRPCServer) *unity.JSONRPCServer {
-	mux.HandleFunc("/unity/ws", jsonRPCServer.HandleWebSocket)
-	mux.HandleFunc("/health", handleHealth)
-	mux.HandleFunc("/{$}", jsonRPCServer.HandleRoot)
-	return jsonRPCServer
+// RegisterRoutes is retained only as a small test fixture constructor.
+func RegisterRoutes(mux *http.ServeMux) *App {
+	cfg := config.Load()
+	app, _ := RegisterRoutesWithConfig(mux, cfg)
+	return app
 }

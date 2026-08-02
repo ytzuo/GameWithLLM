@@ -1,209 +1,232 @@
 #!/usr/bin/env node
-/**
- * 当前 Unity Gateway + Go Agent Host 协议冒烟测试。
- *
- * 用法:
- *   node test_mcp.js
- *   node test_mcp.js --start-server
- *
- * 需要 Node.js 22+，使用内置 WebSocket API，无第三方依赖。
- */
-
+/** A2A + unified Runtime Gateway + MCP smoke test. */
+const http = require("http");
 const path = require("path");
-const { spawn } = require("child_process");
+const { spawn, spawnSync } = require("child_process");
 
-const BASE_URL = process.env.AGENT_HOST_BASE_URL || "http://127.0.0.1:8080";
-const WS_URL = process.env.UNITY_JSONRPC_WS_URL ||
-  `${BASE_URL.replace(/^http:/, "ws:").replace(/^https:/, "wss:")}/unity/ws`;
-const TIMEOUT_MS = 30000;
-
+const AGENT_PORT = 18080;
+const LLM_PORT = 18092;
+const BASE_URL = `http://127.0.0.1:${AGENT_PORT}`;
+const TOKEN = "protocol-test-token";
+const RUNTIME_ID = "test-runtime-1";
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
-async function fetchHealth() {
-  const response = await fetch(`${BASE_URL}/health`, { signal: AbortSignal.timeout(2000) });
-  return response.ok;
-}
-
-async function waitForServer(maxMs = 30000) {
-  const deadline = Date.now() + maxMs;
-  while (Date.now() < deadline) {
-    try {
-      if (await fetchHealth()) return true;
-    } catch {}
-    await sleep(300);
-  }
-  return false;
-}
-
-function startServer() {
-  console.log("[启动] go run ./cmd/server");
-  const proc = spawn("go", ["run", "./cmd/server"], {
-    stdio: ["ignore", "pipe", "pipe"],
-    shell: false,
-    windowsHide: true,
-    cwd: __dirname,
-    env: { ...process.env, GOCACHE: process.env.GOCACHE || path.join(__dirname, "..", ".cache", "go-build") },
+function readJson(req) {
+  return new Promise((resolve, reject) => {
+    let body = "";
+    req.on("data", (chunk) => { body += chunk; });
+    req.on("end", () => {
+      try { resolve(JSON.parse(body || "{}")); } catch (error) { reject(error); }
+    });
+    req.on("error", reject);
   });
-  proc.stdout.on("data", (data) => process.stdout.write(`[server-out] ${data}`));
-  proc.stderr.on("data", (data) => process.stderr.write(`[server-err] ${data}`));
-  return proc;
 }
 
-class JSONWebSocketClient {
-  constructor(endpoint) {
-    this.endpoint = endpoint;
-    this.messages = [];
-    this.waiters = [];
-  }
-
-  connect() {
-    return new Promise((resolve, reject) => {
-      this.socket = new WebSocket(this.endpoint);
-      this.socket.addEventListener("open", resolve, { once: true });
-      this.socket.addEventListener("error", (event) => reject(event.error || new Error("WebSocket connection failed")), { once: true });
-      this.socket.addEventListener("message", (event) => {
-        const text = typeof event.data === "string" ? event.data : Buffer.from(event.data).toString("utf8");
-        const waiter = this.waiters.shift();
-        if (waiter) waiter.resolve(text);
-        else this.messages.push(text);
-      });
-      this.socket.addEventListener("close", () => {
-        for (const waiter of this.waiters.splice(0)) waiter.reject(new Error("WebSocket closed"));
-      });
-    });
-  }
-
-  send(value) {
-    this.socket.send(JSON.stringify(value));
-  }
-
-  async read(timeoutMs = 5000) {
-    if (this.messages.length > 0) return JSON.parse(this.messages.shift());
-    const text = await new Promise((resolve, reject) => {
-      const waiter = { resolve: null, reject: null };
-      const timer = setTimeout(() => {
-        this.waiters = this.waiters.filter((candidate) => candidate !== waiter);
-        reject(new Error("WebSocket read timeout"));
-      }, timeoutMs);
-      waiter.resolve = (value) => { clearTimeout(timer); resolve(value); };
-      waiter.reject = (error) => { clearTimeout(timer); reject(error); };
-      this.waiters.push(waiter);
-    });
-    return JSON.parse(text);
-  }
-
-  close() {
-    if (this.socket?.readyState === WebSocket.OPEN) this.socket.close(1000, "test complete");
-  }
+function startLlmMock() {
+  const server = http.createServer(async (req, res) => {
+    const request = await readJson(req);
+    const hasToolResult = request.messages.some((message) => message.role === "tool");
+    res.writeHead(200, { "content-type": "text/event-stream" });
+    const delta = hasToolResult
+      ? { content: "已到达大门。" }
+      : { tool_calls: [{ index: 0, id: "call-1", type: "function",
+          function: { name: "game_npc_move",
+            arguments: JSON.stringify({ targetId: "landmark:gate" }) } }] };
+    res.write(`data: ${JSON.stringify({ choices: [{ delta }] })}\n\n`);
+    res.end("data: [DONE]\n\n");
+  });
+  return new Promise((resolve) =>
+    server.listen(LLM_PORT, "127.0.0.1", () => resolve(server)));
 }
 
-let passed = 0;
-let failed = 0;
-function assert(condition, message) {
-  if (condition) {
-    passed++;
-    console.log(`  OK ${message}`);
+function startAgentService() {
+  return spawn("go", ["run", "./cmd/server"], {
+    cwd: __dirname,
+    windowsHide: true,
+    stdio: ["ignore", "pipe", "pipe"],
+    env: {
+      ...process.env,
+      AGENT_SERVICE_ADDR: `127.0.0.1:${AGENT_PORT}`,
+      AGENT_SERVICE_BASE_URL: BASE_URL,
+      A2A_BEARER_TOKEN: TOKEN,
+      RUNTIME_GATEWAY_TOKEN: TOKEN,
+      MCP_GATEWAY_SERVICE_TOKEN: TOKEN,
+      LLM_API_URL: `http://127.0.0.1:${LLM_PORT}/v1/chat/completions`,
+      LLM_API_KEY: "test-key",
+      LLM_MODEL: "mock-model",
+      GOCACHE: process.env.GOCACHE ||
+        path.join(__dirname, "..", ".cache", "go-build"),
+    },
+  });
+}
+
+function stopAgentService(agent) {
+  if (process.platform === "win32") {
+    spawnSync("taskkill", ["/pid", String(agent.pid), "/T", "/F"], {
+      stdio: "ignore", windowsHide: true,
+    });
   } else {
-    failed++;
-    console.log(`  FAIL ${message}`);
+    agent.kill("SIGTERM");
   }
 }
 
-async function runProtocolTests() {
-  const ws = new JSONWebSocketClient(WS_URL);
-  await ws.connect();
-  try {
-    const tools = [{
-      name: "game_npc_move",
-      description: "使 NPC 前往指定目标",
-      inputSchema: {
-        type: "object",
-        properties: {
-          targetId: {
-            type: "string",
-            enum: ["landmark:warehouse", "landmark:gate"],
-          },
-        },
-        required: ["targetId"],
-      },
-    }];
-    const instanceId = `e2e-game-${Date.now()}`;
+async function waitForHealth() {
+  for (let i = 0; i < 100; i++) {
+    try {
+      const response = await fetch(`${BASE_URL}/health`);
+      if (response.ok) return;
+    } catch {}
+    await sleep(100);
+  }
+  throw new Error("Agent Service did not become healthy");
+}
 
-    ws.send({
-      jsonrpc: "2.0", id: "register-1", method: "unity.register",
+function startRuntimeMock() {
+  return new Promise((resolve, reject) => {
+    const socket = new WebSocket(`ws://127.0.0.1:${AGENT_PORT}/runtime/ws`);
+    const timeout = setTimeout(
+      () => reject(new Error("Mock Runtime initialization timed out")), 5000);
+    socket.addEventListener("open", () => socket.send(JSON.stringify({
+      jsonrpc: "2.0",
+      id: "runtime-initialize-1",
+      method: "runtime.initialize",
       params: {
-        protocolVersion: 2,
-        instanceId,
-        tools,
-        npcs: ["Ryan_001"],
-        npcTools: { Ryan_001: ["game_npc_move"] },
+        token: TOKEN,
+        manifest: {
+          instanceId: RUNTIME_ID,
+          revision: 1,
+          entities: ["Ryan_001"],
+          tools: [{
+            name: "game_npc_move",
+            description: "Move a game entity",
+            inputSchema: {
+              type: "object",
+              properties: {
+                entityId: { type: "string" },
+                targetId: { type: "string" },
+              },
+              required: ["entityId", "targetId"],
+              additionalProperties: false,
+            },
+          }],
+        },
       },
+    })));
+    socket.addEventListener("message", (event) => {
+      const message = JSON.parse(String(event.data));
+      if (message.id === "runtime-initialize-1") {
+        clearTimeout(timeout);
+        if (message.error || message.result?.accepted !== true)
+          reject(new Error("Runtime Gateway rejected Mock Runtime"));
+        else
+          resolve(socket);
+        return;
+      }
+      if (message.method !== "runtime.tools.call") return;
+      const args = message.params?.arguments;
+      if (args?.entityId !== "Ryan_001") {
+        socket.send(JSON.stringify({
+          jsonrpc: "2.0", id: message.id,
+          error: { code: -32602, message: "entityId was not bound" },
+        }));
+        return;
+      }
+      socket.send(JSON.stringify({
+        jsonrpc: "2.0",
+        id: message.id,
+        result: {
+          content: [{ type: "text", text: "arrived" }],
+          structuredContent: { ok: true, data: { targetId: args.targetId } },
+          isError: false,
+        },
+      }));
     });
-    const registered = await ws.read();
-    console.log("  recv", JSON.stringify(registered));
-    assert(registered.id === "register-1", "连接后首条服务端消息是注册响应");
-    assert(registered?.result?.accepted === true, "unity.register 注册成功");
-    assert(registered?.result?.protocolVersion === 2, "服务端确认内部协议版本 2");
-
-    ws.send({
-      jsonrpc: "2.0", id: "conversation-start-1", method: "conversation.start",
-      params: { playerId: "e2e-player", npcId: "Ryan_001" },
+    socket.addEventListener("error", () => {
+      clearTimeout(timeout);
+      reject(new Error("Mock Runtime WebSocket failed"));
     });
-    const started = await ws.read();
-    console.log("  recv", JSON.stringify(started));
-    assert(Boolean(started?.result?.sessionId), "Go Agent Host 创建对话 Session");
-
-    ws.send({
-      jsonrpc: "2.0", id: "conversation-end-1", method: "conversation.end",
-      params: { sessionId: started?.result?.sessionId },
-    });
-    const ended = await ws.read();
-    console.log("  recv", JSON.stringify(ended));
-    assert(ended?.result?.ok === true, "Go Agent Host 正常结束对话 Session");
-
-  } finally {
-    ws.close();
-  }
+  });
 }
 
-async function runTests() {
-  let serverProc = null;
-  if (process.argv.includes("--start-server")) {
-    serverProc = startServer();
-    console.log("[等待] 服务启动中...");
-    if (!(await waitForServer())) {
-      serverProc.kill();
-      throw new Error("服务未能在 30s 内启动");
-    }
-  } else if (!(await fetchHealth().catch(() => false))) {
-    throw new Error(`无法连接 ${BASE_URL}/health，请先启动服务或使用 --start-server`);
-  }
+async function verifyVirtualMcp() {
+  const response = await fetch(`${BASE_URL}/mcp/runtimes/${RUNTIME_ID}`, {
+    method: "POST",
+    headers: {
+      authorization: `Bearer ${TOKEN}`,
+      "content-type": "application/json",
+      "mcp-protocol-version": "2025-11-25",
+    },
+    body: JSON.stringify({
+      jsonrpc: "2.0", id: "mcp-list-1", method: "tools/list", params: {},
+    }),
+  });
+  const body = await response.text();
+  if (!response.ok || !body.includes("game_npc_move"))
+    throw new Error(`Virtual MCP tools/list failed: ${body}`);
+}
 
+async function run() {
+  if (!process.argv.includes("--start-server"))
+    throw new Error("This smoke test requires --start-server");
+  const llm = await startLlmMock();
+  const agent = startAgentService();
+  let runtime;
+  let stderr = "";
+  agent.stdout.resume();
+  agent.stderr.on("data", (data) => { stderr += data.toString(); });
   try {
-    console.log("\n[1/1] Unity Gateway + Go Agent Host...");
-    await Promise.race([
-      runProtocolTests(),
-      new Promise((_, reject) => setTimeout(() => reject(new Error("测试超时")), TIMEOUT_MS)),
-    ]);
-  } catch (error) {
-    console.error("\n测试异常:", error.message);
-    failed++;
-  } finally {
-    if (serverProc) {
-      console.log("\n[关闭] 终止服务进程...");
-      serverProc.kill();
-      await sleep(500);
-      if (!serverProc.killed) serverProc.kill("SIGKILL");
-    }
-  }
+    await waitForHealth();
+    runtime = await startRuntimeMock();
+    await verifyVirtualMcp();
+    const card = await fetch(`${BASE_URL}/.well-known/agent-card.json`);
+    if (!card.ok || !(await card.text()).includes("game-npc-conversation"))
+      throw new Error("A2A Agent Card validation failed");
+    if ((await fetch(`${BASE_URL}/unity/ws`)).status !== 404)
+      throw new Error("legacy /unity/ws route is still available");
 
-  console.log("\n==============================");
-  console.log(`测试结果: 通过 ${passed} 项, 失败 ${failed} 项`);
-  console.log("==============================");
-  process.exit(failed > 0 ? 1 : 0);
+    const response = await fetch(`${BASE_URL}/a2a`, {
+      method: "POST",
+      headers: {
+        authorization: `Bearer ${TOKEN}`,
+        "content-type": "application/json",
+        accept: "text/event-stream",
+      },
+      body: JSON.stringify({
+        jsonrpc: "2.0",
+        id: "smoke-1",
+        method: "message/stream",
+        params: { message: {
+          messageId: "player-message-1",
+          role: "user",
+          parts: [{ kind: "text", text: "去大门" }],
+          metadata: {
+            "https://gamewithllm.dev/extensions/game-context/v1": {
+              instanceId: RUNTIME_ID,
+              playerId: "player-1",
+              agentId: "Ryan_001",
+              sceneId: "warehouse-demo",
+            },
+          },
+        }},
+      }),
+      signal: AbortSignal.timeout(30000),
+    });
+    const stream = await response.text();
+    if (!response.ok || !stream.includes("artifact-update") ||
+        !stream.includes("completed") || !stream.includes("已到达大门"))
+      throw new Error(`A2A + Runtime Gateway tool loop failed: ${stream}`);
+    console.log(
+      "[通过] A2A streaming、统一 Runtime Gateway、虚拟 MCP 和 v2 删除检查");
+  } finally {
+    runtime?.close(1000, "test complete");
+    stopAgentService(agent);
+    llm.closeAllConnections();
+    await new Promise((resolve) => llm.close(resolve));
+  }
+  if (stderr.includes("panic")) throw new Error(stderr);
 }
 
-runTests().catch((error) => {
-  console.error("未捕获异常:", error.message);
-  process.exit(1);
+run().catch((error) => {
+  console.error("[失败]", error);
+  process.exitCode = 1;
 });

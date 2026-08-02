@@ -1,17 +1,26 @@
 using System;
+using System.Threading;
 
-[Serializable]
-public sealed class UnityToolCommand
+public sealed class AgentToolCommand
 {
-    // NpcId 标识命令的目标 NPC。
-    public string NpcId;
-    // RequestId 是 Gateway 的 JSON-RPC 请求 ID，用于原路回传执行结果。
+    public string EntityId;
     public string RequestId;
-    public UnityToolFunction Function;
+    public AgentToolFunction Function;
+    public Action<ToolExecutionResult> Completion;
+    public Action<double, string> Progress;
+    private int _completed;
+
+    public bool TryComplete(ToolExecutionResult result)
+    {
+        if (Interlocked.Exchange(ref _completed, 1) != 0)
+            return false;
+        Completion?.Invoke(result);
+        return true;
+    }
 }
 
 [Serializable]
-public sealed class UnityToolFunction
+public sealed class AgentToolFunction
 {
     public string Name;
     public string ArgumentsJson;

@@ -3,6 +3,13 @@ using System.Collections.Generic;
 using Newtonsoft.Json.Linq;
 using UnityEngine;
 
+public sealed class RuntimeToolDefinition
+{
+    public string Name;
+    public string Description;
+    public JObject InputSchema;
+}
+
 public class ToolsRegistry : Singleton<ToolsRegistry>
 {
     private readonly Dictionary<string, INpcTool> _tools =
@@ -44,18 +51,40 @@ public class ToolsRegistry : Singleton<ToolsRegistry>
     }
 
 
-    public List<UnityGatewayToolDefinition> GetToolsForGateway()
+    public List<RuntimeToolDefinition> GetRuntimeTools()
     {
-        var list = new List<UnityGatewayToolDefinition>();
+        var list = new List<RuntimeToolDefinition>();
         lock (_lock)
         {
             foreach (INpcTool tool in _tools.Values)
             {
-                list.Add(new UnityGatewayToolDefinition
+                JObject schema = (JObject)tool.InputSchema.DeepClone();
+                JObject properties = schema["properties"] as JObject ?? new JObject();
+                schema["type"] = "object";
+                schema["properties"] = properties;
+                properties.Remove("entityId");
+                properties.AddFirst(new JProperty(
+                    "entityId",
+                    new JObject
+                    {
+                        ["type"] = "string",
+                        ["description"] = "执行该行为的游戏实体 ID"
+                    }));
+                JArray required = schema["required"] as JArray ?? new JArray();
+                if (schema["required"] == null)
+                    schema["required"] = required;
+                for (int index = required.Count - 1; index >= 0; index--)
+                {
+                    if (string.Equals(required[index]?.Value<string>(), "entityId", StringComparison.Ordinal))
+                        required.RemoveAt(index);
+                }
+                required.Insert(0, "entityId");
+                schema["additionalProperties"] = false;
+                list.Add(new RuntimeToolDefinition
                 {
                     Name = tool.Name,
                     Description = tool.Description,
-                    InputSchema = (JObject)tool.InputSchema.DeepClone()
+                    InputSchema = schema
                 });
             }
         }

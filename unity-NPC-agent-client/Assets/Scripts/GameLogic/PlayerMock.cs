@@ -344,13 +344,15 @@ public class PlayerMock : MonoBehaviour
         _saveGameWindow.SetBusy(true);
         try
         {
-            SaveGameFile file = saveWorld();
-            _saveGameWindow.SetStatus("世界状态已保存，正在同步 NPC 对话……");
-            UnityGatewayConversationSaveResult result = await SaveConversationsWithRetryAsync(file);
+            SaveGameFile file = null;
+            _saveGameWindow.SetStatus("正在冻结 Agent 操作并保存世界与 NPC 对话……");
+            AgentSnapshotSaveResult result =
+                await AgentHostClient.Instance.SaveWorldAndConversationsForSaveGameAsync(
+                    () => file = saveWorld());
             if (result == null || !result.Ok)
             {
                 string code = result?.ErrorCode ?? "TRANSPORT_ERROR";
-                string message = result?.Message ?? "Go Agent Host 未返回结果。";
+                string message = result?.Message ?? "Go Agent Service 未返回结果。";
                 _saveGameWindow.SetStatus($"世界已保存，但对话未同步：{code} - {message}", true);
                 return;
             }
@@ -380,7 +382,7 @@ public class PlayerMock : MonoBehaviour
                 _saveGameWindow.SetStatus("该存档的对话已经同步。");
                 return;
             }
-            UnityGatewayConversationSaveResult result = await SaveConversationsWithRetryAsync(file);
+            AgentSnapshotSaveResult result = await SaveConversationsWithRetryAsync(file);
             if (result == null || !result.Ok)
             {
                 _saveGameWindow.SetStatus($"同步失败：{result?.ErrorCode ?? "TRANSPORT_ERROR"} - {result?.Message}", true);
@@ -400,7 +402,7 @@ public class PlayerMock : MonoBehaviour
         }
     }
 
-    private async Task<UnityGatewayConversationSaveResult> SaveConversationsWithRetryAsync(SaveGameFile file)
+    private async Task<AgentSnapshotSaveResult> SaveConversationsWithRetryAsync(SaveGameFile file)
     {
         try
         {
@@ -428,7 +430,7 @@ public class PlayerMock : MonoBehaviour
                 if (npc != null && !string.IsNullOrWhiteSpace(npc.npcId))
                     npcIds.Add(npc.npcId.Trim());
             }
-            UnityGatewayConversationLoadResult result = await AgentHostClient.Instance.LoadConversationsForSaveGameAsync(
+            AgentSnapshotLoadResult result = await AgentHostClient.Instance.LoadConversationsForSaveGameAsync(
                 file.SaveId, npcIds, () => _saveGameService.Apply(file));
             if (result == null || !result.Ok)
             {

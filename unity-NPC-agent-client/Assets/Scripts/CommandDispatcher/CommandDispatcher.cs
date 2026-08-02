@@ -7,7 +7,7 @@ public class CommandDispatcher : Singleton<CommandDispatcher>
 {
     private readonly Dictionary<string, NpcEntity> _npcEntities = new Dictionary<string, NpcEntity>();
     private readonly object _npcLock = new object();
-    private readonly ConcurrentQueue<UnityToolCommand> _netIncomingQueue = new ConcurrentQueue<UnityToolCommand>();
+    private readonly ConcurrentQueue<AgentToolCommand> _runtimeIncomingQueue = new ConcurrentQueue<AgentToolCommand>();
     private readonly ConcurrentDictionary<string, byte> _cancelledRequests = new ConcurrentDictionary<string, byte>();
     private readonly ConcurrentDictionary<string, byte> _activeRequests = new ConcurrentDictionary<string, byte>();
 
@@ -73,11 +73,11 @@ public class CommandDispatcher : Singleton<CommandDispatcher>
         NpcCapabilitiesChanged?.Invoke(id);
     }
 
-    public void OnReceiveNetMessage(UnityToolCommand request)
+    public void Enqueue(AgentToolCommand request)
     {
         if (!string.IsNullOrWhiteSpace(request?.RequestId))
             _activeRequests[request.RequestId] = 0;
-        _netIncomingQueue.Enqueue(request);
+        _runtimeIncomingQueue.Enqueue(request);
     }
 
     public void CancelRequest(string requestId)
@@ -101,7 +101,7 @@ public class CommandDispatcher : Singleton<CommandDispatcher>
 
     private void Update()
     {
-        while (_netIncomingQueue.TryDequeue(out UnityToolCommand request))
+        while (_runtimeIncomingQueue.TryDequeue(out AgentToolCommand request))
         {
             if (!string.IsNullOrEmpty(request.RequestId) && IsCancellationRequested(request.RequestId))
             {
@@ -111,21 +111,19 @@ public class CommandDispatcher : Singleton<CommandDispatcher>
 
             NpcEntity npc;
             lock (_npcLock)
-                _npcEntities.TryGetValue(request.NpcId, out npc);
+                _npcEntities.TryGetValue(request.EntityId, out npc);
             if (npc != null)
             {
                 npc.ReceiveCommand(request);
             }
             else
             {
-                Debug.LogWarning($"[Router] 收到 {request.NpcId} 的命令，但该 NPC 实体不存在。");
+                Debug.LogWarning($"[Router] 收到 {request.EntityId} 的命令，但该实体不存在。");
                 if (!string.IsNullOrEmpty(request.RequestId))
                 {
-                    _ = AgentHostClient.Instance.SendToolResponseAsync(
-                        request.RequestId,
-                        $"NPC '{request.NpcId}' 未注册或已离线。",
-                        true,
-                        "NPC_NOT_FOUND");
+                    request.TryComplete(ToolExecutionResult.Failure(
+                        "ENTITY_NOT_FOUND",
+                        $"实体 '{request.EntityId}' 未注册或已离线。"));
                     CompleteRequest(request.RequestId);
                 }
             }

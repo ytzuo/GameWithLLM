@@ -15,8 +15,6 @@ import (
 const (
 	defaultServerAddr         = ":8080"
 	defaultBaseURL            = "http://127.0.0.1:8080"
-	defaultUnityJSONRPCWSURL  = "ws://127.0.0.1:8080/unity/ws"
-	defaultToolTimeoutSeconds = 10
 	defaultLLMAPIURL          = "https://api.openai.com/v1/chat/completions"
 	defaultLLMModel           = "gpt-4o-mini"
 	defaultLLMTimeoutSeconds  = 60
@@ -29,9 +27,9 @@ const (
 type Config struct {
 	ServerAddr              string
 	BaseURL                 string
-	UnityJSONRPCWSURL       string
-	UnityToolTimeout        time.Duration
-	UnityToolTimeoutSecond  int
+	RuntimeGatewayToken     string
+	GatewayServiceToken     string
+	A2ABearerToken          string
 	LLMAPIURL               string
 	LLMAPIKey               string
 	LLMModel                string
@@ -48,15 +46,14 @@ type Config struct {
 // to take precedence.
 func Load() Config {
 	values := loadDotEnvFiles()
-	timeoutSeconds := intValue("UNITY_TOOL_TIMEOUT_SECONDS", values, defaultToolTimeoutSeconds)
 	llmTimeoutSeconds := intValue("LLM_REQUEST_TIMEOUT_SECONDS", values, defaultLLMTimeoutSeconds)
 
 	return Config{
-		ServerAddr:              stringValue("AGENT_HOST_ADDR", values, defaultServerAddr),
-		BaseURL:                 stringValue("AGENT_HOST_BASE_URL", values, defaultBaseURL),
-		UnityJSONRPCWSURL:       stringValue("UNITY_JSONRPC_WS_URL", values, defaultUnityJSONRPCWSURL),
-		UnityToolTimeout:        time.Duration(timeoutSeconds) * time.Second,
-		UnityToolTimeoutSecond:  timeoutSeconds,
+		ServerAddr:              stringValue("AGENT_SERVICE_ADDR", values, defaultServerAddr),
+		BaseURL:                 stringValue("AGENT_SERVICE_BASE_URL", values, defaultBaseURL),
+		RuntimeGatewayToken:     stringValue("RUNTIME_GATEWAY_TOKEN", values, ""),
+		GatewayServiceToken:     stringValue("MCP_GATEWAY_SERVICE_TOKEN", values, ""),
+		A2ABearerToken:          stringValue("A2A_BEARER_TOKEN", values, ""),
 		LLMAPIURL:               stringValue("LLM_API_URL", values, defaultLLMAPIURL),
 		LLMAPIKey:               stringValue("LLM_API_KEY", values, ""),
 		LLMModel:                stringValue("LLM_MODEL", values, defaultLLMModel),

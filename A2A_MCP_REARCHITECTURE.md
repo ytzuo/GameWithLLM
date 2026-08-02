@@ -2,10 +2,15 @@
 
 ## 1. 文档状态
 
-- 状态：破坏性重构提案
-- 适用范围：专门用于推翻现有内部协议的重构分支
-- 当前事实源：重构完成前仍以 `ARCHITECTURE.md` 和现有实现为准
-- 目标事实源：方案确认并开始迁移后，应重写 `ARCHITECTURE.md`，最终由新的架构文档替代当前 v2 事实
+- 状态：已实施；本文保留为重构决策与阶段记录
+- 适用范围：A2A + MCP 破坏性重构的设计依据
+- 当前事实源：`ARCHITECTURE.md` 与现有实现、测试
+- 历史说明：阶段计划中的 v2 迁移路径已经完成并删除，不再作为可运行架构
+
+> 后续架构决策（已实施）：本地和远程 Runtime 统一使用 Unity 主动发起的
+> `/runtime/ws` Runtime Gateway Transport。本文早期章节中的“Unity 本地
+> MCP Server”“本地不经过 Gateway”和双模式部署，是当时的候选方案与实施
+> 阶段记录，已经被统一传输方案取代，不代表当前实现。
 
 本文有意放开当前架构中的以下限制：
 
@@ -1394,8 +1399,8 @@ A2A Task
 1. Unity 与 Agent Service 的玩家交互使用 A2A；
 2. Agent Service 调用 Unity 世界能力使用 MCP；
 3. Unity 游戏工具不引用 A2A、MCP、Gateway 或 Go DTO；
-4. 本地模式可以不经过 Runtime Gateway 工作；
-5. 远程模式中 Unity 只需建立安全的出站连接；
+4. 本地与远程 Runtime 使用同一 Runtime Gateway Transport，仅地址和部署凭据不同；
+5. Unity 在所有部署中都只需建立安全的出站连接；
 6. Runtime Gateway 不包含 LLM 和 Conversation Engine；
 7. Save Coordination 已从模型工具和旧 WebSocket 协议中分离；
 8. LLM Key、历史和 tool loop 仍只在 Agent Service；
@@ -1409,13 +1414,12 @@ A2A Task
 ```text
 Unity Agent Runtime SDK
   + A2A Conversation Adapter
-  + MCP Tool Server
-  + Local MCP Transport
-  + Reverse Gateway Transport
+  + Unified Runtime Gateway Transport
   + Go Agent Service
   + Runtime Gateway
+  + MCP Runtime Adapter / Virtual MCP Endpoint
   + Save Coordination Module
-  + Mock A2A/MCP Test Runtime
+  + Mock A2A/Runtime Test Runtime
   + Warehouse Sample
 ```
 
