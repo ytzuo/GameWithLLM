@@ -39,13 +39,14 @@ func RegisterRoutesWithConfig(mux *http.ServeMux, cfg config.Config) (*App, erro
 	gatewayServer := gateway.NewServer(registry, cfg.RuntimeGatewayToken, cfg.GatewayServiceToken)
 	saveCoordinator := savecoord.New(conversations, cfg.A2ABearerToken)
 
-	mux.HandleFunc("/.well-known/agent-card.json", a2aServer.HandleAgentCard)
-	mux.HandleFunc("/.well-known/agent.json", a2aServer.HandleAgentCard)
-	mux.HandleFunc("/a2a", a2aServer.Handle)
-	mux.HandleFunc("/runtime/ws", gatewayServer.HandleRuntimeWebSocket)
-	mux.HandleFunc("/mcp/runtimes/", gatewayServer.HandleVirtualMCP)
-	mux.HandleFunc("/game-saves/", saveCoordinator.Handle)
-	mux.HandleFunc("/health", handleHealth)
+	// 注册路由
+	mux.HandleFunc("/.well-known/agent-card.json", a2aServer.HandleAgentCard) // 返回 agent card
+	mux.HandleFunc("/.well-known/agent.json", a2aServer.HandleAgentCard)      // 返回 agent card 别名路由
+	mux.HandleFunc("/a2a", a2aServer.Handle)                                  // 通过 a2a 把对话发给 server
+	mux.HandleFunc("/runtime/ws", gatewayServer.HandleRuntimeWebSocket)       // 建立 web socket 连接
+	mux.HandleFunc("/mcp/runtimes/", gatewayServer.HandleVirtualMCP)          // 暴露成 MCP 服务，可以由 agent 操作
+	mux.HandleFunc("/game-saves/", saveCoordinator.Handle)                    // 获取对话历史，保存到游戏数据
+	mux.HandleFunc("/health", handleHealth)                                   // 健康检查
 	mux.HandleFunc("/{$}", func(w http.ResponseWriter, _ *http.Request) { _, _ = w.Write([]byte("Game Agent Service is running!")) })
 	return &App{Gateway: gatewayServer}, nil
 }
