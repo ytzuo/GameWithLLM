@@ -1,18 +1,21 @@
 # GameWithLLM Agent Runtime
 
-This package owns the protocol-independent runtime contracts used by production
-Unity code:
+This UPM package owns the protocol-independent contracts used directly by the
+production Unity project. It compiles as the `GameWithLLM.AgentRuntime`
+assembly and currently provides contracts, not a complete network client:
 
 - `IAgentEntity` and `IGameObjectAgentEntity`
 - `IAgentTool`, `AgentToolDescriptor`, and `AgentToolContext`
 - `AgentToolResult`
 - `RuntimeCommand` and `RuntimeManifest`
 - `IRuntimeTransport`
+- `IAgentMainThreadScheduler`
 - `AgentResponseEvent`
 
-The project under `Assets` implements game-specific adapters on top of these
-contracts. It must not define parallel command, result, manifest, tool, entity,
-or transport interfaces.
+The project under `Assets` supplies the current A2A client, Runtime Gateway
+transport, registries, dispatcher, UI, and game-specific adapters. Those
+implementations are not shipped by this package. They must not define parallel
+command, result, manifest, tool, entity, or transport contracts.
 
 The production flow is:
 
@@ -29,3 +32,7 @@ IRuntimeTransport
 `NpcEntity` and `NpcTool<TArgs>` are Warehouse-specific adapters. A different
 game can provide other entity and tool implementations without changing the
 transport or orchestration pipeline.
+
+The embedded package is validated by the repository's Unity `6000.3.19f1`
+project. See the root `ARCHITECTURE.md` for the current network protocols and
+module boundaries.

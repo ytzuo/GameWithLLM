@@ -1,87 +1,65 @@
 # NPC Agent 系统架构
 
-本文档是当前实现的架构事实源。系统已经完成从项目内 v2 WebSocket
-协议到 A2A + MCP 分层协议的破坏性重构；旧 `/unity/ws`、旧 DTO 和双栈
-兼容路径均不存在。
+本文档是当前实现的架构事实源。其他文档只提供上手说明或包级说明；发生冲突
+时，以代码、测试和本文档为准。
 
-## 1. 总体架构
+## 1. 当前架构
 
-系统由 Unity Agent Runtime、Go Agent Service 和统一 Runtime Gateway
-构成。本地与远程使用同一条出站 Runtime Transport，仅连接地址不同：
+系统由 Unity Agent Runtime、Go Agent Service 和 Runtime Gateway 组成。
+Agent Service 与 Gateway 当前装配在同一个 Go 进程中，但代码职责独立。
 
 ```text
 Unity Game
 ├─ UI / NPC / NavMesh / Inventory / SaveGame
-├─ Unity Agent Runtime SDK
-├─ A2A Client ───────────────────────────► Go Agent Service
-└─ RuntimeGatewayClient ────────────────► Runtime Gateway
-                                            │
-                                            ▼
-                                      Runtime Registry
-                                            │
-                                            ▼
-                                      MCP Tool Adapter
+├─ Unity Agent Runtime SDK contracts
+├─ A2AClientAdapter ── HTTP/SSE ─────────► A2A Server
+└─ RuntimeGatewayClient ── WebSocket ────► Runtime Gateway
+                                              │
+Go process                                    ├─ Runtime Registry
+├─ Conversation Engine / LLM                  ├─ Virtual MCP Endpoint
+├─ MCP Agent Runtime Adapter ◄────────────────┘
+└─ Save Coordinator
 ```
 
-协议职责严格分层：
+协议分工：
 
-- A2A：玩家与 Agent 的 Message、Context、Task、流式文本、状态和取消。
-- MCP：Agent Service 内部工具抽象及虚拟标准端点。
-- Runtime Bridge：所有 Unity Runtime 的出站注册、工具调用、进度和取消。
-- Save Coordination API：Unity 世界存档与 Agent 对话快照的 prepare、
-  commit、restore 和状态查询。
+- **A2A**：玩家消息、Conversation Context、Agent Task、流式文本和取消。
+- **MCP**：Agent Service 内部的工具抽象，以及可选的外部标准工具入口。
+- **Runtime Bridge**：Gateway 与 Unity 之间的反向注册、工具调用、结果和取消。
+- **Save Coordination API**：Unity 世界存档与 Agent 对话快照的协调。
 
-## 2. 模块间协议总览
+本地与远程没有两套 Runtime 实现。Unity 始终主动连接 Gateway：
 
-### 2.1 网络边界协议矩阵
+```text
+本地：ws://127.0.0.1:8080/runtime/ws
+远程：wss://agent.example.com/runtime/ws
+```
 
-| 调用方 | 被调用方 | 协议语义 | 传输与信封 | 认证 | 主要交互 |
-|---|---|---|---|---|---|
-| Unity `A2AClientAdapter` | Go A2A Server | A2A | HTTP(S) POST + JSON-RPC 2.0；流式响应使用 SSE | `Authorization: Bearer A2A_BEARER_TOKEN` | `message/send`、`message/stream`、`tasks/cancel` |
-| Unity `RuntimeGatewayClient` | Runtime Gateway | 内部 Runtime Bridge | WebSocket/WSS + JSON-RPC 2.0 | `runtime.initialize.params.token` 使用 `RUNTIME_GATEWAY_TOKEN` | Runtime 注册、Manifest 更新、工具调用、进度、取消、调用结果 |
-| 第三方 MCP Client | Runtime Gateway 虚拟 MCP | MCP `2025-11-25` | HTTP(S) POST + JSON-RPC 2.0 | `Authorization: Bearer MCP_GATEWAY_SERVICE_TOKEN` | `initialize`、`notifications/initialized`、`tools/list`、`tools/call`、取消 |
-| Unity `SaveCoordinationClient` | Save Coordinator | 项目内 Save Coordination REST API | HTTP(S) + JSON request/response；不使用 JSON-RPC | `Authorization: Bearer A2A_BEARER_TOKEN` | `prepare`、`commit`、`restore`、`status` |
-| Go LLM Client | OpenAI-compatible LLM | Chat Completions API | HTTP(S) JSON；流式响应使用 SSE，兼容非流式 JSON | `Authorization: Bearer LLM_API_KEY` | messages、tools、tool calls、文本增量 |
+## 2. 网络协议
 
-Agent Card 发现是普通 HTTP GET + JSON，不使用 JSON-RPC：
+### 2.1 入口与认证
+
+| 调用方 | 入口 | 传输与协议 | 认证 |
+|---|---|---|---|
+| Unity A2A Client | `POST /a2a` | A2A JSON-RPC 2.0；流式响应为 SSE | `Authorization: Bearer A2A_BEARER_TOKEN` |
+| Unity Runtime | `GET /runtime/ws` WebSocket Upgrade | Runtime Bridge JSON-RPC 2.0 over WS/WSS | `runtime.initialize.params.token` |
+| 外部 MCP Client | `POST /mcp/runtimes/{instanceId}` | MCP `2025-11-25` JSON-RPC 2.0 over HTTP(S) | `Authorization: Bearer MCP_GATEWAY_SERVICE_TOKEN`；拒绝带 Origin 的浏览器请求 |
+| Unity Save Client | `/game-saves/{saveId}/agent-context:*` | REST/JSON over HTTP(S) | `Authorization: Bearer A2A_BEARER_TOKEN` |
+| Go LLM Client | OpenAI-compatible Chat Completions endpoint | HTTP(S) JSON；支持 SSE | `Authorization: Bearer LLM_API_KEY` |
+
+A2A Agent Card 是无认证的普通 HTTP JSON：
 
 ```text
 GET /.well-known/agent-card.json
 GET /.well-known/agent.json
 ```
 
-### 2.2 同进程模块契约
+健康检查使用 `GET /health`。
 
-以下边界不经过网络，也不重复序列化协议 DTO：
+### 2.2 JSON-RPC 的边界
 
-| 调用方 | 被调用方 | 契约 |
-|---|---|---|
-| Unity UI / `AgentHostClient` | `A2AClientAdapter` | C# 方法调用和 `AgentResponseEvent`：`ResponseStarted`、`TextDelta`、`StatusChanged`、`ResponseCompleted`、`ResponseFailed` |
-| `RuntimeGatewayClient` | `AgentHostClient` | SDK `IRuntimeTransport`：产生 `RuntimeCommand`，接收 `RuntimeManifest`，发送 `AgentToolResult` 和 Progress |
-| `AgentHostClient` | `CommandDispatcher` | SDK `RuntimeCommand` 投递到线程安全队列并异步等待 `AgentToolResult`；网络线程不得调用 Unity API |
-| `CommandDispatcher` | `IAgentEntity` / `IAgentTool` | SDK Entity Registry、Tool Registry、`AgentToolContext`、CancellationToken 和按实体串行执行契约 |
-| Go A2A Server | `ConversationService` | Go 方法调用；传递已验证的 Game Context、Context ID 和流式事件回调 |
-| `ConversationService` | `mcp.AgentRuntime` | Go `agent.Runtime` 接口；使用 MCP Tool、Schema 和 `CallToolResult` 语义 |
-| `mcp.AgentRuntime` | Runtime Registry | 按 `instanceId` 解析当前 `mcp.Client`；本地与远程没有 fallback 分支 |
-| Runtime Registry | Gateway `runtimeSession` | Go `mcp.Client` 接口；`ListTools` 读取 Manifest，`CallTool` 转换为 Runtime Bridge 调用 |
-| Save Coordinator | `ConversationService` | Go SnapshotService 接口；只处理 Agent 对话快照 |
-
-因此 Agent Service 内部的工具路径是：
-
-```text
-ConversationService
-  └─ agent.Runtime / mcp.AgentRuntime              （Go 接口，MCP 语义）
-       └─ Runtime Registry / runtimeSession         （Go 接口）
-            └─ runtime.tools.call                   （JSON-RPC 2.0 / WebSocket）
-                 └─ Unity CommandDispatcher         （主线程队列）
-```
-
-Agent Service 不会为了调用同进程 Gateway 而向自己的虚拟 MCP HTTP 端点
-环回请求。虚拟 MCP 端点只用于真正的外部 MCP Client。
-
-### 2.3 JSON-RPC 的使用边界
-
-A2A、MCP 和 Runtime Bridge 都复用 JSON-RPC 2.0 的请求/响应信封：
+A2A、MCP 和 Runtime Bridge 都使用 JSON-RPC 2.0 信封，但它们是三种不同的
+业务协议：
 
 ```json
 {"jsonrpc":"2.0","id":"request-id","method":"namespace.method","params":{}}
@@ -89,61 +67,20 @@ A2A、MCP 和 Runtime Bridge 都复用 JSON-RPC 2.0 的请求/响应信封：
 {"jsonrpc":"2.0","id":"request-id","error":{"code":-32602,"message":"invalid params"}}
 ```
 
-它们共享信封格式，但不是同一个业务协议：
+- A2A 方法描述 Message、Task 和 Context。
+- MCP 方法描述工具发现和调用。
+- Runtime Bridge 方法只承载 Gateway 与 Unity Runtime 之间的反向执行。
+- Save Coordination 使用 REST，不使用 JSON-RPC。
 
-- A2A 方法描述玩家与 Agent 的 Message、Task 和 Context。
-- MCP 方法描述标准工具发现与调用。
-- Runtime Bridge 方法只负责 Gateway 与 Unity Runtime 之间的反向承载。
-- Save Coordination 使用 REST/JSON，不使用 JSON-RPC。
+### 2.3 A2A 对话平面
 
-旧 `/unity/ws` 同样曾使用 JSON-RPC 信封，但其 `unity.register`、
-`player.message`、`unity.tool.execute` 等方法已经全部删除。保留 JSON-RPC
-2.0 不代表保留旧 v2 协议。
+实现的方法：
 
-### 2.4 Runtime Bridge 方法方向
-
-| 方向 | 方法/消息 | 类型 | 作用 |
-|---|---|---|---|
-| Unity → Gateway | `runtime.initialize` | Request | token 认证并提交完整 Runtime Manifest |
-| Unity → Gateway | `runtime.manifest.changed` | Notification | 实体或工具变化后完整替换 Manifest |
-| Gateway → Unity | `runtime.tools.call` | Request | 调用指定工具，`arguments` 必须包含已绑定的 `entityId` |
-| Unity → Gateway | 与请求同 `id` 的 `result/error` | Response | 返回 MCP `CallToolResult` 或 JSON-RPC error |
-| Unity → Gateway | `runtime.progress` | Notification | 上报安全、限频的在途进度；当前 Gateway 不持久化，也不转发给 Conversation/LLM |
-| Gateway → Unity | `runtime.cancelled` | Notification | 取消指定 `requestId` 的游戏行为 |
-
-## 3. 不可跨越的边界
-
-- LLM Key、模型请求、完整历史和 tool loop 只在 Go Agent Service。
-- Unity 不调用 LLM，也不保存 LLM Key 或模型历史。
-- Unity 是 GameObject、NavMesh、Inventory、交互和行为结果的权威来源。
-- Go 不访问 Unity 对象，不推断行为是否真实完成。
-- Unity API 只在 Unity 主线程执行；网络回调只投递命令或 UI 事件。
-- MCP `arguments` 始终是 JSON 对象，不做 JSON 字符串二次编码。
-- 工具 Schema 只由 Unity Runtime 生成；Go 不维护重复目录。
-- 静态 NPC Profile 不包含坐标、路径、库存或任务进度。
-- 日志不记录消息正文、模型全文、完整工具参数、Prompt 或密钥。
-
-## 4. A2A 对话平面
-
-Agent Service 暴露：
-
-| 路由 | 用途 |
+| 方法 | 作用 |
 |---|---|
-| `/.well-known/agent-card.json` | A2A Agent Card |
-| `/.well-known/agent.json` | Agent Card 发现别名 |
-| `/a2a` | A2A JSON-RPC binding，支持 `message/send`、`message/stream`、`tasks/cancel` |
-
-`message/stream` 使用 SSE 返回初始 working Task、artifact text chunk 和最终
-completed/failed/cancelled status-update。Unity 的 `A2AClientAdapter` 将这些 DTO
-转换为 SDK 事件：
-
-- `ResponseStarted`
-- `TextDelta`
-- `StatusChanged`
-- `ResponseCompleted`
-- `ResponseFailed`
-
-UI 只消费这些事件，不依赖 A2A JSON 字段。
+| `message/send` | 非流式玩家消息，返回完成的 Task |
+| `message/stream` | 返回 working Task、artifact text chunk 和最终 status update |
+| `tasks/cancel` | 取消当前仍在运行的 Task |
 
 每条玩家 Message 必须在 metadata 中携带扩展：
 
@@ -160,162 +97,72 @@ https://gamewithllm.dev/extensions/game-context/v1
 }
 ```
 
-Agent Service 在复用 Context 时重新校验
-`instanceId + playerId + agentId`，防止 Context 跨 Runtime、玩家或实体复用。
-A2A 与 Save Coordination 使用短期 bearer token。
+创建 Context 时，Agent Service 要求对应 Runtime 已注册且 NPC Profile 存在。
+复用 Context 时重新校验 `instanceId + playerId + agentId`，禁止跨 Runtime、
+玩家或实体复用。当前 Go `Capabilities` 实现尚未用 Manifest 的实体列表核对
+新 Context 的 `agentId`；不存在或离线的实体会在 Unity 执行工具时被拒绝。
 
-## 5. MCP 工具平面
+`A2AClientAdapter` 将协议 DTO 转换为 SDK 事件：
 
-Agent Service 通过 MCP `Client` 抽象访问 Runtime Registry；Gateway 还为
-第三方服务身份暴露虚拟 MCP Server。协议版本锁定为 `2025-11-25`。
+- `ResponseStarted`
+- `TextDelta`
+- `StatusChanged`
+- `ResponseCompleted`
+- `ResponseFailed`
 
-实现的方法和通知：
+UI 只消费这些事件，不依赖 A2A JSON 字段。
+
+### 2.4 Runtime Bridge
+
+| 方向 | 方法或响应 | 作用 |
+|---|---|---|
+| Unity → Gateway | `runtime.initialize` request | 提交 token 和完整 `RuntimeManifest` |
+| Unity → Gateway | `runtime.manifest.changed` notification | 实体或工具变化后完整替换 Manifest |
+| Gateway → Unity | `runtime.tools.call` request | 调用工具；`arguments` 包含已绑定的 `entityId` |
+| Unity → Gateway | 同 request ID 的 result/error | 返回 MCP `CallToolResult` 或 JSON-RPC error |
+| Unity → Gateway | `runtime.progress` notification | 上报在途进度 |
+| Gateway → Unity | `runtime.cancelled` notification | 取消指定 request ID |
+
+每次 Runtime 注册获得单调递增的 `connectionGeneration`。新连接会替换同
+`instanceId` 的旧连接；断线会失败该连接全部 pending 调用，迟到结果不能进入
+新连接。每个 Runtime 最多同时保留 32 个 pending 工具调用。
+
+当前 Gateway 接收后忽略 `runtime.progress`，不会持久化或转发给
+Conversation/LLM。这是已知限制。
+
+### 2.5 MCP 工具平面
+
+Agent Service 内部通过 Go `mcp.Client` 接口访问 Runtime Registry，不向自己
+的 HTTP MCP 端点发起环回请求。
+
+虚拟 MCP 入口供外部服务身份使用，当前实现：
 
 - `initialize`
 - `notifications/initialized`
 - `tools/list`
 - `tools/call`
 - `notifications/cancelled`
-- Runtime Bridge 的安全进度通知
 
-工具在 Runtime 中只注册一次。SDK 在业务 Schema 外层合并必填
-`entityId`：
+`notifications/cancelled` 当前只返回 accepted；在途 `tools/call` 的实际取消
+由 HTTP 请求 Context 取消传播到 Runtime Bridge。第一版不实现 MCP Resources
+或 MCP Tasks。
 
-```json
-{
-  "name": "game_npc_move",
-  "arguments": {
-    "entityId": "Ryan_001",
-    "targetId": "landmark:gate",
-    "approachDistance": 1.5
-  }
-}
-```
+工具只在 Unity 注册一次。`ToolsRegistry` 在业务 Schema 外层合并必填
+`entityId`；Agent Service 对模型隐藏该字段，并在调用前绑定当前 A2A
+`agentId`。如果调用参数包含其他实体 ID，请求会被拒绝。
 
-Agent Service 向模型隐藏路由字段，并在调用 MCP 前将当前已认证
-`agentId` 绑定为 `entityId`。如果模型或调用方提供了不同实体，调用会被
-拒绝。Unity 执行前再次检查实体在线、工具存在、`IsAvailable`、JSON
-Schema、领域 Validate 和当前游戏状态。
+当前 Manifest 提供全局工具目录；Go 尚未按 `entityId` 过滤模型可见工具。
+`ToolsRegistry.GetAvailableToolNames` 生成的实体可用性没有进入网络 Manifest。
+因此最终授权必须依赖 Unity 执行时对 Entity、Tool、`IsAvailable`、Schema 和
+实时游戏状态的重新校验。
 
-MCP `CallToolResult` 映射：
+`CallToolResult` 映射：
 
-- 成功：`isError=false`，真实结构数据放在 `structuredContent`。
-- 业务失败：`isError=true`，包含稳定 `errorCode`、message 和可选 data。
-- JSON-RPC 信封、方法或参数错误：JSON-RPC error。
+- 成功：`isError=false`，结构数据位于 `structuredContent`。
+- 游戏业务失败：`isError=true`，包含稳定 `errorCode`、message 和可选 data。
+- JSON-RPC 信封、方法或参数错误：使用 JSON-RPC error。
 
-第一版不实现 MCP Resources 和实验性 MCP Tasks。实时查询继续使用
-`game_npc_get_state`、`game_scene_get_targets`、Inventory 等工具。
-
-## 6. Unity Agent Runtime SDK
-
-可复用 UPM 包位于：
-
-```text
-Packages/com.gamewithllm.agent-runtime/
-├─ Runtime/Core
-├─ Runtime/Conversations
-├─ Runtime/Transports
-└─ Samples~
-   ├─ WarehouseDemo
-   └─ SwitchDemo
-```
-
-公共契约包括：
-
-- `IAgentEntity` / `IGameObjectAgentEntity`
-- `IAgentTool` / `AgentToolDescriptor` / `AgentToolContext`
-- `AgentToolResult`
-- `IAgentMainThreadScheduler`
-- `IRuntimeTransport`
-- 统一 `AgentResponseEvent`
-
-包不引用 `NpcEntity`、UI、SaveGame、A2A DTO、MCP DTO、Gateway DTO 或 Go
-类型。Warehouse 是现有 NPC/NavMesh/Inventory 示例；SwitchDemo 展示非
-NPC 游戏实体复用相同 SDK。
-
-UPM 契约是生产运行链的唯一公共类型源，不允许在 `Assets` 中再定义平行的
-Tool、Result、Command、Manifest 或 Transport 类型。当前生产链直接使用：
-
-- `ToolsRegistry` 保存和发现 `IAgentTool`，Manifest 使用
-  `AgentToolDescriptor`。
-- `CommandDispatcher` 保存 `IAgentEntity`，接收 `RuntimeCommand`，
-  并按实体串行执行工具。
-- 工具同步或异步返回 `AgentToolResult`；长时移动的
-  `ValueTask<AgentToolResult>` 只有在真实到达、失败或取消后才结束。
-- `AgentHostClient` 只依赖 `IRuntimeTransport` 编排命令、结果和进度。
-- `RuntimeGatewayClient` 是 `IRuntimeTransport` 的 WebSocket/WSS 实现。
-- `NpcEntity` 是 `IGameObjectAgentEntity` 的 Warehouse 游戏适配实现。
-
-SampleScene 的生产适配层：
-
-- `ToolsRegistry`：反射发现工具、生成严格 Schema、合并 `entityId`。
-- `CommandDispatcher`：`IAgentEntity` 注册、线程安全入站队列、实体路由
-  和每实体 FIFO 执行。
-- `NpcTool<TArgs>`：把 Warehouse 参数校验和 `NpcEntity` 能力适配到
-  `IAgentTool`，不是第二套工具接口。
-- `NpcEntity`：主线程执行 NavMesh 行为并完成 `AgentToolResult`。
-- `RuntimeGatewayClient`：本地和远程共用的 `IRuntimeTransport` 实现。
-- `A2AClientAdapter`：A2A SSE 到 UI 事件的适配。
-
-移动工具每 0.5 秒最多报告一次不含参数或内部状态的 `moving` 进度。
-取消后 NavMesh path 被重置；CancellationToken、Transport invocation route
-和 Gateway connection generation 共同隔离迟到结果。
-
-## 7. 统一 Runtime Transport
-
-Unity 无论本地或远程都主动连接：
-
-```text
-本地：ws://127.0.0.1:8080/runtime/ws
-远程：wss://agent.example.com/runtime/ws
-```
-
-首条消息必须是 `runtime.initialize`，携带短期设备 token 和完整
-Runtime Manifest。Gateway 为实例分配单调递增
-`connectionGeneration`。能力变化使用 `runtime.manifest.changed` 完整
-替换。
-
-本地不再启动 Unity HTTP MCP Server，也不存在本地 fallback。Agent
-Service 只有在目标 `instanceId` 已注册到 Runtime Registry 后才会创建或
-继续 A2A Context。网络回调始终只向 `CommandDispatcher` 投递主线程命令。
-
-## 8. Runtime Gateway 与虚拟 MCP
-
-Gateway 为第三方服务身份暴露：
-
-```text
-/mcp/runtimes/{instanceId}
-```
-
-该端点要求 `MCP_GATEWAY_SERVICE_TOKEN`。Gateway 只负责认证、实例路由、
-pending、cancel、disconnect、generation 和 MCP 端点虚拟化；它不调用
-LLM、不保存 Conversation、不运行 tool loop，也不修改 Tool Result。
-
-断线会失败该 generation 的全部 pending 调用。重连完整发布 Manifest，
-旧连接的迟到结果不会写入新连接。Registry 以 instanceId 隔离 Runtime，
-`entityId` 仍必须属于目标 Manifest。
-
-## 9. Conversation Engine
-
-Go `internal/agent` 保留经过验证的能力：
-
-- NPC Profile 严格加载与固定 Prompt 模板。
-- 每 Context 串行处理玩家消息。
-- 字符预算按完整工具轮次裁剪。
-- OpenAI-compatible streaming Chat Completions。
-- 临时文本草稿 reset。
-- 最大 tool round 策略。
-- 参数 Policy/Schema 校验。
-- 结构化 Tool Result 写回模型上下文。
-- 429/5xx 与未输出文本的网络重试。
-- Context 取消向 LLM 和 MCP 传播。
-
-Runtime 边界现在要求显式 `instanceId + entityId`，不再通过全局 npcId
-发现 Unity 连接。
-
-## 10. Save Coordination
-
-端点：
+### 2.6 Save Coordination
 
 ```text
 POST /game-saves/{saveId}/agent-context:prepare
@@ -324,33 +171,167 @@ POST /game-saves/{saveId}/agent-context:restore
 GET  /game-saves/{saveId}/agent-context:status
 ```
 
-Unity 仍权威保存 Transform、NavMesh 位置和 Inventory；Agent Service 只
-保存非 system 的对话上下文。prepare 生成/覆盖 Agent 快照，commit 记录
-跨权威提交完成，restore 使用当前 Profile/Prompt 创建新的 A2A Context ID。
-Coordinator 状态按 `saveId + operationId` 显式诊断和重试。Save 操作不是
-模型工具。
+Unity 权威保存 Transform、NavMesh 位置和 Inventory；Agent Service 只保存非
+system 的对话快照。操作通过 `saveId + operationId` 关联。restore 使用当前
+Profile 和 system prompt 创建新的 A2A Context ID。存档操作不是模型工具。
 
-保存开始时 Unity 场景门面先拒绝新对话，并等待当前 A2A/tool loop 退出；
-在同一互斥区间内捕获世界存档、prepare Agent 快照并 commit。失败的世界
-存档保持 conversationSynced=false，可用同一 operationId 幂等重试。
+## 3. 进程内契约
 
-## 11. Go 代码地图
+以下边界不经过网络，也不重复定义协议 DTO：
+
+| 调用方 | 被调用方 | 契约 |
+|---|---|---|
+| Unity UI / `AgentHostClient` | `A2AClientAdapter` | SDK `AgentResponseEvent` |
+| `AgentHostClient` | `IRuntimeTransport` | `RuntimeManifest`、`RuntimeCommand`、`AgentToolResult`、Progress |
+| `AgentHostClient` | `CommandDispatcher` | 将 `RuntimeCommand` 投递到主线程队列并等待结果 |
+| `CommandDispatcher` | `IAgentEntity` / `IAgentTool` | `AgentToolContext`、CancellationToken、每实体 FIFO |
+| Go A2A Server | `ConversationService` | 已校验的 Game Context、Context ID 和流式回调 |
+| `ConversationService` | `mcp.AgentRuntime` | MCP Tool、Schema 和 `CallToolResult` 语义 |
+| `mcp.AgentRuntime` | Runtime Registry | 根据 `instanceId` 解析当前 `mcp.Client` |
+| Runtime Registry | `runtimeSession` | Manifest 查询、工具调用、取消和断线传播 |
+| Save Coordinator | `ConversationService` | SnapshotService |
+
+工具执行链：
+
+```text
+ConversationService
+  → mcp.AgentRuntime
+  → Runtime Registry / runtimeSession
+  → runtime.tools.call
+  → RuntimeGatewayClient
+  → CommandDispatcher
+  → IAgentTool
+  → AgentToolResult
+```
+
+## 4. 数据权威与安全边界
+
+- LLM Key、模型请求、完整历史和 tool loop 只在 Go。
+- Unity 不直接调用 LLM，也不保存 LLM Key 或模型历史。
+- Unity 是 GameObject、NavMesh、Inventory、交互状态和行为结果的权威来源。
+- Go 不访问 Unity 对象，不推断游戏行为是否真实完成。
+- Unity API 只在 Unity 主线程执行；网络回调只投递线程安全命令或 UI 回调。
+- 工具参数在协议边界上保持 JSON 对象，不二次编码为 JSON 字符串。
+- 工具 Schema 只由 Unity Runtime 生成；Go 不维护第二份目录。
+- NPC Profile 只包含人格、职责和静态背景，不包含实时世界状态。
+- 日志只记录 ID、实体、工具名、长度、耗时、结果和错误码，不记录正文、
+  完整参数、Prompt、历史或密钥。
+- Runtime、A2A 和外部 MCP 分别使用独立 token；生产地址必须使用 HTTPS/WSS。
+
+当前活动 Context 存储在 Go 内存中。文件归档只用于显式的存档协调，不是自动
+长期记忆，也不在 Go 重启时自动恢复当前会话。
+
+## 5. 主要交互流程
+
+### 5.1 启动和注册
+
+1. Unity 反射发现 `IAgentTool`，注册 `IAgentEntity`，生成完整 Manifest。
+2. `RuntimeGatewayClient` 连接 `/runtime/ws` 并发送 `runtime.initialize`。
+3. Gateway 验证 token，登记 `instanceId`、Manifest 和 generation。
+4. Entity 或工具变化时，Unity 发送完整 `runtime.manifest.changed`。
+
+Unity 启动时会在配置的 `UNITY_INSTANCE_ID` 后追加随机 GUID，因此每次运行
+获得独立 Runtime ID。
+
+### 5.2 普通对话
+
+1. Unity 通过 `message/stream` 发送玩家文本和 Game Context。
+2. Agent Service 创建或校验 Context，加载 NPC Profile 并调用 LLM。
+3. LLM 不调用工具时，文本增量直接通过 SSE 返回。
+4. A2A Adapter 转换为 SDK 响应事件，UI 更新草稿并提交最终文本。
+
+### 5.3 带工具的对话
+
+1. Agent Service 从当前 Runtime Manifest 取得全局工具目录并对模型隐藏
+   `entityId`。
+2. LLM 返回结构化 Tool Call。
+3. Go 校验 Schema 和策略，绑定当前 `entityId`。
+4. MCP Runtime Adapter 经 Gateway 发送 `runtime.tools.call`。
+5. `RuntimeGatewayClient : IRuntimeTransport` 产生 SDK `RuntimeCommand`。
+6. `CommandDispatcher` 在主线程按 `IAgentEntity` 路由并按实体串行执行。
+7. `IAgentTool` 返回 `AgentToolResult`；长时移动只在到达、失败或取消后结束。
+8. Go 将结构化结果写回模型上下文并继续 tool loop。
+9. 最终回复通过 A2A SSE 返回 Unity。
+
+不同实体可以并行；同一实体保持 FIFO，避免行为竞争。
+
+### 5.4 取消和重连
+
+A2A Task 取消沿 Go Context 传播到 LLM、在途 MCP 调用、Runtime Bridge 和
+Unity CancellationToken。移动取消会重置 NavMesh path。每次调用只完成一次，
+连接 generation 隔离迟到响应。
+
+网络恢复后 Unity 重新连接并发布完整 Manifest；Gateway 不复用旧连接的
+pending 或能力快照。
+
+### 5.5 保存和恢复
+
+保存时 Unity 暂停新对话并等待当前操作退出，捕获世界状态，再调用 prepare 和
+commit。恢复时 Unity 先恢复世界与实体，Agent Service 再用当前 Profile 恢复
+对话快照并返回新的 Context ID。失败状态通过 status API 诊断和显式重试。
+
+## 6. Unity Agent Runtime SDK
+
+UPM 包位于：
+
+```text
+unity-NPC-agent-client/Packages/com.gamewithllm.agent-runtime/
+```
+
+它当前是**公共契约包**，不是包含全部网络和调度实现的完整客户端。公共类型：
+
+- `IAgentEntity` / `IGameObjectAgentEntity`
+- `IAgentTool` / `AgentToolDescriptor` / `AgentToolContext`
+- `AgentToolResult`
+- `IAgentMainThreadScheduler`
+- `RuntimeCommand` / `RuntimeManifest`
+- `IRuntimeTransport`
+- `AgentResponseEvent` 及其派生事件
+
+生产代码直接引用 `GameWithLLM.AgentRuntime` 程序集：
+
+- `RuntimeGatewayClient` 实现 `IRuntimeTransport`。
+- `NpcEntity` 实现 `IGameObjectAgentEntity`。
+- `NpcTool<TArgs>` 适配 Warehouse 业务工具到 `IAgentTool`。
+- `ToolsRegistry`、`CommandDispatcher` 和 `AgentHostClient` 使用 SDK 类型。
+
+`A2AClientAdapter`、`RuntimeGatewayClient`、注册表、调度器、UI 和具体游戏
+逻辑仍位于 `Assets/Scripts`，不会随当前 SDK 包发布。`Assets` 中不得重新定义
+平行的 Tool、Result、Command、Manifest、Entity 或 Transport 公共类型。
+
+## 7. 代码地图
+
+### 7.1 Go
 
 | 路径 | 职责 |
 |---|---|
-| `cmd/server/main.go` | Agent Service HTTP 生命周期与优雅关闭 |
+| `cmd/server/main.go` | HTTP 生命周期、Signal 和优雅关闭 |
+| `internal/config` | 环境变量与根目录 dotenv |
+| `internal/handler` | 路由装配和健康检查 |
 | `internal/a2a` | Agent Card、A2A JSON-RPC/SSE、Game Context 校验 |
-| `internal/agent` | Profile、Context、LLM 和 tool loop |
-| `internal/mcp` | MCP 类型、Streamable HTTP Client、Agent Runtime Adapter |
-| `internal/gateway` | Runtime Bridge、Registry、generation、虚拟 MCP Endpoint |
-| `internal/savecoord` | prepare/commit/restore/status |
-| `internal/tools` | 模型可见工具、Schema 校验与策略 |
-| `internal/config` | 环境变量和 dotenv |
-| `internal/handler` | 新路由装配 |
+| `internal/agent` | Profile、内存 Context、LLM、tool loop 和对话归档 |
+| `internal/mcp` | MCP 类型、HTTP Client、Entity 绑定和 Agent Runtime Adapter |
+| `internal/gateway` | Runtime Bridge、Registry、generation 和虚拟 MCP |
+| `internal/savecoord` | prepare、commit、restore、status |
+| `internal/tools` | 模型工具目录、Schema 校验和策略 |
 
-`internal/unity` 已删除。
+### 7.2 Unity
 
-## 12. 配置
+| 路径 | 职责 |
+|---|---|
+| `Assets/Scripts/Networking/AgentHostClient.cs` | 场景门面、A2A 与 Runtime 编排 |
+| `Assets/Scripts/Networking/A2AClientAdapter.cs` | A2A JSON-RPC/SSE 与 SDK 事件映射 |
+| `Assets/Scripts/Networking/RuntimeGatewayClient.cs` | `IRuntimeTransport` WebSocket 实现 |
+| `Assets/Scripts/Networking/SaveCoordinationClient.cs` | Save Coordination REST Client |
+| `Assets/Scripts/CommandDispatcher/ToolsRegistry.cs` | 工具发现、Schema 和 Manifest 工具快照 |
+| `Assets/Scripts/CommandDispatcher/CommandDispatcher.cs` | 主线程 Entity 路由和每实体 FIFO |
+| `Assets/Scripts/CommandDispatcher/NpcTool.cs` | Warehouse 工具适配基类 |
+| `Assets/Scripts/GameLogic/NpcEntity.cs` | NPC 生命周期、NavMesh 行为和结果 |
+| `Packages/com.gamewithllm.agent-runtime/Runtime` | SDK 公共契约 |
+
+移动或重命名 Unity 资源时必须同时移动 `.meta` 并保留 GUID。
+
+## 8. 配置
 
 Agent Service：
 
@@ -380,21 +361,10 @@ Unity：
 - `PLAYER_ID`
 - `UNITY_SCENE_ID`
 
-优先级仍为进程环境变量 > `.env.local` > `.env` > 默认值。认证 token
-没有可运行默认值；本地被忽略的 `.env` 可使用随机开发 token，仓库只
-提交占位符。
+配置优先级：进程环境变量 > `.env.local` > `.env` > 默认值。认证 token
+没有可运行默认值，真实值不得提交。
 
-## 13. 安全与日志
-
-- Runtime、A2A 和 Gateway Service 身份分别认证。
-- 本地和远程 Runtime 都只建立出站 WebSocket；生产环境使用 `wss://`。
-- HTTP/WebSocket 单消息限制为 1 MiB。
-- MCP Gateway 端点按 instanceId 路由，Context 按三元所有权校验。
-- 所有 WebSocket 写入经过发送锁。
-- pending 支持 cancel、断线清理、generation 和重复完成隔离。
-- 日志只记录 ID、实体、工具名、长度、耗时、结果和 error code。
-
-## 14. 验证
+## 9. 验证
 
 Go：
 
@@ -403,33 +373,14 @@ cd GameMCPServer
 go test ./...
 go vet ./...
 go test -race ./...
-node test_mcp.js --start-server
 ```
 
-协议烟测启动 Mock LLM 和出站 Mock Runtime，验证 Agent Card、A2A
-streaming Task、Runtime initialize/tool call、虚拟 MCP `tools/list`、
-Agent 绑定 entityId，以及旧 `/unity/ws` 返回 404。
+Unity 修改必须完成 C# 编译，并在 `SampleScene` 验证：
 
-Unity：
-
-- `Assembly-CSharp.csproj` 命令行编译必须 0 error。
-- Editor/PlayMode 继续验证主线程、移动、取消、重连和多实体隔离。
-- SampleScene 必须验证普通对话、流式文本、warehouse/gate 移动、
-  Inventory、存档恢复和 Console 清洁。
-
-## 15. 已删除内容
-
-仓库中不再存在：
-
-- `/unity/ws`
-- `protocolVersion: 2`
-- `unity.register` / `unity.npc.changed` / `unity.tools.changed`
-- `unity.tool.execute` / `unity.tool.cancel`
-- `conversation.start` / `player.message` / `conversation.end`
-- `assistant.status` / `assistant.delta`
-- `savegame.conversations.save/load`
-- Go `internal/unity`
-- Unity `UnityGatewayClient` / `UnityGatewayProtocol`
-- v2 feature flag 或 dual-stack 路径
-
-新架构不为旧协议提供兼容层。
+1. Runtime 注册成功。
+2. 普通对话和流式回复正常。
+3. `game_npc_move` 能到达 warehouse 和 gate。
+4. 取消能停止当前 Task 和移动。
+5. Go 重启后 Unity 能重连并重新发布 Manifest。
+6. Inventory 与存档恢复正常。
+7. Console 无编译错误、Missing Script、线程或协议异常。
