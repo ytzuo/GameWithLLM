@@ -1,0 +1,22 @@
+{
+  "name": "com.gamewithllm.agent-runtime",
+  "version": "1.1.0",
+  "displayName": "GameWithLLM Agent Runtime",
+  "description": "Protocol-independent Unity entity, tool, threading and conversation contracts.",
+  "unity": "2022.3",
+  "samples": [
+    {
+      "displayName": "Warehouse Demo",
+      "description": "NPC movement integration using the protocol-independent runtime contracts.",
+      "path": "Samples~/WarehouseDemo"
+    },
+    {
+      "displayName": "Switch Demo",
+      "description": "A non-NPC entity and tool example.",
+      "path": "Samples~/SwitchDemo"
+    }
+  ],
+  "author": {
+    "name": "GameWithLLM"
+  }
+}

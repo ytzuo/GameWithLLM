@@ -8,9 +8,12 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestLoad_AgentHostAndLLMConfiguration(t *testing.T) {
-	t.Setenv("AGENT_HOST_ADDR", "127.0.0.1:19090")
-	t.Setenv("AGENT_HOST_BASE_URL", "http://127.0.0.1:19090")
+func TestLoad_AgentServiceGatewayAndLLMConfiguration(t *testing.T) {
+	t.Setenv("AGENT_SERVICE_ADDR", "127.0.0.1:19090")
+	t.Setenv("AGENT_SERVICE_BASE_URL", "http://127.0.0.1:19090")
+	t.Setenv("RUNTIME_GATEWAY_TOKEN", "runtime-token")
+	t.Setenv("MCP_GATEWAY_SERVICE_TOKEN", "service-token")
+	t.Setenv("A2A_BEARER_TOKEN", "a2a-token")
 	t.Setenv("LLM_API_URL", "http://llm.test/v1")
 	t.Setenv("LLM_API_KEY", "test-key")
 	t.Setenv("LLM_MODEL", "model-test")
@@ -23,6 +26,9 @@ func TestLoad_AgentHostAndLLMConfiguration(t *testing.T) {
 	cfg := Load()
 	assert.Equal(t, "127.0.0.1:19090", cfg.ServerAddr)
 	assert.Equal(t, "http://127.0.0.1:19090", cfg.BaseURL)
+	assert.Equal(t, "runtime-token", cfg.RuntimeGatewayToken)
+	assert.Equal(t, "service-token", cfg.GatewayServiceToken)
+	assert.Equal(t, "a2a-token", cfg.A2ABearerToken)
 	assert.Equal(t, "http://llm.test/v1", cfg.LLMAPIURL)
 	assert.Equal(t, "test-key", cfg.LLMAPIKey)
 	assert.Equal(t, "model-test", cfg.LLMModel)

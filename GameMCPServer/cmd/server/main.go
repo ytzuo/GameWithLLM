@@ -15,20 +15,20 @@ import (
 	"GameMCPServer/internal/handler"
 )
 
-// main 启动 HTTP 服务并暴露 Unity JSON-RPC WebSocket 入口。
+// main 启动 Agent Service 的 A2A、MCP Gateway 与存档协调端点。
 func main() {
 	cfg := config.Load()
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
 	if err := run(ctx, cfg); err != nil {
-		log.Fatalf("Game Agent Host stopped with error: %v", err)
+		log.Fatalf("Game Agent Service stopped with error: %v", err)
 	}
 }
 
 func run(ctx context.Context, cfg config.Config) error {
 	mux := http.NewServeMux()
-	jsonRPCServer, err := handler.RegisterRoutesWithConfig(mux, cfg)
+	app, err := handler.RegisterRoutesWithConfig(mux, cfg)
 	if err != nil {
 		return err
 	}
@@ -39,7 +39,27 @@ func run(ctx context.Context, cfg config.Config) error {
 		IdleTimeout:       60 * time.Second,
 	}
 
-	log.Printf("event=server_starting base_url=%q websocket_url=%q tool_timeout_seconds=%d llm_model=%q llm_timeout_seconds=%d llm_max_retries=%d llm_max_tool_rounds=%d llm_max_context_chars=%d conversation_save_dir=%q llm_api_key_configured=%t", cfg.BaseURL, cfg.UnityJSONRPCWSURL, cfg.UnityToolTimeoutSecond, cfg.LLMModel, cfg.LLMRequestTimeoutSecond, cfg.LLMMaxRetries, cfg.LLMMaxToolRounds, cfg.LLMMaxContextChars, cfg.ConversationSaveDir, cfg.LLMAPIKey != "")
+	log.Printf(
+		"event=server_starting\n"+
+			"  base_url=%q\n"+
+			"  llm_model=%q\n"+
+			"  llm_timeout_seconds=%d\n"+
+			"  llm_max_retries=%d\n"+
+			"  llm_max_tool_rounds=%d\n"+
+			"  llm_max_context_chars=%d\n"+
+			"  conversation_save_dir=%q\n"+
+			"  gateway_auth_configured=%t\n"+
+			"  llm_api_key_configured=%t",
+		cfg.BaseURL,
+		cfg.LLMModel,
+		cfg.LLMRequestTimeoutSecond,
+		cfg.LLMMaxRetries,
+		cfg.LLMMaxToolRounds,
+		cfg.LLMMaxContextChars,
+		cfg.ConversationSaveDir,
+		cfg.RuntimeGatewayToken != "",
+		cfg.LLMAPIKey != "",
+	)
 
 	serveErr := make(chan error, 1)
 	go func() {
@@ -58,7 +78,7 @@ func run(ctx context.Context, cfg config.Config) error {
 		defer cancel()
 
 		httpErr := httpServer.Shutdown(shutdownCtx)
-		webSocketErr := jsonRPCServer.Shutdown(shutdownCtx)
+		webSocketErr := app.Shutdown(shutdownCtx)
 		serverErr := <-serveErr
 		if errors.Is(serverErr, http.ErrServerClosed) {
 			serverErr = nil

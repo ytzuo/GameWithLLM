@@ -1,5 +1,11 @@
 {
   "dependencies": {
+    "com.gamewithllm.agent-runtime": {
+      "version": "file:com.gamewithllm.agent-runtime",
+      "depth": 0,
+      "source": "embedded",
+      "dependencies": {}
+    },
     "com.unity.2d.sprite": {
       "version": "1.0.0",
       "depth": 1,

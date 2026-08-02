@@ -1,631 +1,410 @@
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
-using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
-using Newtonsoft.Json;
-using Newtonsoft.Json.Linq;
+using GameWithLLM.AgentRuntime;
 using UnityEngine;
 
+// 场景级门面：编排 A2A、Runtime Bridge、主线程工具执行和存档协调。
 public class AgentHostClient : Singleton<AgentHostClient>
 {
-    [Header("Gateway 配置")]
-    public string gatewayWsUrl = "ws://127.0.0.1:8080/unity/ws";
+    public string a2aUrl = "http://127.0.0.1:8080/a2a";
+    public string agentServiceBaseUrl = "http://127.0.0.1:8080";
+    public string runtimeGatewayWsUrl = "ws://127.0.0.1:8080/runtime/ws";
     public string unityInstanceId = "local-game-1";
     public string playerId = "local-player-1";
+    public string sceneId = "warehouse-demo";
 
     private readonly CancellationTokenSource _appCts = new CancellationTokenSource();
-    private readonly ConcurrentDictionary<string, string> _sessionsByNpc = new ConcurrentDictionary<string, string>();
-    private readonly ConcurrentDictionary<string, Task<string>> _sessionStarts = new ConcurrentDictionary<string, Task<string>>();
-    private readonly ConcurrentQueue<Action> _mainThreadActions = new ConcurrentQueue<Action>();
-    private readonly SemaphoreSlim _conversationSendLock = new SemaphoreSlim(1, 1);
-    private readonly object _capabilitySnapshotLock = new object();
-
-    private UnityGatewayClient _gatewayClient;
+    private readonly ConcurrentDictionary<string, string> _contexts =
+        new ConcurrentDictionary<string, string>();
+    private readonly ConcurrentQueue<Action> _mainThread = new ConcurrentQueue<Action>();
+    private readonly SemaphoreSlim _sendLock = new SemaphoreSlim(1, 1);
+    private readonly object _manifestLock = new object();
+    private A2AClientAdapter _a2a;
+    private SaveCoordinationClient _saveCoordinator;
+    private IRuntimeTransport _runtimeTransport;
     private CommandDispatcher _dispatcher;
-    private ToolsRegistry _toolsRegistry;
-    private UnityGatewayCapabilitySnapshot _capabilitySnapshot =
-        new UnityGatewayCapabilitySnapshot
-        {
-            Tools = new List<UnityGatewayToolDefinition>(),
-            Npcs = new List<string>(),
-            NpcTools = new Dictionary<string, List<string>>()
-        };
+    private ToolsRegistry _tools;
+    private RuntimeManifest _manifest;
+    private long _manifestRevision;
     private string _activeNpcId;
-    private volatile bool _saveGameOperationInProgress;
-    private volatile bool _conversationRestoreFailed;
+    private volatile bool _saveBusy;
+    private volatile bool _restoreFailed;
 
+    // Init 装配唯一的出站 Runtime 连接，并发布当前场景的实体与工具 Manifest。
     protected override void Init()
     {
         DotEnvConfig config = DotEnvConfig.Load();
-        gatewayWsUrl = config.Get("UNITY_JSONRPC_WS_URL", gatewayWsUrl);
+        a2aUrl = config.Get("A2A_AGENT_URL", a2aUrl);
+        agentServiceBaseUrl = config.Get("AGENT_SERVICE_BASE_URL", agentServiceBaseUrl);
+        runtimeGatewayWsUrl = config.Get("RUNTIME_GATEWAY_WS_URL", runtimeGatewayWsUrl);
         unityInstanceId = config.Get("UNITY_INSTANCE_ID", unityInstanceId);
         playerId = config.Get("PLAYER_ID", playerId);
-        PlayerMock[] players = FindObjectsByType<PlayerMock>(FindObjectsInactive.Exclude, FindObjectsSortMode.None);
-        for (int i = 0; i < players.Length; i++)
-            players[i].ConfigureWorldTargetId(playerId);
+        sceneId = config.Get("UNITY_SCENE_ID", sceneId);
         unityInstanceId = $"{unityInstanceId}-{Guid.NewGuid():N}";
 
+        foreach (PlayerMock player in FindObjectsByType<PlayerMock>(
+                     FindObjectsInactive.Exclude,
+                     FindObjectsSortMode.None))
+            player.ConfigureWorldTargetId(playerId);
         _dispatcher = CommandDispatcher.Instance;
-        _toolsRegistry = ToolsRegistry.Instance;
-        _dispatcher.NpcChanged += OnNpcChanged;
-        _dispatcher.NpcCapabilitiesChanged += OnNpcCapabilitiesChanged;
-        _toolsRegistry.ToolsChanged += OnToolsChanged;
-        RefreshCapabilitySnapshot();
+        _tools = ToolsRegistry.Instance;
+        _dispatcher.EntityChanged += OnRuntimeChanged;
+        _dispatcher.EntityCapabilitiesChanged += OnCapabilitiesChanged;
+        _tools.ToolsChanged += OnToolsChanged;
+        RefreshManifest();
+        _a2a = new A2AClientAdapter(
+            a2aUrl,
+            config.Get("A2A_BEARER_TOKEN", string.Empty),
+            TimeSpan.FromSeconds(120));
+        _saveCoordinator = new SaveCoordinationClient(
+            agentServiceBaseUrl,
+            config.Get("A2A_BEARER_TOKEN", string.Empty),
+            TimeSpan.FromSeconds(30));
 
-        _gatewayClient = new UnityGatewayClient(
-            gatewayWsUrl,
-            unityInstanceId,
-            GetCapabilitySnapshot);
-        _gatewayClient.ToolCallReceived += OnGatewayToolCallReceived;
-        _gatewayClient.ToolCancellationReceived += OnGatewayToolCancellationReceived;
-        _gatewayClient.AssistantDeltaReceived += OnAssistantDeltaReceived;
-        _gatewayClient.Registered += OnGatewayRegistered;
-        _gatewayClient.Info += OnGatewayInfo;
-        _gatewayClient.Warning += OnGatewayWarning;
-        _gatewayClient.Start(_appCts.Token);
+        var gateway = new RuntimeGatewayClient(
+            runtimeGatewayWsUrl,
+            config.Get("RUNTIME_GATEWAY_TOKEN", string.Empty));
+        gateway.Info += message => Debug.Log($"[Agent Runtime] {message}");
+        gateway.Warning += message => Debug.LogWarning($"[Agent Runtime] {message}");
+        _runtimeTransport = gateway;
+        _ = RunRuntimeAsync();
     }
 
     private void Update()
     {
-        while (_mainThreadActions.TryDequeue(out Action action))
+        while (_mainThread.TryDequeue(out Action action))
         {
-            try
-            {
-                action();
-            }
-            catch (Exception ex)
-            {
-                Debug.LogWarning($"[Agent Host] 主线程 UI 回调失败: {ex.Message}");
-            }
+            try { action(); }
+            catch (Exception ex) { Debug.LogWarning($"[Agent Runtime] UI callback failed: {ex.Message}"); }
         }
     }
 
     public void OnPlayerInteractWithNpc(string npcId)
     {
-        if (_saveGameOperationInProgress || _conversationRestoreFailed)
-            return;
-        if (string.IsNullOrWhiteSpace(npcId))
-            return;
-        _activeNpcId = npcId;
-        _ = PrepareConversationAsync(npcId);
+        if (!_saveBusy && !_restoreFailed && !string.IsNullOrWhiteSpace(npcId))
+            _activeNpcId = npcId;
     }
 
     public void SubmitPlayerInput(string text)
     {
-        if (_saveGameOperationInProgress)
+        if (_saveBusy) { SystemMessage("存档操作进行中，请稍候。"); return; }
+        if (_restoreFailed) { SystemMessage("对话历史尚未恢复，请重试加载。"); return; }
+        if (string.IsNullOrWhiteSpace(_activeNpcId))
         {
-            EnqueueSystemMessage("存档操作进行中，请稍候。");
+            SystemMessage("当前没有正在交互的 NPC。");
             return;
         }
-        if (_conversationRestoreFailed)
-        {
-            EnqueueSystemMessage("对话历史尚未恢复，请在存档界面重试加载。");
-            return;
-        }
-        if (string.IsNullOrWhiteSpace(text))
-            return;
-        string npcId = _activeNpcId;
-        if (string.IsNullOrWhiteSpace(npcId))
-        {
-            EnqueueSystemMessage("当前没有正在交互的 NPC。");
-            return;
-        }
-        _ = SubmitPlayerInputAsync(npcId, text);
+        if (!string.IsNullOrWhiteSpace(text))
+            _ = SubmitAsync(_activeNpcId, text);
     }
 
-    private async Task PrepareConversationAsync(string npcId)
+    // 对话与存档共用发送锁，避免快照期间新的 tool loop 改写世界状态。
+    private async Task SubmitAsync(string npcId, string text)
     {
+        await _sendLock.WaitAsync(_appCts.Token);
         try
         {
-            await EnsureSessionAsync(npcId);
-        }
-        catch (Exception ex)
-        {
-            EnqueueSystemMessage($"无法开始对话：{ex.Message}");
-        }
-    }
-
-    private async Task SubmitPlayerInputAsync(string npcId, string text)
-    {
-        await _conversationSendLock.WaitAsync(_appCts.Token);
-        string sessionId = null;
-        try
-        {
-            sessionId = await EnsureSessionAsync(npcId);
-            UnityGatewayAssistantReply reply = await _gatewayClient.SendPlayerMessageAsync(
-                sessionId,
+            _contexts.TryGetValue(npcId, out string contextId);
+            ResponseCompleted completed = await _a2a.SendStreamingAsync(
+                contextId,
+                unityInstanceId,
+                playerId,
+                npcId,
+                sceneId,
                 text,
+                responseEvent => HandleResponseEvent(npcId, responseEvent),
                 _appCts.Token);
-            EnqueueOpponentStreamCompleted(npcId, reply?.Text);
+            if (!string.IsNullOrWhiteSpace(completed?.ContextId))
+                _contexts[npcId] = completed.ContextId;
         }
-        catch (OperationCanceledException) when (_appCts.IsCancellationRequested)
-        {
-        }
-        catch (UnityGatewayRequestException ex) when (IsConversationInvalid(ex.Code))
-        {
-            if (_sessionsByNpc.TryGetValue(npcId, out string currentSession) &&
-                string.Equals(currentSession, sessionId, StringComparison.Ordinal))
-                _sessionsByNpc.TryRemove(npcId, out _);
-            await EndConversationSafelyAsync(sessionId);
-            EnqueueOpponentStreamCancelled(npcId);
-            EnqueueSystemMessage(npcId, "对话会话已失效，请重新发送。下一条消息会自动创建新会话。");
-        }
-        catch (UnityGatewayRequestException ex) when (ex.Code == -32022)
-        {
-            EnqueueOpponentStreamCancelled(npcId);
-            EnqueueSystemMessage(npcId, "模型服务暂时不可用，请稍后重试。当前对话上下文已保留。");
-        }
+        catch (OperationCanceledException) when (_appCts.IsCancellationRequested) { }
         catch (Exception ex)
         {
-            EnqueueOpponentStreamCancelled(npcId);
-            EnqueueSystemMessage(npcId, $"对话请求失败：{ex.Message}。当前对话上下文已保留。");
+            CancelStream(npcId);
+            SystemMessage(npcId, $"对话请求失败：{ex.Message}");
+        }
+        finally { _sendLock.Release(); }
+    }
+
+    public Task CancelActiveResponseAsync() =>
+        _a2a.CancelActiveTaskAsync(_appCts.Token);
+
+    // 网络线程只转换事件并投递 UI 回调，实际 Unity API 在 Update 中执行。
+    private void HandleResponseEvent(string npcId, AgentResponseEvent responseEvent)
+    {
+        if (responseEvent is TextDelta delta)
+        {
+            if (delta.Reset) CancelStream(npcId);
+            else if (!string.IsNullOrEmpty(delta.Text))
+                _mainThread.Enqueue(
+                    () => ChatViewModel.Instance.AppendOpponentMessageDelta(npcId, delta.Text));
+        }
+        else if (responseEvent is ResponseCompleted completed)
+        {
+            if (!string.IsNullOrWhiteSpace(completed.ContextId))
+                _contexts[npcId] = completed.ContextId;
+            _mainThread.Enqueue(
+                () => ChatViewModel.Instance.CompleteOpponentMessageStream(
+                    npcId,
+                    completed.FinalText));
+        }
+        else if (responseEvent is ResponseFailed failed)
+        {
+            CancelStream(npcId);
+            SystemMessage(npcId, $"Agent 请求失败 ({failed.Code})：{failed.Message}");
+        }
+    }
+
+    public bool IsSaveGameOperationInProgress => _saveBusy;
+
+    // 先冻结新对话并保存 Unity 世界，再 prepare/commit 对应的 Agent 快照。
+    public async Task<AgentSnapshotSaveResult> SaveWorldAndConversationsForSaveGameAsync(
+        Func<SaveGameFile> saveWorld)
+    {
+        if (saveWorld == null)
+            throw new ArgumentNullException(nameof(saveWorld));
+        _saveBusy = true;
+        bool lockHeld = false;
+        try
+        {
+            await _sendLock.WaitAsync(_appCts.Token);
+            lockHeld = true;
+            // The lock waits for the active A2A/tool loop to finish and prevents a
+            // new one from changing the world between world capture and snapshot.
+            SaveGameFile file = saveWorld();
+            try
+            {
+                return await _saveCoordinator.PrepareAndCommitAsync(
+                    file.SaveId,
+                    file.OperationId,
+                    unityInstanceId,
+                    playerId,
+                    file.PendingConversationMode,
+                    _appCts.Token);
+            }
+            catch (Exception firstError)
+            {
+                Debug.LogWarning(
+                    $"首次对话快照请求失败，将复用 operationId 重试一次: {firstError.Message}");
+                return await _saveCoordinator.PrepareAndCommitAsync(
+                    file.SaveId,
+                    file.OperationId,
+                    unityInstanceId,
+                    playerId,
+                    file.PendingConversationMode,
+                    _appCts.Token);
+            }
         }
         finally
         {
-            _conversationSendLock.Release();
+            if (lockHeld)
+                _sendLock.Release();
+            _saveBusy = false;
         }
     }
 
-    private static bool IsConversationInvalid(int errorCode)
-    {
-        return errorCode == -32011 || errorCode == -32012;
-    }
-
-    private async Task EndConversationSafelyAsync(string sessionId)
-    {
-        if (string.IsNullOrWhiteSpace(sessionId) || _gatewayClient == null)
-            return;
-        try
-        {
-            await _gatewayClient.EndConversationAsync(sessionId, _appCts.Token);
-        }
-        catch (OperationCanceledException) when (_appCts.IsCancellationRequested)
-        {
-        }
-        catch (Exception ex)
-        {
-            Debug.LogWarning($"[Agent Host] 清理失效会话失败: sessionId={sessionId}, error={ex.Message}");
-        }
-    }
-
-    private async Task<string> EnsureSessionAsync(string npcId)
-    {
-        if (_sessionsByNpc.TryGetValue(npcId, out string existingSession))
-            return existingSession;
-
-        Task<string> startTask = _sessionStarts.GetOrAdd(npcId, StartConversationCoreAsync);
-        try
-        {
-            string sessionId = await startTask;
-            _sessionsByNpc[npcId] = sessionId;
-            return sessionId;
-        }
-        finally
-        {
-            _sessionStarts.TryRemove(npcId, out _);
-        }
-    }
-
-    private async Task<string> StartConversationCoreAsync(string npcId)
-    {
-        UnityGatewayConversationStartResult result = await _gatewayClient.StartConversationAsync(
-            playerId,
-            npcId,
-            _appCts.Token);
-        if (string.IsNullOrWhiteSpace(result?.SessionId))
-            throw new InvalidOperationException("Go Agent Host 未返回 sessionId。");
-        // 会话创建属于正常流程，避免在每次切换 NPC 时输出重复日志。
-        // Debug.Log($"[Agent Host] 会话已开始: sessionId={result.SessionId}, npcId={npcId}");
-        return result.SessionId;
-    }
-
-    public bool IsSaveGameOperationInProgress => _saveGameOperationInProgress;
-
-    public async Task<UnityGatewayConversationSaveResult> SaveConversationsForSaveGameAsync(
+    public async Task<AgentSnapshotSaveResult> SaveConversationsForSaveGameAsync(
         string saveId,
         string operationId,
         string mode)
     {
-        await _conversationSendLock.WaitAsync(_appCts.Token);
-        _saveGameOperationInProgress = true;
+        _saveBusy = true;
+        bool lockHeld = false;
         try
         {
-            if (_gatewayClient == null || !_gatewayClient.IsRegistered)
-                throw new InvalidOperationException("Go Agent Host 尚未连接或注册。");
-            return await _gatewayClient.SaveConversationsAsync(
-                playerId, saveId, operationId, mode, _appCts.Token);
+            await _sendLock.WaitAsync(_appCts.Token);
+            lockHeld = true;
+            return await _saveCoordinator.PrepareAndCommitAsync(
+                saveId, operationId, unityInstanceId, playerId, mode, _appCts.Token);
         }
         finally
         {
-            _saveGameOperationInProgress = false;
-            _conversationSendLock.Release();
+            if (lockHeld)
+                _sendLock.Release();
+            _saveBusy = false;
         }
     }
 
-    public async Task<UnityGatewayConversationLoadResult> LoadConversationsForSaveGameAsync(
+    // 恢复顺序固定为世界与实体优先，随后恢复对话并替换 Context ID。
+    public async Task<AgentSnapshotLoadResult> LoadConversationsForSaveGameAsync(
         string saveId,
         IReadOnlyList<string> npcIds,
         Action applyWorldState)
     {
-        await _conversationSendLock.WaitAsync(_appCts.Token);
-        _saveGameOperationInProgress = true;
-        _conversationRestoreFailed = true;
+        await _sendLock.WaitAsync(_appCts.Token);
+        _saveBusy = true;
+        _restoreFailed = true;
         try
         {
-            if (_gatewayClient == null || !_gatewayClient.IsRegistered)
-                throw new InvalidOperationException("Go Agent Host 尚未连接或注册。");
-
-            var oldSessionIds = new List<string>(_sessionsByNpc.Values);
-            foreach (string sessionId in oldSessionIds)
-                await EndConversationSafelyAsync(sessionId);
-            _sessionsByNpc.Clear();
-            _sessionStarts.Clear();
+            _contexts.Clear();
             ChatViewModel.Instance.ClearAllHistory();
-
             applyWorldState?.Invoke();
-
-            UnityGatewayConversationLoadResult result = await _gatewayClient.LoadConversationsAsync(
-                playerId, saveId, npcIds ?? Array.Empty<string>(), _appCts.Token);
-            if (result == null)
-                throw new InvalidOperationException("Go Agent Host 未返回加载结果。");
-            if (!result.Ok)
-                return result;
-
-            _sessionsByNpc.Clear();
+            AgentSnapshotLoadResult result = await _saveCoordinator.RestoreAsync(
+                saveId,
+                Guid.NewGuid().ToString(),
+                unityInstanceId,
+                playerId,
+                npcIds ?? Array.Empty<string>(),
+                _appCts.Token);
+            if (!result.Ok) return result;
             if (result.Contexts != null)
             {
-                foreach (UnityGatewayLoadedConversationContext context in result.Contexts)
-                {
-                    if (context != null && !string.IsNullOrWhiteSpace(context.NpcId) &&
-                        !string.IsNullOrWhiteSpace(context.SessionId))
-                        _sessionsByNpc[context.NpcId] = context.SessionId;
-                }
+                foreach (AgentLoadedConversationContext context in result.Contexts)
+                    if (!string.IsNullOrWhiteSpace(context?.NpcId) &&
+                        !string.IsNullOrWhiteSpace(context.ContextId))
+                        _contexts[context.NpcId] = context.ContextId;
             }
             ChatViewModel.Instance.ReplaceHistories(result.Contexts);
-            _conversationRestoreFailed = false;
+            _restoreFailed = false;
             return result;
         }
-        finally
-        {
-            _saveGameOperationInProgress = false;
-            _conversationSendLock.Release();
-        }
+        finally { _saveBusy = false; _sendLock.Release(); }
     }
-    public async Task SendToolResponseAsync(
-        string requestId,
-        string text,
-        bool isError = false,
-        string errorCode = null,
-        JToken data = null)
-    {
-        if (string.IsNullOrEmpty(requestId))
-            return;
 
-        // 工具执行端已经记录最终结果，不再重复记录“准备发送”事件。
-        // EnqueueToolResultTrace(
-        //     "unity_tool_result_sending",
-        //     requestId,
-        //     text,
-        //     isError,
-        //     errorCode,
-        //     data);
+    private void OnRuntimeChanged(string _, bool __) => PublishManifest();
+    private void OnCapabilitiesChanged(string _) => PublishManifest();
+    private void OnToolsChanged() => PublishManifest();
+
+    // 持续消费 Transport 命令；连接与重连由 RuntimeGatewayClient 内部维护。
+    private async Task RunRuntimeAsync()
+    {
         try
         {
-            await _gatewayClient.SendToolResultAsync(
-                requestId,
-                text,
-                isError,
-                errorCode,
-                data,
-                _appCts.Token);
-            // 正常发送完成无需逐条输出；发送失败仍由下方 catch 记录。
-            // EnqueueToolResultTrace(
-            //     "unity_tool_result_sent",
-            //     requestId,
-            //     text,
-            //     isError,
-            //     errorCode,
-            //     data);
+            await _runtimeTransport.StartAsync(GetManifest(), _appCts.Token);
+            await foreach (RuntimeCommand command in
+                           _runtimeTransport.ReadCommandsAsync(_appCts.Token))
+            {
+                _ = ExecuteRuntimeCommandAsync(command);
+            }
+        }
+        catch (OperationCanceledException) when (_appCts.IsCancellationRequested)
+        {
         }
         catch (Exception ex)
         {
-            EnqueueToolResultTrace(
-                "unity_tool_result_send_failed",
-                requestId,
-                text,
-                isError,
-                errorCode,
-                data,
-                ex.Message);
-            string errorMessage = ex.Message;
-            _mainThreadActions.Enqueue(
-                () => Debug.LogError($"[Unity Gateway] 发送工具响应失败: requestId={requestId}, error={errorMessage}"));
+            Debug.LogError($"[Agent Runtime] Transport stopped: {ex}");
         }
     }
 
-    private void OnGatewayRegistered()
+    // 将网络命令交给主线程 Dispatcher，并把最终业务结果返回 Gateway。
+    private async Task ExecuteRuntimeCommandAsync(RuntimeCommand command)
     {
-        _sessionsByNpc.Clear();
-        _sessionStarts.Clear();
-    }
-
-    private void OnAssistantDeltaReceived(UnityGatewayAssistantDelta delta)
-    {
-        if (delta == null)
-            return;
-        if (!TryGetNpcIdForSession(delta.SessionId, out string npcId))
-            return;
-
-        if (delta.Reset)
+        try
         {
-            _mainThreadActions.Enqueue(
-                () => ChatViewModel.Instance.CancelOpponentMessageStream(npcId));
-            return;
+            AgentToolResult result = await _dispatcher.ExecuteAsync(
+                command,
+                (progress, message) =>
+                    _ = SendRuntimeProgressAsync(
+                        command.InvocationId,
+                        progress,
+                        message),
+                _appCts.Token);
+            await _runtimeTransport.SendResultAsync(
+                command.InvocationId,
+                result,
+                _appCts.Token);
         }
-        if (!string.IsNullOrEmpty(delta.Text))
+        catch (OperationCanceledException) when (
+            command.CancellationToken.IsCancellationRequested ||
+            _appCts.IsCancellationRequested)
         {
-            _mainThreadActions.Enqueue(
-                () => ChatViewModel.Instance.AppendOpponentMessageDelta(npcId, delta.Text));
         }
-    }
-
-    private void OnGatewayToolCallReceived(UnityToolCommand request)
-    {
-        string argumentsJson = request?.Function?.ArgumentsJson;
-        if (!string.IsNullOrWhiteSpace(request?.NpcId) &&
-            !string.IsNullOrWhiteSpace(request.Function?.Name))
+        catch (Exception ex)
         {
-            EnqueueSystemMessage(
-                request.NpcId,
-                $"{request.NpcId}尝试调取工具{request.Function.Name}");
-        }
-
-        EnqueueToolCallLog(request, argumentsJson);
-        _dispatcher.OnReceiveNetMessage(request);
-    }
-
-    private void EnqueueToolCallLog(UnityToolCommand request, string argumentsJson)
-    {
-        string requestId = request?.RequestId ?? "<missing>";
-        string npcId = request?.NpcId ?? "<missing>";
-        string toolName = request?.Function?.Name ?? "<missing>";
-        string arguments = string.IsNullOrWhiteSpace(argumentsJson) ? "{}" : argumentsJson;
-        _mainThreadActions.Enqueue(
-            () => Debug.Log(
-                $"[Unity Tool Call] requestId={requestId}, npcId={npcId}, " +
-                $"tool={toolName}, arguments={arguments}"));
-    }
-
-    private void EnqueueToolResultTrace(
-        string eventName,
-        string requestId,
-        string text,
-        bool isError,
-        string errorCode,
-        JToken data,
-        string transportError = null)
-    {
-        var trace = new JObject
-        {
-            ["event"] = eventName,
-            ["requestId"] = requestId,
-            ["ok"] = !isError
-        };
-        if (!string.IsNullOrEmpty(errorCode))
-            trace["errorCode"] = errorCode;
-        trace["messageLength"] = text?.Length ?? 0;
-        trace["dataLength"] = data?.ToString(Formatting.None).Length ?? 0;
-        if (!string.IsNullOrEmpty(transportError))
-            trace["transportError"] = transportError;
-        EnqueueToolTrace(trace);
-    }
-
-    private void EnqueueToolTrace(JObject trace)
-    {
-        string compactJson = trace.ToString(Formatting.None);
-        _mainThreadActions.Enqueue(
-            () => Debug.Log($"[Unity Tool Trace] {compactJson}"));
-    }
-
-    private void OnGatewayToolCancellationReceived(string requestId)
-    {
-        _dispatcher.CancelRequest(requestId);
-    }
-
-    private void OnNpcChanged(string npcId, bool online)
-    {
-        RefreshCapabilitySnapshot();
-        if (!online && _sessionsByNpc.TryRemove(npcId, out string sessionId) && _gatewayClient != null)
-            _ = _gatewayClient.EndConversationAsync(sessionId, _appCts.Token);
-        if (_gatewayClient != null)
-            _ = _gatewayClient.NotifyNpcChangedAsync(npcId, online, _appCts.Token);
-    }
-
-    private void OnNpcCapabilitiesChanged(string npcId)
-    {
-        RefreshCapabilitySnapshot();
-        if (_gatewayClient != null)
-            _ = _gatewayClient.NotifyToolsChangedAsync(_appCts.Token);
-    }
-
-    private void OnToolsChanged()
-    {
-        RefreshCapabilitySnapshot();
-        if (_gatewayClient != null)
-            _ = _gatewayClient.NotifyToolsChangedAsync(_appCts.Token);
-    }
-
-    private void RefreshCapabilitySnapshot()
-    {
-        List<UnityGatewayToolDefinition> tools = _toolsRegistry.GetToolsForGateway();
-        Dictionary<string, NpcEntity> registered = _dispatcher.GetRegisteredNpcsSnapshot();
-        var npcIds = new List<string>(registered.Keys);
-        npcIds.Sort(StringComparer.Ordinal);
-        var npcTools = new Dictionary<string, List<string>>(StringComparer.Ordinal);
-        for (int i = 0; i < npcIds.Count; i++)
-        {
-            string npcId = npcIds[i];
-            npcTools[npcId] = _toolsRegistry.GetToolNamesForNpc(registered[npcId]);
-        }
-
-        var snapshot = new UnityGatewayCapabilitySnapshot
-        {
-            Tools = tools,
-            Npcs = npcIds,
-            NpcTools = npcTools
-        };
-        lock (_capabilitySnapshotLock)
-            _capabilitySnapshot = snapshot;
-    }
-
-    private UnityGatewayCapabilitySnapshot GetCapabilitySnapshot()
-    {
-        lock (_capabilitySnapshotLock)
-            return _capabilitySnapshot;
-    }
-
-    private bool TryGetNpcIdForSession(string sessionId, out string npcId)
-    {
-        foreach (KeyValuePair<string, string> pair in _sessionsByNpc)
-        {
-            if (string.Equals(pair.Value, sessionId, StringComparison.Ordinal))
+            Debug.LogWarning(
+                $"[Agent Runtime] Invocation '{command.InvocationId}' failed: {ex.Message}");
+            try
             {
-                npcId = pair.Key;
-                return true;
+                await _runtimeTransport.SendResultAsync(
+                    command.InvocationId,
+                    AgentToolResult.Failure(
+                        "RUNTIME_EXECUTION_FAILED",
+                        "Unity Runtime failed to execute the tool."),
+                    _appCts.Token);
+            }
+            catch (Exception sendError)
+            {
+                Debug.LogWarning(
+                    $"[Agent Runtime] Invocation error response " +
+                    $"'{command.InvocationId}' failed: {sendError.Message}");
             }
         }
-        npcId = null;
-        return false;
     }
 
-    private void EnqueueOpponentStreamCompleted(string npcId, string finalText)
+    private async Task SendRuntimeProgressAsync(
+        string invocationId,
+        double progress,
+        string message)
     {
-        _mainThreadActions.Enqueue(
-            () => ChatViewModel.Instance.CompleteOpponentMessageStream(npcId, finalText));
+        try
+        {
+            await _runtimeTransport.SendProgressAsync(
+                invocationId,
+                progress,
+                message,
+                _appCts.Token);
+        }
+        catch (OperationCanceledException) when (_appCts.IsCancellationRequested)
+        {
+        }
+        catch (Exception ex)
+        {
+            Debug.LogWarning(
+                $"[Agent Runtime] Progress '{invocationId}' failed: {ex.Message}");
+        }
     }
 
-    private void EnqueueOpponentStreamCancelled(string npcId)
+    // 每次实体或工具能力变化都生成并发布完整 Manifest，而不是增量补丁。
+    private void PublishManifest()
     {
-        _mainThreadActions.Enqueue(
-            () => ChatViewModel.Instance.CancelOpponentMessageStream(npcId));
+        RefreshManifest();
+        if (_runtimeTransport != null)
+            _ = _runtimeTransport.UpdateManifestAsync(
+                GetManifest(),
+                _appCts.Token);
     }
-
-    private void EnqueueSystemMessage(string text)
+    private void RefreshManifest()
     {
-        string npcId = _activeNpcId;
-        EnqueueSystemMessage(npcId, text);
+        lock (_manifestLock)
+        {
+            _manifest = new RuntimeManifest(
+                unityInstanceId,
+                _dispatcher.GetRegisteredEntityIds(),
+                _tools.GetRuntimeTools(),
+                Interlocked.Increment(ref _manifestRevision));
+        }
     }
-
-    private void EnqueueSystemMessage(string npcId, string text)
+    private RuntimeManifest GetManifest()
     {
-        _mainThreadActions.Enqueue(() => ChatViewModel.Instance.AddSystemMessage(npcId, text));
+        lock (_manifestLock)
+            return new RuntimeManifest(
+                _manifest.InstanceId,
+                new List<string>(_manifest.EntityIds),
+                new List<AgentToolDescriptor>(_manifest.Tools),
+                _manifest.Revision);
     }
+    private void CancelStream(string npcId) =>
+        _mainThread.Enqueue(() => ChatViewModel.Instance.CancelOpponentMessageStream(npcId));
+    private void SystemMessage(string text) => SystemMessage(_activeNpcId, text);
+    private void SystemMessage(string npcId, string text) =>
+        _mainThread.Enqueue(() => ChatViewModel.Instance.AddSystemMessage(npcId, text));
 
-    private static void OnGatewayInfo(string message) => Debug.Log($"[Unity Gateway] {message}");
-    private static void OnGatewayWarning(string message) => Debug.LogWarning($"[Unity Gateway] {message}");
-
-    void OnDestroy()
+    private void OnDestroy()
     {
         if (_dispatcher != null)
         {
-            _dispatcher.NpcChanged -= OnNpcChanged;
-            _dispatcher.NpcCapabilitiesChanged -= OnNpcCapabilitiesChanged;
+            _dispatcher.EntityChanged -= OnRuntimeChanged;
+            _dispatcher.EntityCapabilitiesChanged -= OnCapabilitiesChanged;
         }
-        if (_toolsRegistry != null)
-            _toolsRegistry.ToolsChanged -= OnToolsChanged;
-
-        if (_gatewayClient != null)
-        {
-            _gatewayClient.ToolCallReceived -= OnGatewayToolCallReceived;
-            _gatewayClient.ToolCancellationReceived -= OnGatewayToolCancellationReceived;
-            _gatewayClient.AssistantDeltaReceived -= OnAssistantDeltaReceived;
-            _gatewayClient.Registered -= OnGatewayRegistered;
-            _gatewayClient.Info -= OnGatewayInfo;
-            _gatewayClient.Warning -= OnGatewayWarning;
-        }
-
+        if (_tools != null) _tools.ToolsChanged -= OnToolsChanged;
         _appCts.Cancel();
-        _gatewayClient?.Dispose();
-    }
-}
-
-internal sealed class DotEnvConfig
-{
-    private readonly Dictionary<string, string> _values;
-
-    private DotEnvConfig(Dictionary<string, string> values)
-    {
-        _values = values;
-    }
-
-    public static DotEnvConfig Load()
-    {
-        var values = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-        string root = FindRepoRoot();
-        if (!string.IsNullOrEmpty(root))
-        {
-            LoadFile(Path.Combine(root, ".env"), values);
-            LoadFile(Path.Combine(root, ".env.local"), values);
-        }
-        return new DotEnvConfig(values);
-    }
-
-    public string Get(string key, string fallback)
-    {
-        string envValue = Environment.GetEnvironmentVariable(key);
-        if (!string.IsNullOrWhiteSpace(envValue)) return envValue.Trim();
-        if (_values.TryGetValue(key, out string fileValue) && !string.IsNullOrWhiteSpace(fileValue)) return fileValue.Trim();
-        return fallback;
-    }
-
-    private static string FindRepoRoot()
-    {
-        var candidates = new List<string>
-        {
-            Directory.GetCurrentDirectory(),
-            Application.dataPath
-        };
-
-        foreach (string candidate in candidates)
-        {
-            string root = WalkUp(candidate);
-            if (!string.IsNullOrEmpty(root)) return root;
-        }
-        return null;
-    }
-
-    private static string WalkUp(string startPath)
-    {
-        if (string.IsNullOrEmpty(startPath)) return null;
-        var dir = new DirectoryInfo(startPath);
-        while (dir != null)
-        {
-            string serverDir = Path.Combine(dir.FullName, "GameMCPServer");
-            string unityDir = Path.Combine(dir.FullName, "unity-NPC-agent-client");
-            if (Directory.Exists(serverDir) && Directory.Exists(unityDir))
-                return dir.FullName;
-            dir = dir.Parent;
-        }
-        return null;
-    }
-
-    private static void LoadFile(string path, Dictionary<string, string> values)
-    {
-        if (!File.Exists(path)) return;
-
-        foreach (string rawLine in File.ReadAllLines(path))
-        {
-            string line = rawLine.Trim();
-            if (line.Length == 0 || line.StartsWith("#")) continue;
-
-            int separator = line.IndexOf('=');
-            if (separator <= 0) continue;
-
-            string key = line.Substring(0, separator).Trim();
-            string value = line.Substring(separator + 1).Trim().Trim('"', '\'');
-            if (key.Length > 0) values[key] = value;
-        }
+        (_runtimeTransport as IDisposable)?.Dispose();
+        _a2a?.Dispose();
+        _saveCoordinator?.Dispose();
+        _sendLock.Dispose();
+        _appCts.Dispose();
     }
 }

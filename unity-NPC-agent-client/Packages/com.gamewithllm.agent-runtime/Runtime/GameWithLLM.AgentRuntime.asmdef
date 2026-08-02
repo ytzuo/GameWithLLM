@@ -1,0 +1,5 @@
+{
+  "name": "GameWithLLM.AgentRuntime",
+  "rootNamespace": "GameWithLLM.AgentRuntime",
+  "autoReferenced": true
+}

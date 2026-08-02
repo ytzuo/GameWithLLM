@@ -49,7 +49,7 @@ type AssistantStreamEvent struct {
 	Reset bool
 }
 
-// AssistantReply 是 player.message 成功完成后返回给 Unity 的最终回复。
+// AssistantReply 是一次 A2A message/send 或 message/stream 成功完成后的最终回复。
 type AssistantReply struct {
 	Type      string `json:"type"`
 	SessionID string `json:"sessionId"`

@@ -2,16 +2,17 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
+using GameWithLLM.AgentRuntime;
 using UnityEngine;
 
-public static class NpcToolDiscovery
+public static class AgentToolDiscovery
 {
     public static void RegisterAll(ToolsRegistry registry)
     {
         if (registry == null)
             throw new ArgumentNullException(nameof(registry));
 
-        Type toolContract = typeof(INpcTool);
+        Type toolContract = typeof(IAgentTool);
         IEnumerable<Type> toolTypes = AppDomain.CurrentDomain
             .GetAssemblies()
             .SelectMany(GetLoadableTypes)
@@ -21,14 +22,14 @@ public static class NpcToolDiscovery
                 !type.IsInterface &&
                 !type.ContainsGenericParameters &&
                 toolContract.IsAssignableFrom(type) &&
-                Attribute.IsDefined(type, typeof(NpcToolAttribute), false))
+                Attribute.IsDefined(type, typeof(AgentToolAttribute), false))
             .OrderBy(type => type.FullName, StringComparer.Ordinal);
 
         foreach (Type toolType in toolTypes)
         {
             try
             {
-                var tool = (INpcTool)Activator.CreateInstance(toolType);
+                var tool = (IAgentTool)Activator.CreateInstance(toolType);
                 registry.RegisterTool(tool);
             }
             catch (Exception ex)
