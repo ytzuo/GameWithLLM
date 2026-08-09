@@ -7,7 +7,7 @@ using UnityEngine;
  - 保存每个 NPC 独立的聊天记录（per-NPC histories）
  - 管理 NPC 列表和当前活跃 NPC
  - 对外通过事件通知 UI（与 ChatWindow.AddMessageToUI 的签名兼容）
- - 处理来自 UI 的输入（把玩家输入分发到 Agent Host 会话层）
+ - 处理来自 UI 的输入（把玩家输入分发到 A2A 会话适配层）
 
  说明：项目中存在 ChatWindow.AddMessageToUI(ChatWindow.Role, string)，
  因此这里的事件使用相同签名 Action<ChatWindow.Role, string> 方便直接订阅。
@@ -124,7 +124,7 @@ public class ChatViewModel
 			_activeNpcId = npcId;
 		}
 
-		// 通知 AgentHostClient 创建/复用该 NPC 的会话
+		// 通知场景门面切换当前交互实体；A2A Context 由适配层按实体复用。
 		try
 		{
 			AgentHostClient.Instance.OnPlayerInteractWithNpc(npcId);
@@ -318,7 +318,7 @@ public class ChatViewModel
 	/// <summary>
 	/// 用 Go 加载结果整体替换所有 NPC 的 UI 可见历史，不与旧世界消息合并。
 	/// </summary>
-	public void ReplaceHistories(IReadOnlyList<UnityGatewayLoadedConversationContext> contexts)
+	public void ReplaceHistories(IReadOnlyList<AgentLoadedConversationContext> contexts)
 	{
 		lock (_lock)
 		{
@@ -326,13 +326,13 @@ public class ChatViewModel
 			_streamingOpponentMessageIndexes.Clear();
 			if (contexts != null)
 			{
-				foreach (UnityGatewayLoadedConversationContext context in contexts)
+				foreach (AgentLoadedConversationContext context in contexts)
 				{
 					if (context == null || string.IsNullOrWhiteSpace(context.NpcId)) continue;
 					var history = new List<Message>();
 					if (context.VisibleMessages != null)
 					{
-						foreach (UnityGatewayVisibleMessage visible in context.VisibleMessages)
+						foreach (AgentVisibleMessage visible in context.VisibleMessages)
 						{
 							if (visible == null || string.IsNullOrWhiteSpace(visible.Text)) continue;
 							ChatWindow.Role role = string.Equals(visible.Role, "user", StringComparison.Ordinal)

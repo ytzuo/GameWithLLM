@@ -1,12 +1,15 @@
 using System;
-using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Threading;
+using System.Threading.Tasks;
+using GameWithLLM.AgentRuntime;
+using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using UnityEngine;
 using UnityEngine.AI;
 
 [RequireComponent(typeof(NavMeshAgent))]
-public class NpcEntity : MonoBehaviour
+public class NpcEntity : MonoBehaviour, IGameObjectAgentEntity
 {
     public string npcId;
 
@@ -19,14 +22,16 @@ public class NpcEntity : MonoBehaviour
     [Header("Inventory tools")]
     [SerializeField, Min(0f)] private float inventoryInteractionRange = 3f;
 
-    private readonly ConcurrentQueue<UnityToolCommand> _myPrivateQueue = new ConcurrentQueue<UnityToolCommand>();
     private NavMeshAgent _navAgent;
     private NpcState _fsmState = NpcState.Idle;
-    private UnityToolCommand _activeCommand;
+    private TaskCompletionSource<AgentToolResult> _activeMovementCompletion;
+    private CancellationToken _activeMovementCancellation;
+    private Action<double, string> _activeMovementProgress;
     private NpcTargetRecord _activeMoveTarget;
     private int _movementStartedFrame;
     private float _movementStartedAt;
     private float _nextRepathTime;
+    private float _nextProgressTime;
     private float _activeApproachDistance;
     private Vector3 _lastMoveDestination;
     private List<string> _lastAvailableToolNames = new List<string>();
@@ -34,9 +39,14 @@ public class NpcEntity : MonoBehaviour
 
     public enum NpcState { Idle, Talking, Operating }
 
+    public string EntityId => npcId;
+    public bool IsOnline => isActiveAndEnabled;
+    public GameObject GameObject => gameObject;
+
     internal float InventoryInteractionRange => inventoryInteractionRange;
     internal bool IsOnNavMesh => _navAgent != null && _navAgent.isOnNavMesh;
 
+    // 按调用时刻读取实时世界状态，不把动态状态写入静态 NPC Profile。
     internal JToken CreateRuntimeStateData()
     {
         Vector3 position = transform.position;
@@ -118,44 +128,26 @@ public class NpcEntity : MonoBehaviour
         if (_navAgent == null)
             Debug.LogError($"[NPC:{npcId}] NavMeshAgent is missing.", this);
 
-        _lastAvailableToolNames = ToolsRegistry.Instance.GetToolNamesForNpc(this);
-        CommandDispatcher.Instance.RegisterNpc(npcId, this);
-    }
-
-    public void ReceiveCommand(UnityToolCommand request)
-    {
-        _myPrivateQueue.Enqueue(request);
+        _lastAvailableToolNames = ToolsRegistry.Instance.GetAvailableToolNames(this);
+        CommandDispatcher.Instance.RegisterEntity(this);
     }
 
     private void Update()
     {
         RefreshCapabilitiesIfNeeded();
 
-        switch (_fsmState)
-        {
-            case NpcState.Idle:
-                if (_myPrivateQueue.TryDequeue(out UnityToolCommand request))
-                {
-                    if (CommandDispatcher.Instance.IsCancellationRequested(request.RequestId))
-                        CommandDispatcher.Instance.CompleteRequest(request.RequestId);
-                    else
-                        ExecuteBusinessLogic(request);
-                }
-                break;
-
-            case NpcState.Operating:
-                UpdateActiveMovement();
-                break;
-        }
+        if (_fsmState == NpcState.Operating)
+            UpdateActiveMovement();
     }
 
+    // 仅在工具可用集合变化时通知 Dispatcher，避免无意义地刷新 Manifest。
     private void RefreshCapabilitiesIfNeeded()
     {
         if (Time.unscaledTime < _nextCapabilityCheckAt)
             return;
         _nextCapabilityCheckAt = Time.unscaledTime + 0.5f;
 
-        List<string> available = ToolsRegistry.Instance.GetToolNamesForNpc(this);
+        List<string> available = ToolsRegistry.Instance.GetAvailableToolNames(this);
         if (available.Count == _lastAvailableToolNames.Count)
         {
             bool unchanged = true;
@@ -172,61 +164,41 @@ public class NpcEntity : MonoBehaviour
         }
 
         _lastAvailableToolNames = available;
-        CommandDispatcher.Instance.NotifyNpcCapabilitiesChanged(npcId, this);
+        CommandDispatcher.Instance.NotifyEntityCapabilitiesChanged(this);
     }
 
-    private void ExecuteBusinessLogic(UnityToolCommand request)
+    // 长时移动直到到达、失败或取消才完成对应 Runtime 工具调用。
+    internal ValueTask<AgentToolResult> MoveToTargetAsync(
+        MoveArgs args,
+        AgentToolContext context,
+        CancellationToken cancellationToken)
     {
-        ToolExecutionResult result;
-        if (request?.Function == null)
+        if (_activeMovementCompletion != null || _fsmState == NpcState.Operating)
         {
-            result = ToolExecutionResult.Failure("INVALID_COMMAND", "工具命令或函数信息缺失。");
+            return new ValueTask<AgentToolResult>(
+                AgentToolResult.Failure(
+                    "ENTITY_BUSY",
+                    $"NPC '{npcId}' 正在执行其他长时行为。"));
         }
-        else
+        cancellationToken.ThrowIfCancellationRequested();
+        _activeMovementCompletion = new TaskCompletionSource<AgentToolResult>(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+        _activeMovementCancellation = cancellationToken;
+        _activeMovementProgress = context?.ReportProgress;
+        Task<AgentToolResult> task = _activeMovementCompletion.Task;
+        try
         {
-            var context = new NpcToolContext(this);
-            result = ToolsRegistry.Instance.Execute(
-                request.Function.Name,
-                context,
-                request.Function.ArgumentsJson);
+            BeginMove(args);
         }
-
-        // 工具调用参数已在 AgentHostClient 入站处明文记录；执行失败也会由
-        // GameToolWrapper 输出具体错误，避免再输出一份重复的结构化结果日志。
-        // var resultTrace = new JObject
-        // {
-        //     ["event"] = "unity_tool_executed",
-        //     ["requestId"] = request?.RequestId,
-        //     ["npcId"] = npcId,
-        //     ["tool"] = request?.Function?.Name,
-        //     ["ok"] = !result.IsError,
-        //     ["pending"] = result.IsPending
-        // };
-        // if (!string.IsNullOrEmpty(result.ErrorCode))
-        //     resultTrace["errorCode"] = result.ErrorCode;
-        // resultTrace["messageLength"] = result.Message?.Length ?? 0;
-        // resultTrace["hasData"] = result.Data != null;
-        // Debug.Log($"[Unity Tool Trace] {resultTrace}", this);
-
-        if (result.IsPending)
+        catch
         {
-            _activeCommand = request;
-            return;
+            ClearActiveMovement();
+            throw;
         }
-
-        if (!string.IsNullOrEmpty(request?.RequestId))
-        {
-            _ = AgentHostClient.Instance.SendToolResponseAsync(
-                request.RequestId,
-                result.Message,
-                result.IsError,
-                result.ErrorCode,
-                result.Data);
-            CommandDispatcher.Instance.CompleteRequest(request.RequestId);
-        }
+        return new ValueTask<AgentToolResult>(task);
     }
 
-    internal void MoveToTarget(MoveArgs args)
+    private void BeginMove(MoveArgs args)
     {
         if (_navAgent == null)
             throw new ToolExecutionException("NAV_AGENT_MISSING", $"NPC '{npcId}' 没有 NavMeshAgent。");
@@ -251,6 +223,7 @@ public class NpcEntity : MonoBehaviour
 
         _movementStartedFrame = Time.frameCount;
         _movementStartedAt = Time.time;
+        _nextProgressTime = Time.time;
         _fsmState = NpcState.Operating;
     }
 
@@ -282,38 +255,57 @@ public class NpcEntity : MonoBehaviour
         return true;
     }
 
+    // 每帧检查取消、目标变化、寻路状态和超时，并报告有限进度。
     private void UpdateActiveMovement()
     {
-        if (_activeCommand == null || _activeMoveTarget == null)
+        if (_activeMovementCompletion == null || _activeMoveTarget == null)
         {
-            FinishActiveMovement(ToolExecutionResult.Failure("MOVE_STATE_INVALID", $"NPC '{npcId}' 的移动状态不完整。"));
+            FinishActiveMovement(AgentToolResult.Failure(
+                "MOVE_STATE_INVALID",
+                $"NPC '{npcId}' 的移动状态不完整。"));
             return;
         }
-        if (CommandDispatcher.Instance.IsCancellationRequested(_activeCommand.RequestId))
+        if (_activeMovementCancellation.IsCancellationRequested)
         {
             if (_navAgent != null && _navAgent.isOnNavMesh)
                 _navAgent.ResetPath();
-            ClearActiveMovement();
+            CancelActiveMovement();
             return;
         }
         if (_navAgent == null)
         {
-            FinishActiveMovement(ToolExecutionResult.Failure("NAV_AGENT_MISSING", $"NPC '{npcId}' 没有 NavMeshAgent。"));
+            FinishActiveMovement(AgentToolResult.Failure(
+                "NAV_AGENT_MISSING",
+                $"NPC '{npcId}' 没有 NavMeshAgent。"));
             return;
         }
         if (!_navAgent.isOnNavMesh)
         {
-            FinishActiveMovement(ToolExecutionResult.Failure("NPC_NOT_ON_NAVMESH", $"NPC '{npcId}' 在移动过程中离开了 NavMesh。"));
+            FinishActiveMovement(AgentToolResult.Failure(
+                "NPC_NOT_ON_NAVMESH",
+                $"NPC '{npcId}' 在移动过程中离开了 NavMesh。"));
             return;
         }
         if (_activeMoveTarget.GameObject == null)
         {
-            FinishActiveMovement(ToolExecutionResult.Failure("TARGET_UNAVAILABLE", "移动目标已销毁或离线。"));
+            FinishActiveMovement(AgentToolResult.Failure(
+                "TARGET_UNAVAILABLE",
+                "移动目标已销毁或离线。"));
             return;
+        }
+        if (Time.time >= _nextProgressTime)
+        {
+            _nextProgressTime = Time.time + 0.5f;
+            double progress = Math.Min(
+                0.95,
+                Math.Max(0.0, (Time.time - _movementStartedAt) / maximumMoveDuration));
+            _activeMovementProgress?.Invoke(progress, "moving");
         }
         if (Time.time - _movementStartedAt > maximumMoveDuration)
         {
-            FinishActiveMovement(ToolExecutionResult.Failure("MOVE_TIMEOUT", $"NPC 未能在 {maximumMoveDuration:0.#} 秒内到达 '{_activeMoveTarget.TargetId}'。"));
+            FinishActiveMovement(AgentToolResult.Failure(
+                "MOVE_TIMEOUT",
+                $"NPC 未能在 {maximumMoveDuration:0.#} 秒内到达 '{_activeMoveTarget.TargetId}'。"));
             return;
         }
 
@@ -324,7 +316,7 @@ public class NpcEntity : MonoBehaviour
             if (Vector3.Distance(currentTargetPosition, _lastMoveDestination) >= dynamicTargetMoveThreshold &&
                 !TrySetActiveDestination(out string errorCode, out string errorMessage))
             {
-                FinishActiveMovement(ToolExecutionResult.Failure(errorCode, errorMessage));
+                FinishActiveMovement(AgentToolResult.Failure(errorCode, errorMessage));
                 return;
             }
         }
@@ -333,12 +325,16 @@ public class NpcEntity : MonoBehaviour
             return;
         if (_navAgent.pathStatus == NavMeshPathStatus.PathInvalid)
         {
-            FinishActiveMovement(ToolExecutionResult.Failure("PATH_INVALID", $"NPC '{npcId}' 无法到达目标 '{_activeMoveTarget.TargetId}'。"));
+            FinishActiveMovement(AgentToolResult.Failure(
+                "PATH_INVALID",
+                $"NPC '{npcId}' 无法到达目标 '{_activeMoveTarget.TargetId}'。"));
             return;
         }
         if (_navAgent.pathStatus == NavMeshPathStatus.PathPartial)
         {
-            FinishActiveMovement(ToolExecutionResult.Failure("PATH_PARTIAL", $"NPC '{npcId}' 只能部分接近目标 '{_activeMoveTarget.TargetId}'。"));
+            FinishActiveMovement(AgentToolResult.Failure(
+                "PATH_PARTIAL",
+                $"NPC '{npcId}' 只能部分接近目标 '{_activeMoveTarget.TargetId}'。"));
             return;
         }
         if (_navAgent.hasPath && _navAgent.remainingDistance > _navAgent.stoppingDistance)
@@ -346,55 +342,59 @@ public class NpcEntity : MonoBehaviour
 
         string arrivedTargetId = _activeMoveTarget.TargetId;
         float elapsed = Time.time - _movementStartedAt;
-        FinishActiveMovement(ToolExecutionResult.Success(
+        FinishActiveMovement(AgentToolResult.Success(
+            $"NPC 已到达 {arrivedTargetId} 附近。",
             JToken.FromObject(new
             {
                 targetId = arrivedTargetId,
                 approachDistance = System.Math.Round(_activeApproachDistance, 2),
                 elapsedSeconds = System.Math.Round(elapsed, 2)
-            }),
-            $"NPC 已到达 {arrivedTargetId} 附近。"));
+            }).ToString(Formatting.None)));
     }
-    private void FinishActiveMovement(ToolExecutionResult result)
+
+    private void FinishActiveMovement(AgentToolResult result)
     {
-        UnityToolCommand command = _activeCommand;
-        if (!string.IsNullOrEmpty(command?.RequestId))
-        {
-            _ = AgentHostClient.Instance.SendToolResponseAsync(
-                command.RequestId,
-                result.Message,
-                result.IsError,
-                result.ErrorCode,
-                result.Data);
-        }
+        TaskCompletionSource<AgentToolResult> completion = _activeMovementCompletion;
         ClearActiveMovement();
+        completion?.TrySetResult(result);
+    }
+
+    private void CancelActiveMovement()
+    {
+        TaskCompletionSource<AgentToolResult> completion = _activeMovementCompletion;
+        ClearActiveMovement();
+        completion?.TrySetCanceled();
     }
 
     private void ClearActiveMovement()
     {
-        string requestId = _activeCommand?.RequestId;
-        _activeCommand = null;
+        _activeMovementCompletion = null;
+        _activeMovementCancellation = default;
+        _activeMovementProgress = null;
         _activeMoveTarget = null;
         _movementStartedFrame = 0;
         _movementStartedAt = 0f;
         _nextRepathTime = 0f;
+        _nextProgressTime = 0f;
         _activeApproachDistance = 0f;
         _lastMoveDestination = default;
         _fsmState = NpcState.Idle;
-        if (CommandDispatcher.Instance != null)
-            CommandDispatcher.Instance.CompleteRequest(requestId);
     }
     /// <summary>存档加载专用：丢弃旧世界命令并把 NPC 放回保存位置。</summary>
     internal void RestoreWorldTransform(Vector3 position, Quaternion rotation)
     {
-        while (_myPrivateQueue.TryDequeue(out UnityToolCommand queued))
-        {
-            if (CommandDispatcher.Instance != null)
-                CommandDispatcher.Instance.CompleteRequest(queued?.RequestId);
-        }
         if (_navAgent != null && _navAgent.isOnNavMesh)
             _navAgent.ResetPath();
-        ClearActiveMovement();
+        if (_activeMovementCompletion != null)
+        {
+            FinishActiveMovement(AgentToolResult.Failure(
+                "WORLD_RESTORED",
+                "世界恢复中，当前 NPC 行为已终止。"));
+        }
+        else
+        {
+            ClearActiveMovement();
+        }
 
         transform.rotation = rotation;
         if (_navAgent != null && _navAgent.enabled && _navAgent.isOnNavMesh &&
@@ -409,13 +409,13 @@ public class NpcEntity : MonoBehaviour
     }
     private void OnDestroy()
     {
-        if (_activeCommand != null)
+        if (_activeMovementCompletion != null)
         {
-            FinishActiveMovement(ToolExecutionResult.Failure(
+            FinishActiveMovement(AgentToolResult.Failure(
                 "NPC_DESTROYED",
                 $"NPC '{npcId}' 在移动完成前被销毁。"));
         }
         if (CommandDispatcher.Instance != null)
-            CommandDispatcher.Instance.UnregisterNpc(npcId);
+            CommandDispatcher.Instance.UnregisterEntity(npcId, this);
     }
 }

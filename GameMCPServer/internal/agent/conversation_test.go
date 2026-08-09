@@ -41,16 +41,16 @@ type fakeRuntime struct {
 	result     *ToolExecutionResult
 }
 
-func (r *fakeRuntime) Capabilities(npcID string) (string, []gametools.Definition, bool) {
+func (r *fakeRuntime) Capabilities(_ context.Context, _ string, npcID string) ([]gametools.Definition, error) {
 	if npcID == "offline" {
-		return "", nil, false
+		return nil, errors.New("offline")
 	}
-	return "game-1", []gametools.Definition{{
+	return []gametools.Definition{{
 		Name: "game_npc_move", InputSchema: json.RawMessage(`{
 			"type":"object","properties":{"targetId":{"type":"string","enum":["landmark:gate","landmark:warehouse"]}},
 			"required":["targetId"]
 		}`),
-	}}, true
+	}}, nil
 }
 
 func (r *fakeRuntime) Execute(_ context.Context, _, _, name string, arguments json.RawMessage) (ToolExecutionResult, error) {
@@ -202,13 +202,13 @@ type cancellationBlockingRuntime struct {
 	started chan struct{}
 }
 
-func (r *cancellationBlockingRuntime) Capabilities(string) (string, []gametools.Definition, bool) {
-	return "game-1", []gametools.Definition{{
+func (r *cancellationBlockingRuntime) Capabilities(context.Context, string, string) ([]gametools.Definition, error) {
+	return []gametools.Definition{{
 		Name: "game_npc_move",
 		InputSchema: json.RawMessage(
 			`{"type":"object","properties":{"targetId":{"type":"string"}},"required":["targetId"]}`,
 		),
-	}}, true
+	}}, nil
 }
 
 func (r *cancellationBlockingRuntime) Execute(

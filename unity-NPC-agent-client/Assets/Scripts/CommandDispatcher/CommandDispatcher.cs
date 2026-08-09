@@ -1,134 +1,216 @@
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Threading;
+using System.Threading.Tasks;
+using GameWithLLM.AgentRuntime;
 using UnityEngine;
 
+// 将网络命令切换到 Unity 主线程，并保证同一实体上的工具调用 FIFO 串行执行。
 public class CommandDispatcher : Singleton<CommandDispatcher>
 {
-    private readonly Dictionary<string, NpcEntity> _npcEntities = new Dictionary<string, NpcEntity>();
-    private readonly object _npcLock = new object();
-    private readonly ConcurrentQueue<UnityToolCommand> _netIncomingQueue = new ConcurrentQueue<UnityToolCommand>();
-    private readonly ConcurrentDictionary<string, byte> _cancelledRequests = new ConcurrentDictionary<string, byte>();
-    private readonly ConcurrentDictionary<string, byte> _activeRequests = new ConcurrentDictionary<string, byte>();
-
-    public event Action<string, bool> NpcChanged;
-    public event Action<string> NpcCapabilitiesChanged;
-
-    public void RegisterNpc(string id, NpcEntity npc)
+    private sealed class PendingInvocation
     {
-        if (string.IsNullOrWhiteSpace(id) || npc == null)
+        public RuntimeCommand Command;
+        public Action<double, string> Progress;
+        public CancellationToken CancellationToken;
+        public TaskCompletionSource<AgentToolResult> Completion;
+    }
+
+    private readonly Dictionary<string, IAgentEntity> _entities =
+        new Dictionary<string, IAgentEntity>(StringComparer.Ordinal);
+    private readonly object _entityLock = new object();
+    private readonly ConcurrentQueue<PendingInvocation> _incoming =
+        new ConcurrentQueue<PendingInvocation>();
+    private readonly ConcurrentQueue<string> _completedEntities =
+        new ConcurrentQueue<string>();
+    private readonly Dictionary<string, Queue<PendingInvocation>> _waitingByEntity =
+        new Dictionary<string, Queue<PendingInvocation>>(StringComparer.Ordinal);
+    private readonly HashSet<string> _activeEntities =
+        new HashSet<string>(StringComparer.Ordinal);
+
+    public event Action<string, bool> EntityChanged;
+    public event Action<string> EntityCapabilitiesChanged;
+
+    public void RegisterEntity(IAgentEntity entity)
+    {
+        if (entity == null || string.IsNullOrWhiteSpace(entity.EntityId))
             return;
-        lock (_npcLock)
+        lock (_entityLock)
         {
-            if (_npcEntities.TryGetValue(id, out NpcEntity existing) && existing != npc)
+            if (_entities.TryGetValue(entity.EntityId, out IAgentEntity existing) &&
+                !ReferenceEquals(existing, entity))
             {
                 Debug.LogError(
-                    $"[Router] NPC ID 重复：'{id}' 已由 '{existing.gameObject.name}' 注册，" +
-                    $"无法再注册 '{npc.gameObject.name}'。",
-                    npc);
+                    $"[Agent Runtime] 实体 ID 重复：'{entity.EntityId}' 已被注册。");
                 return;
             }
-            _npcEntities[id] = npc;
+            _entities[entity.EntityId] = entity;
         }
-        NpcChanged?.Invoke(id, true);
+        EntityChanged?.Invoke(entity.EntityId, true);
     }
 
-    public void UnregisterNpc(string id)
+    public void UnregisterEntity(string entityId, IAgentEntity entity = null)
     {
-        if (string.IsNullOrWhiteSpace(id))
+        if (string.IsNullOrWhiteSpace(entityId))
             return;
-        lock (_npcLock)
+        lock (_entityLock)
         {
-            if (!_npcEntities.Remove(id))
+            if (!_entities.TryGetValue(entityId, out IAgentEntity registered) ||
+                (entity != null && !ReferenceEquals(registered, entity)))
                 return;
+            _entities.Remove(entityId);
         }
-        NpcChanged?.Invoke(id, false);
+        EntityChanged?.Invoke(entityId, false);
     }
 
-    public List<string> GetRegisteredNpcIds()
+    public List<string> GetRegisteredEntityIds()
     {
-        lock (_npcLock)
+        lock (_entityLock)
         {
-            var ids = new List<string>(_npcEntities.Keys);
+            var ids = new List<string>();
+            foreach (KeyValuePair<string, IAgentEntity> pair in _entities)
+            {
+                if (pair.Value?.IsOnline == true)
+                    ids.Add(pair.Key);
+            }
             ids.Sort(StringComparer.Ordinal);
             return ids;
         }
     }
 
-    public Dictionary<string, NpcEntity> GetRegisteredNpcsSnapshot()
+    public void NotifyEntityCapabilitiesChanged(IAgentEntity entity)
     {
-        lock (_npcLock)
-            return new Dictionary<string, NpcEntity>(_npcEntities);
-    }
-
-    public void NotifyNpcCapabilitiesChanged(string id, NpcEntity npc)
-    {
-        if (string.IsNullOrWhiteSpace(id) || npc == null)
+        if (entity == null || string.IsNullOrWhiteSpace(entity.EntityId))
             return;
-        lock (_npcLock)
+        lock (_entityLock)
         {
-            if (!_npcEntities.TryGetValue(id, out NpcEntity registered) || registered != npc)
+            if (!_entities.TryGetValue(entity.EntityId, out IAgentEntity registered) ||
+                !ReferenceEquals(registered, entity))
                 return;
         }
-        NpcCapabilitiesChanged?.Invoke(id);
+        EntityCapabilitiesChanged?.Invoke(entity.EntityId);
     }
 
-    public void OnReceiveNetMessage(UnityToolCommand request)
+    // 网络线程只负责入队；返回的 Task 在主线程完成工具执行后结束。
+    public Task<AgentToolResult> ExecuteAsync(
+        RuntimeCommand command,
+        Action<double, string> progress,
+        CancellationToken cancellationToken)
     {
-        if (!string.IsNullOrWhiteSpace(request?.RequestId))
-            _activeRequests[request.RequestId] = 0;
-        _netIncomingQueue.Enqueue(request);
+        if (command == null)
+        {
+            return Task.FromResult(
+                AgentToolResult.Failure("INVALID_COMMAND", "RuntimeCommand 不能为空。"));
+        }
+
+        var completion = new TaskCompletionSource<AgentToolResult>(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+        CancellationToken effectiveToken = command.CancellationToken.CanBeCanceled
+            ? command.CancellationToken
+            : cancellationToken;
+        _incoming.Enqueue(new PendingInvocation
+        {
+            Command = command,
+            Progress = progress,
+            CancellationToken = effectiveToken,
+            Completion = completion
+        });
+        return completion.Task;
     }
 
-    public void CancelRequest(string requestId)
-    {
-        if (!string.IsNullOrWhiteSpace(requestId) && _activeRequests.ContainsKey(requestId))
-            _cancelledRequests[requestId] = 0;
-    }
-
-    public bool IsCancellationRequested(string requestId)
-    {
-        return !string.IsNullOrWhiteSpace(requestId) && _cancelledRequests.ContainsKey(requestId);
-    }
-
-    public void CompleteRequest(string requestId)
-    {
-        if (string.IsNullOrWhiteSpace(requestId))
-            return;
-        _activeRequests.TryRemove(requestId, out _);
-        _cancelledRequests.TryRemove(requestId, out _);
-    }
-
+    // Update 在主线程合并入队命令，并为每个空闲实体启动一个调用。
     private void Update()
     {
-        while (_netIncomingQueue.TryDequeue(out UnityToolCommand request))
+        while (_completedEntities.TryDequeue(out string completedEntityId))
+            _activeEntities.Remove(completedEntityId);
+
+        while (_incoming.TryDequeue(out PendingInvocation invocation))
         {
-            if (!string.IsNullOrEmpty(request.RequestId) && IsCancellationRequested(request.RequestId))
+            string entityId = invocation.Command.EntityId;
+            if (!_waitingByEntity.TryGetValue(
+                    entityId,
+                    out Queue<PendingInvocation> queue))
             {
-                CompleteRequest(request.RequestId);
+                queue = new Queue<PendingInvocation>();
+                _waitingByEntity.Add(entityId, queue);
+            }
+            queue.Enqueue(invocation);
+        }
+
+        foreach (KeyValuePair<string, Queue<PendingInvocation>> pair in _waitingByEntity)
+        {
+            if (_activeEntities.Contains(pair.Key))
+                continue;
+
+            PendingInvocation invocation = null;
+            while (pair.Value.Count > 0)
+            {
+                PendingInvocation candidate = pair.Value.Dequeue();
+                if (candidate.CancellationToken.IsCancellationRequested)
+                {
+                    candidate.Completion.TrySetCanceled();
+                    continue;
+                }
+                invocation = candidate;
+                break;
+            }
+            if (invocation == null)
+                continue;
+
+            IAgentEntity entity;
+            lock (_entityLock)
+                _entities.TryGetValue(pair.Key, out entity);
+            if (entity == null || !entity.IsOnline)
+            {
+                invocation.Completion.TrySetResult(
+                    AgentToolResult.Failure(
+                        "ENTITY_NOT_FOUND",
+                        $"实体 '{pair.Key}' 未注册或已离线。"));
                 continue;
             }
 
-            NpcEntity npc;
-            lock (_npcLock)
-                _npcEntities.TryGetValue(request.NpcId, out npc);
-            if (npc != null)
-            {
-                npc.ReceiveCommand(request);
-            }
-            else
-            {
-                Debug.LogWarning($"[Router] 收到 {request.NpcId} 的命令，但该 NPC 实体不存在。");
-                if (!string.IsNullOrEmpty(request.RequestId))
-                {
-                    _ = AgentHostClient.Instance.SendToolResponseAsync(
-                        request.RequestId,
-                        $"NPC '{request.NpcId}' 未注册或已离线。",
-                        true,
-                        "NPC_NOT_FOUND");
-                    CompleteRequest(request.RequestId);
-                }
-            }
+            _activeEntities.Add(pair.Key);
+            ExecuteOnMainThreadAsync(invocation, entity);
+        }
+    }
+
+    // async void 仅由 Update 启动；所有完成路径都释放该实体的 FIFO 占用。
+    private async void ExecuteOnMainThreadAsync(
+        PendingInvocation invocation,
+        IAgentEntity entity)
+    {
+        try
+        {
+            invocation.CancellationToken.ThrowIfCancellationRequested();
+            var context = new AgentToolContext(
+                entity,
+                invocation.Command.InvocationId,
+                invocation.Progress);
+            AgentToolResult result = await ToolsRegistry.Instance.ExecuteAsync(
+                invocation.Command.ToolName,
+                context,
+                invocation.Command.ArgumentsJson,
+                invocation.CancellationToken);
+            invocation.Completion.TrySetResult(result);
+        }
+        catch (OperationCanceledException)
+        {
+            invocation.Completion.TrySetCanceled();
+        }
+        catch (Exception ex)
+        {
+            Debug.LogError(
+                $"[Agent Runtime] 工具调用 '{invocation.Command.InvocationId}' " +
+                $"发生未处理异常: {ex}");
+            invocation.Completion.TrySetResult(
+                AgentToolResult.Failure(
+                    "TOOL_EXECUTION_FAILED",
+                    $"工具执行失败：{ex.Message}"));
+        }
+        finally
+        {
+            _completedEntities.Enqueue(entity.EntityId);
         }
     }
 }

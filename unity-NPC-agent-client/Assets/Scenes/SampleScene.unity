@@ -1077,9 +1077,12 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: ef559bf0ea0da4f4dae76d810714e30a, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::AgentHostClient
-  gatewayWsUrl: ws://127.0.0.1:8080/unity/ws
+  a2aUrl: http://127.0.0.1:8080/a2a
+  agentServiceBaseUrl: http://127.0.0.1:8080
+  runtimeGatewayWsUrl: ws://127.0.0.1:8080/runtime/ws
   unityInstanceId: local-game-1
   playerId: local-player-1
+  sceneId: warehouse-demo
 --- !u!4 &1447612216
 Transform:
   m_ObjectHideFlags: 0

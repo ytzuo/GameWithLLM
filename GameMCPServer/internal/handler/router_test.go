@@ -1,68 +1,34 @@
 package handler
 
 import (
-	"context"
-	"encoding/json"
 	"net/http"
 	"net/http/httptest"
-	"path/filepath"
-	"strings"
 	"testing"
-	"time"
 
 	"GameMCPServer/internal/config"
 
-	"github.com/coder/websocket"
-	"github.com/coder/websocket/wsjson"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-func TestRegisterRoutesWithTimeout_BitsUT(t *testing.T) {
+func TestRoutesExposeA2AAndRemoveV2WebSocket(t *testing.T) {
+	cfg := config.Load()
+	cfg.A2ABearerToken = "token"
+	cfg.RuntimeGatewayToken = "runtime-token"
+	cfg.GatewayServiceToken = "service-token"
 	mux := http.NewServeMux()
-	RegisterRoutesWithTimeout(mux, time.Second)
-	httpServer := httptest.NewServer(mux)
-	defer httpServer.Close()
-
-	response, err := http.Get(httpServer.URL + "/health")
+	_, err := RegisterRoutesWithConfig(mux, cfg)
 	require.NoError(t, err)
-	defer response.Body.Close()
-	assert.Equal(t, http.StatusOK, response.StatusCode)
 
-	removedResponse, err := http.Get(httpServer.URL + "/ws")
-	require.NoError(t, err)
-	defer removedResponse.Body.Close()
-	assert.Equal(t, http.StatusNotFound, removedResponse.StatusCode)
-	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
-	defer cancel()
-	conn, _, err := websocket.Dial(ctx, "ws"+strings.TrimPrefix(httpServer.URL, "http")+"/unity/ws", nil)
-	require.NoError(t, err)
-	defer conn.CloseNow()
+	card := httptest.NewRecorder()
+	mux.ServeHTTP(card, httptest.NewRequest(http.MethodGet, "/.well-known/agent-card.json", nil))
+	assert.Equal(t, http.StatusOK, card.Code)
 
-	require.NoError(t, wsjson.Write(ctx, conn, map[string]any{
-		"jsonrpc": "2.0",
-		"id":      "register-1",
-		"method":  "unity.register",
-		"params": map[string]any{
-			"protocolVersion": 2,
-			"instanceId":      "router-test",
-			"tools":           []any{},
-			"npcs":            []string{"Ryan_001"},
-			"npcTools":        map[string][]string{"Ryan_001": {}},
-		},
-	}))
-	var message struct {
-		ID     json.RawMessage `json:"id"`
-		Result json.RawMessage `json:"result"`
-	}
-	require.NoError(t, wsjson.Read(ctx, conn, &message))
-	assert.JSONEq(t, `"register-1"`, string(message.ID))
-	assert.JSONEq(t, `{"accepted":true,"protocolVersion":2}`, string(message.Result))
-}
-func TestRegisterRoutesWithConfigRejectsMissingNPCProfileFile_BitsUT(t *testing.T) {
-	mux := http.NewServeMux()
-	_, err := RegisterRoutesWithConfig(mux, config.Config{
-		NPCProfilePath: filepath.Join(t.TempDir(), "missing-profiles.json"),
-	})
-	require.ErrorContains(t, err, "load NPC profiles")
+	legacy := httptest.NewRecorder()
+	mux.ServeHTTP(legacy, httptest.NewRequest(http.MethodGet, "/unity/ws", nil))
+	assert.Equal(t, http.StatusNotFound, legacy.Code)
+
+	a2a := httptest.NewRecorder()
+	mux.ServeHTTP(a2a, httptest.NewRequest(http.MethodPost, "/a2a", nil))
+	assert.Equal(t, http.StatusUnauthorized, a2a.Code)
 }

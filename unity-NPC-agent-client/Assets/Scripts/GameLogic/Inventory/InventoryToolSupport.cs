@@ -1,17 +1,18 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using GameWithLLM.AgentRuntime;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using UnityEngine;
 
 public abstract class InventoryNpcTool<TArgs> : NpcTool<TArgs> where TArgs : ToolArgsBase
 {
-    public override bool IsAvailable(NpcToolContext context)
+    public override bool IsAvailable(AgentToolContext context)
     {
-        if (context?.Npc == null)
+        if (!(context?.Entity is NpcEntity npc))
             return false;
-        InventoryComponent inventory = context.Npc.GetComponent<InventoryComponent>();
+        InventoryComponent inventory = npc.GetComponent<InventoryComponent>();
         return inventory != null && inventory.isActiveAndEnabled;
     }
 }
@@ -62,20 +63,20 @@ internal static class InventoryToolSupport
         return catalog;
     }
 
-    public static InventoryComponent RequireNpcInventory(NpcToolContext context)
+    public static InventoryComponent RequireNpcInventory(NpcEntity npc)
     {
-        InventoryComponent inventory = context.Npc.GetComponent<InventoryComponent>();
+        InventoryComponent inventory = npc.GetComponent<InventoryComponent>();
         if (inventory == null)
-            throw new ToolExecutionException("NPC_INVENTORY_MISSING", $"NPC '{context.Npc.npcId}' 没有 InventoryComponent。");
+            throw new ToolExecutionException("NPC_INVENTORY_MISSING", $"NPC '{npc.npcId}' 没有 InventoryComponent。");
         return inventory;
     }
 
     public static List<NearbyInventoryContainer> GetContainers(
-        NpcToolContext context,
+        NpcEntity npc,
         float maxDistance = 0f,
         bool inRangeOnly = false)
     {
-        InventoryComponent selfInventory = RequireNpcInventory(context);
+        InventoryComponent selfInventory = RequireNpcInventory(npc);
         IReadOnlyList<(InventoryComponent component, string name)> registered = InventoryViewModel.Instance.GetAllContainers();
         ValidateUniqueContainerIds(registered);
         var result = new List<NearbyInventoryContainer>();
@@ -85,7 +86,7 @@ internal static class InventoryToolSupport
             InventoryComponent inventory = registered[i].component;
             if (inventory == null || inventory == selfInventory)
                 continue;
-            float distance = DistanceToContainer(context.Npc.transform.position, inventory);
+            float distance = DistanceToContainer(npc.transform.position, inventory);
             if (maxDistance > 0f && distance > maxDistance)
                 continue;
             string displayName = string.IsNullOrWhiteSpace(registered[i].name)
@@ -95,7 +96,7 @@ internal static class InventoryToolSupport
                 inventory,
                 displayName,
                 distance,
-                context.Npc.InventoryInteractionRange,
+                npc.InventoryInteractionRange,
                 NpcTargetSupport.FindOwnerTarget(inventory.gameObject));
             if (!inRangeOnly || nearby.InRange)
                 result.Add(nearby);
@@ -107,9 +108,9 @@ internal static class InventoryToolSupport
             .ToList();
     }
 
-    public static NearbyInventoryContainer RequireNearbyContainer(NpcToolContext context, string requestedContainerId)
+    public static NearbyInventoryContainer RequireNearbyContainer(NpcEntity npc, string requestedContainerId)
     {
-        InventoryComponent selfInventory = RequireNpcInventory(context);
+        InventoryComponent selfInventory = RequireNpcInventory(npc);
         IReadOnlyList<(InventoryComponent component, string name)> registered = InventoryViewModel.Instance.GetAllContainers();
         ValidateUniqueContainerIds(registered);
         (InventoryComponent component, string name)? match = null;
@@ -129,13 +130,13 @@ internal static class InventoryToolSupport
             throw new ToolExecutionException("TARGET_IS_SELF", "目标容器不能是 NPC 自身背包；请使用获取自身背包工具。");
 
         InventoryComponent target = match.Value.component;
-        float distance = DistanceToContainer(context.Npc.transform.position, target);
+        float distance = DistanceToContainer(npc.transform.position, target);
         string displayName = string.IsNullOrWhiteSpace(match.Value.name) ? target.gameObject.name : match.Value.name;
         var resolved = new NearbyInventoryContainer(
             target,
             displayName,
             distance,
-            context.Npc.InventoryInteractionRange,
+            npc.InventoryInteractionRange,
             NpcTargetSupport.FindOwnerTarget(target.gameObject));
         if (!resolved.InRange)
         {

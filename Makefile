@@ -7,7 +7,7 @@ export GOCACHE := $(ROOT)/.cache/go-build
 
 help:
 	@echo "Available commands:"
-	@echo "  make server      Start the Go MCP server"
+	@echo "  make server      Start the Go Agent Service"
 	@echo "  make test        Run Go server tests"
 	@echo "  make env-check   Check root env files"
 	@echo "  make unity-info  Print Unity project information"

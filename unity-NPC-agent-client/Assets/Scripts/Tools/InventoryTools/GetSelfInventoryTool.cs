@@ -1,6 +1,7 @@
+using GameWithLLM.AgentRuntime;
 using UnityEngine.Scripting;
 
-[NpcTool]
+[AgentTool]
 [Preserve]
 public sealed class GetSelfInventoryTool : InventoryNpcTool<EmptyInventoryToolArgs>
 {
@@ -9,15 +10,16 @@ public sealed class GetSelfInventoryTool : InventoryNpcTool<EmptyInventoryToolAr
     public override string Description =>
         "获取当前 NPC 自身背包中的全部物品及数量。只查询当前对话 NPC，不查询其他容器。";
 
-    protected override ToolExecutionResult ExecuteCore(
-        NpcToolContext context,
+    protected override AgentToolResult ExecuteCore(
+        AgentToolContext context,
+        NpcEntity npc,
         EmptyInventoryToolArgs args)
     {
-        InventoryComponent inventory = InventoryToolSupport.RequireNpcInventory(context);
+        InventoryComponent inventory = InventoryToolSupport.RequireNpcInventory(npc);
         string displayName = InventoryViewModel.Instance.GetContainerName(inventory);
         if (string.IsNullOrWhiteSpace(displayName))
-            displayName = context.Npc.gameObject.name;
+            displayName = npc.gameObject.name;
 
-        return ToolExecutionResult.Success(InventoryToolSupport.CreateInventoryData(inventory, displayName));
+        return Success(InventoryToolSupport.CreateInventoryData(inventory, displayName));
     }
 }

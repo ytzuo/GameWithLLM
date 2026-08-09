@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using GameWithLLM.AgentRuntime;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using UnityEngine;
@@ -34,7 +35,7 @@ public sealed class QuerySceneTargetsArgs : ToolArgsBase
     }
 }
 
-[NpcTool]
+[AgentTool]
 [Preserve]
 public sealed class QuerySceneTargetsTool : NpcTool<QuerySceneTargetsArgs>
 {
@@ -44,17 +45,20 @@ public sealed class QuerySceneTargetsTool : NpcTool<QuerySceneTargetsArgs>
         "查询当前场景中的其他 NPC、玩家和地标，返回稳定 targetId、类别、距离和 NavMesh 可达性。" +
         "game_npc_move 必须使用本工具返回的 targetId。";
 
-    protected override ToolExecutionResult ExecuteCore(NpcToolContext context, QuerySceneTargetsArgs args)
+    protected override AgentToolResult ExecuteCore(
+        AgentToolContext context,
+        NpcEntity npc,
+        QuerySceneTargetsArgs args)
     {
-        Vector3 origin = context.Npc.transform.position;
+        Vector3 origin = npc.transform.position;
         HashSet<string> requestedIds = CreateSet(args.targetIds);
         HashSet<string> requestedCategories = CreateSet(args.categories);
 
         List<TargetSummary> targets = NpcTargetSupport.FindTargets()
-            .Where(target => target.GameObject != context.Npc.gameObject)
+            .Where(target => target.GameObject != npc.gameObject)
             .Where(target => requestedIds == null || requestedIds.Contains(target.TargetId))
             .Where(target => requestedCategories == null || requestedCategories.Contains(target.Category))
-            .Select(target => CreateSummary(context.Npc, origin, target))
+            .Select(target => CreateSummary(npc, origin, target))
             .Where(target => args.maxDistance <= 0f || target.Distance <= args.maxDistance)
             .Where(target => !args.reachableOnly || target.IsReachable)
             .OrderBy(target => target.Distance)
@@ -66,7 +70,7 @@ public sealed class QuerySceneTargetsTool : NpcTool<QuerySceneTargetsArgs>
             : $"当前可用移动目标有：{string.Join("、", targets.Select(target => target.DisplayName))}。" +
               "移动时请使用返回结果中的 targetId。";
 
-        return ToolExecutionResult.Success(JToken.FromObject(new { count = targets.Count, targets }), message);
+        return Success(JToken.FromObject(new { count = targets.Count, targets }), message);
     }
 
     private static HashSet<string> CreateSet(string[] values)
