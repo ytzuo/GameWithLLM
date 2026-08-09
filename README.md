@@ -9,6 +9,7 @@ Agent Service 调用大模型并运行工具循环，Unity 在主线程执行真
 ```text
 Unity Game
 ├─ A2AClientAdapter ── HTTP/SSE ─────────► Go Agent Service ──► LLM
+├─ SaveCoordinationClient ── HTTP/JSON ──► Save Coordinator
 └─ RuntimeGatewayClient ── WebSocket ────► Runtime Gateway
                                               │
                                               └─ MCP Runtime Adapter
@@ -35,13 +36,48 @@ Unity Game
 | 入口 | 协议 | 用途 |
 |---|---|---|
 | `GET /.well-known/agent-card.json` | HTTP/JSON | A2A Agent Card |
+| `GET /.well-known/agent.json` | HTTP/JSON | A2A Agent Card 别名 |
 | `POST /a2a` | A2A JSON-RPC 2.0；流式响应为 SSE | 玩家消息、Task 和取消 |
 | `GET /runtime/ws`（WebSocket Upgrade） | Runtime Bridge JSON-RPC 2.0 | Unity 注册、工具调用、结果和取消 |
 | `POST /mcp/runtimes/{instanceId}` | MCP `2025-11-25` JSON-RPC 2.0 | 可选的服务端 MCP 入口 |
-| `/game-saves/{saveId}/agent-context:*` | REST/JSON | 对话快照协调 |
+| `POST /game-saves/{saveId}/agent-context:prepare` | REST/JSON | 准备 Agent 对话快照 |
+| `POST /game-saves/{saveId}/agent-context:commit` | REST/JSON | 确认世界与对话快照一致保存 |
+| `POST /game-saves/{saveId}/agent-context:restore` | REST/JSON | 恢复对话快照 |
+| `GET /game-saves/{saveId}/agent-context:status` | REST/JSON | 查询存档协调状态 |
 | `GET /health` | HTTP | 健康检查 |
 
 旧 `/unity/ws` 和 `protocolVersion: 2` 协议已经删除。
+
+### 对话与工具调用流程
+
+```text
+玩家消息
+  → A2A message/send 或 message/stream
+  → Go Conversation Service / LLM tool loop
+  → 进程内 mcp.Client
+  → Runtime Registry
+  → runtime.tools.call
+  → Unity 主线程 CommandDispatcher
+  → IAgentTool
+  → AgentToolResult
+```
+
+A2A 当前实现 `message/send`、`message/stream` 和 `tasks/cancel`。每条
+玩家消息的 metadata 必须携带 Game Context Extension：
+
+```text
+https://gamewithllm.dev/extensions/game-context/v1
+```
+
+Context 会绑定 `instanceId + playerId + agentId`，禁止在不同 Runtime、
+玩家或实体之间复用。Go 会对 LLM 隐藏工具路由字段 `entityId`，
+并在调用前根据当前 Context 注入，防止模型操作其他实体。
+
+Runtime Bridge 由 Unity 主动建立连接，实现 `runtime.initialize`、
+`runtime.manifest.changed`、`runtime.tools.call`、`runtime.progress` 和
+`runtime.cancelled`。新连接会替换相同 `instanceId` 的旧连接，通过
+generation 隔离迟到结果；断线会清理 pending，取消会传播到 Unity
+的工具执行。
 
 ## 环境要求
 
@@ -83,6 +119,17 @@ RUNTIME_GATEWAY_WS_URL=ws://127.0.0.1:8080/runtime/ws
 全部配置及默认值见 [.env.example](./.env.example)。加载优先级为：
 进程环境变量 > `.env.local` > `.env` > 默认值。
 
+配置按职责分为：
+
+| 范围 | 配置 |
+|---|---|
+| Agent Service | `AGENT_SERVICE_ADDR`、`AGENT_SERVICE_BASE_URL` |
+| A2A | `A2A_AGENT_URL`、`A2A_BEARER_TOKEN` |
+| Unity Runtime | `RUNTIME_GATEWAY_WS_URL`、`RUNTIME_GATEWAY_TOKEN`、`UNITY_INSTANCE_ID`、`PLAYER_ID`、`UNITY_SCENE_ID` |
+| 外部 MCP | `MCP_GATEWAY_SERVICE_TOKEN` |
+| LLM | `LLM_API_URL`、`LLM_API_KEY`、`LLM_MODEL`、`LLM_REQUEST_TIMEOUT_SECONDS`、`LLM_MAX_RETRIES`、`LLM_MAX_TOOL_ROUNDS`、`LLM_MAX_CONTEXT_CHARS` |
+| Profile 与归档 | `NPC_PROFILE_PATH`、`CONVERSATION_SAVE_DIR` |
+
 ### 2. 启动 Go Agent Service
 
 ```powershell
@@ -99,7 +146,9 @@ go run ./cmd/server
 3. 点击 Play。
 
 Unity 启动时会发现实体和工具，生成 `RuntimeManifest`，再主动连接
-`/runtime/ws`。玩家消息通过 `/a2a` 发送。
+`/runtime/ws`。实体或工具变化时会发布新的完整 Manifest；Go
+重启或网络中断后，Unity 会重连并重新注册。玩家消息通过
+`/a2a` 发送。
 
 ## 示例能力
 
@@ -108,6 +157,10 @@ Unity 启动时会发现实体和工具，生成 `RuntimeManifest`，再主动�
 - 使用 NavMesh 移动到 `warehouse` 或 `gate`
 - 查询、放入和取出 Inventory 物品
 - 协调保存和恢复 Unity 世界与 Agent 对话快照
+
+Unity 工具命令只在主线程启动；同一实体的调用按 FIFO 串行，
+不同实体可并行。执行前会重新检查 Entity、Tool、`IsAvailable`、
+Schema、领域参数和实时世界状态。
 
 工具 Schema 只由 Unity 运行时生成。新增工具时：
 
@@ -119,6 +172,23 @@ Unity 启动时会发现实体和工具，生成 `RuntimeManifest`，再主动�
 
 SDK 的范围和接入方式见
 [Agent Runtime README](./unity-NPC-agent-client/Packages/com.gamewithllm.agent-runtime/README.md)。
+
+## 从旧版协议迁移
+
+本次 SDK/Runtime 重构是破坏性升级，Go 和 Unity 需要同时更新：
+
+| 旧实现 | 当前实现 |
+|---|---|
+| `/unity/ws` | `/a2a` + `/runtime/ws` |
+| `protocolVersion: 2` | A2A JSON-RPC 2.0 + MCP `2025-11-25` + Runtime Bridge |
+| `unity.*` / `conversation.*` | `message/*`、`tasks/cancel`、`runtime.*` |
+| `UnityGatewayClient` | `A2AClientAdapter` + `RuntimeGatewayClient` + `SaveCoordinationClient` |
+| `AGENT_HOST_*` | `AGENT_SERVICE_*` |
+| `UNITY_JSONRPC_WS_URL` | `RUNTIME_GATEWAY_WS_URL` |
+| `INpcTool` 等 Assets 内公共类型 | UPM SDK 中的 `IAgentTool`、`AgentToolResult`、`RuntimeCommand` 等 |
+
+不提供旧协议 fallback，请不要继续使用 `AGENT_HOST_*`、
+`UNITY_JSONRPC_WS_URL` 或旧 `unity.*` / `conversation.*` 方法。
 
 ## 验证
 
