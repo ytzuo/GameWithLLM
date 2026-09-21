@@ -1,6 +1,6 @@
 # 客户端热更新实施计划
 
-> 状态：Draft  
+> 状态：H0-H2 已完成；H3 及后续阶段待实施
 > 创建日期：2026-09-21  
 > 适用项目：`unity-NPC-agent-client`（Unity `6000.3.19f1`，Windows）  
 > 实施范围：第一部分 HybridCLR；第二部分 Addressables
@@ -30,7 +30,7 @@
 - 远程内容只通过对象存储/CDN 交付，不经过 Go Agent Service 转发。
 - Catalog、工具包或资产更新只在启动阶段或返回主菜单后的安全点执行。
 
-## 2. 当前基线
+## 2. 制定计划时基线
 
 当前仓库状态：
 
@@ -51,6 +51,10 @@
   使用该轮开始时的能力快照。
 - UI 仍混合使用场景序列化引用和 `Resources.Load`。
 - 当前唯一业务场景为 `SampleScene`，应先继续作为本地启动场景。
+
+H0-H2 的实际版本、生成命令、构建报告和 Smoke 验证结果记录在
+`Docs/HYBRIDCLR_H0_H2_BASELINE.md`；后续阶段以该文件和
+`ARCHITECTURE.md` 的当前边界为准。
 
 ## 3. 总体目标结构
 
@@ -872,7 +876,7 @@ Pack 验证下载、校验、激活、缓存和失败恢复，再扩大内容范
 - `unity-NPC-agent-client/Assets/Scripts/CommandDispatcher/ToolsRegistry.cs`
 - `unity-NPC-agent-client/Assets/Scripts/CommandDispatcher/NpcTool.cs`
 - `unity-NPC-agent-client/Assets/Scripts/CommandDispatcher/ToolContract.cs`
-- `unity-NPC-agent-client/Assets/Scripts/Networking/AgentHostClient.cs`
+- `unity-NPC-agent-client/Assets/Scripts/AgentHostClient.cs`
 - 新增客户端 Core/ToolFramework/Gameplay/BuiltinTools asmdef
 - 新增 HybridCLR Loader、ToolPackageManifest、ToolMetadataCatalog 和验证器
 
@@ -885,8 +889,8 @@ Pack 验证下载、校验、激活、缓存和失败恢复，再扩大内容范
 - `unity-NPC-agent-client/Assets/Scripts/UIManager/View/InventoryWindow.cs`
 - `unity-NPC-agent-client/Assets/Scripts/UIManager/View/InventoryInteractWindow.cs`
 - `unity-NPC-agent-client/Assets/Scripts/UIManager/View/ItemDispenserWindow.cs`
-- `unity-NPC-agent-client/Assets/Scripts/GameLogic/Inventory/ItemData.cs`
-- `unity-NPC-agent-client/Assets/Scripts/GameLogic/Inventory/ItemDataList.cs`
+- `unity-NPC-agent-client/Assets/Scripts/Gameplay/Inventory/ItemData.cs`
+- `unity-NPC-agent-client/Assets/Scripts/Gameplay/Inventory/ItemDataList.cs`
 - 新增 Content Bootstrap、ContentAssetProvider 和各领域 Content Catalog
 
 ### Go Prompt JSON
@@ -945,4 +949,3 @@ Pack 验证下载、校验、激活、缓存和失败恢复，再扩大内容范
 | Handle 泄漏 | Bundle 不能卸载、内存增长 | 统一 Provider、所有权表、Profiler/Event Viewer |
 | 发布顺序不原子 | Catalog 指向缺失文件 | 先文件、后 Catalog、最后 current 指针 |
 | System Prompt 下发 Unity | 破坏安全与架构边界 | Prompt JSON 只由 Go 加载并按 Context 固定版本 |
-

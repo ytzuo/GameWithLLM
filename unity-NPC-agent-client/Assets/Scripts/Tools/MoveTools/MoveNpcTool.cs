@@ -27,5 +27,5 @@ public sealed class MoveNpcTool : NpcTool<MoveArgs>
         NpcEntity npc,
         MoveArgs args,
         CancellationToken cancellationToken) =>
-        npc.MoveToTargetAsync(args, context, cancellationToken);
+        npc.MoveToTargetAsync(args.targetId, args.approachDistance, context, cancellationToken);
 }

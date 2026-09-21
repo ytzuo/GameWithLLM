@@ -133,14 +133,16 @@ Transport 公共类型。网络客户端、Registry、Dispatcher、UI 和具体�
 
 | 路径 | 职责 |
 |---|---|
-| `Assets/Scripts/Networking/AgentHostClient.cs` | Unity 场景门面和总编排 |
+| `Assets/Scripts/AgentHostClient.cs` | Unity 场景门面和总编排 |
 | `Assets/Scripts/Networking/A2AClientAdapter.cs` | A2A JSON-RPC/SSE |
 | `Assets/Scripts/Networking/RuntimeGatewayClient.cs` | `IRuntimeTransport` 实现 |
 | `Assets/Scripts/Networking/SaveCoordinationClient.cs` | Save REST Client |
 | `Assets/Scripts/CommandDispatcher/ToolsRegistry.cs` | Tool discovery、Schema 和 Manifest |
 | `Assets/Scripts/CommandDispatcher/CommandDispatcher.cs` | 主线程路由和每实体 FIFO |
 | `Assets/Scripts/CommandDispatcher/NpcTool.cs` | Warehouse `IAgentTool` 适配基类 |
-| `Assets/Scripts/GameLogic/NpcEntity.cs` | Entity、NavMesh 与长时行为 |
+| `Assets/Scripts/Gameplay/NpcEntity.cs` | Entity、NavMesh 与长时行为 |
+| `Assets/Scripts/Networking/HybridClrBootstrap.cs` | HybridCLR AOT 元数据和本地工具包加载 |
+| `Assets/HotUpdate/SmokeTest` | H2 本地热更新 Smoke Tool Pack |
 | `Packages/com.gamewithllm.agent-runtime/Runtime` | SDK 公共契约 |
 
 移动或重命名 Unity 资源时必须同时移动 `.meta` 并保留 GUID。

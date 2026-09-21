@@ -1,0 +1,46 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<linker>
+  <assembly fullname="GameWithLLM.AgentRuntime">
+    <type fullname="GameWithLLM.AgentRuntime.AgentToolAttribute" preserve="all" />
+    <type fullname="GameWithLLM.AgentRuntime.AgentToolContext" preserve="all" />
+    <type fullname="GameWithLLM.AgentRuntime.AgentToolResult" preserve="all" />
+  </assembly>
+  <assembly fullname="GameWithLLM.Client.Gameplay">
+    <type fullname="NpcEntity" preserve="all" />
+  </assembly>
+  <assembly fullname="GameWithLLM.Client.ToolFramework">
+    <type fullname="NpcTool`1" preserve="all" />
+    <type fullname="ToolArgsBase" preserve="all" />
+    <type fullname="ToolParameterAttribute" preserve="all" />
+  </assembly>
+  <assembly fullname="Newtonsoft.Json">
+    <type fullname="Newtonsoft.Json.Linq.JObject" preserve="all" />
+    <type fullname="Newtonsoft.Json.Linq.JToken" preserve="all" />
+  </assembly>
+  <assembly fullname="UnityEngine.CoreModule">
+    <type fullname="UnityEngine.Scripting.PreserveAttribute" preserve="all" />
+  </assembly>
+  <assembly fullname="netstandard">
+    <type fullname="System.Array" preserve="all" />
+    <type fullname="System.Byte" preserve="all" />
+    <type fullname="System.CodeDom.Compiler.GeneratedCodeAttribute" preserve="all" />
+    <type fullname="System.Collections.Generic.EqualityComparer`1" preserve="all" />
+    <type fullname="System.ComponentModel.EditorBrowsableAttribute" preserve="all" />
+    <type fullname="System.ComponentModel.EditorBrowsableState" preserve="all" />
+    <type fullname="System.Diagnostics.DebuggableAttribute" preserve="all" />
+    <type fullname="System.Diagnostics.DebuggableAttribute/DebuggingModes" preserve="all" />
+    <type fullname="System.Diagnostics.DebuggerBrowsableAttribute" preserve="all" />
+    <type fullname="System.Diagnostics.DebuggerBrowsableState" preserve="all" />
+    <type fullname="System.Diagnostics.DebuggerDisplayAttribute" preserve="all" />
+    <type fullname="System.Diagnostics.DebuggerHiddenAttribute" preserve="all" />
+    <type fullname="System.IFormatProvider" preserve="all" />
+    <type fullname="System.Object" preserve="all" />
+    <type fullname="System.Runtime.CompilerServices.CompilationRelaxationsAttribute" preserve="all" />
+    <type fullname="System.Runtime.CompilerServices.CompilerGeneratedAttribute" preserve="all" />
+    <type fullname="System.Runtime.CompilerServices.RuntimeCompatibilityAttribute" preserve="all" />
+    <type fullname="System.Runtime.CompilerServices.RuntimeHelpers" preserve="all" />
+    <type fullname="System.RuntimeFieldHandle" preserve="all" />
+    <type fullname="System.String" preserve="all" />
+    <type fullname="System.ValueType" preserve="all" />
+  </assembly>
+</linker>

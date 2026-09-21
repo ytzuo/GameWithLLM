@@ -351,6 +351,25 @@ unity-NPC-agent-client/Packages/com.gamewithllm.agent-runtime/
 逻辑仍位于 `Assets/Scripts`，不会随当前 SDK 包发布。`Assets` 中不得重新定义
 平行的 Tool、Result、Command、Manifest、Entity 或 Transport 公共类型。
 
+### 6.1 HybridCLR 边界
+
+Windows Player 使用 IL2CPP x86_64，HybridCLR 只承载新增的 NPC 工具包。程序集
+边界固定如下：
+
+- `GameWithLLM.AgentRuntime` 是公共契约 AOT 程序集，不参与热更新。
+- `GameWithLLM.Client.Gameplay`、`GameWithLLM.Client.ToolFramework`、
+  `GameWithLLM.Client.Core` 和 `GameWithLLM.Client.BuiltinTools` 是稳定 AOT 程序集。
+- 热更新工具包只能引用上述命名程序集，不得引用 `Assembly-CSharp`，也不得替换
+  已注册工具、修改稳定组件或引入平行 SDK 契约。
+- 热更新工具必须使用全新工具名。工具描述可以更新，但描述 JSON 不得改变工具的
+  结构 Schema；参数仍以 JSON 对象跨越 Runtime/MCP 边界。
+
+当前 H2 本地启动顺序为：先通过 `RuntimeApi.LoadMetadataForAOTAssembly` 加载与
+Player 匹配的 AOT 补充元数据，再用 `Assembly.Load` 加载
+`GameWithLLM.Tools.Pack.SmokeTest`。加载失败由 `AgentHostClient` 记录并降级为只
+运行 AOT BuiltinTools，不改变 Go/Unity 权威边界。PDB 只进入 Development/QA
+产物；正式构建的 staging hook 会将其排除。
+
 ## 7. 代码地图
 
 ### 7.1 Go
@@ -371,14 +390,20 @@ unity-NPC-agent-client/Packages/com.gamewithllm.agent-runtime/
 
 | 路径 | 职责 |
 |---|---|
-| `Assets/Scripts/Networking/AgentHostClient.cs` | 场景门面、A2A 与 Runtime 编排 |
+| `Assets/Scripts/AgentHostClient.cs` | 场景门面、A2A、Runtime 与热更新启动编排 |
 | `Assets/Scripts/Networking/A2AClientAdapter.cs` | A2A JSON-RPC/SSE 与 SDK 事件映射 |
 | `Assets/Scripts/Networking/RuntimeGatewayClient.cs` | `IRuntimeTransport` WebSocket 实现 |
 | `Assets/Scripts/Networking/SaveCoordinationClient.cs` | Save Coordination REST Client |
 | `Assets/Scripts/CommandDispatcher/ToolsRegistry.cs` | 工具发现、Schema 和 Manifest 工具快照 |
 | `Assets/Scripts/CommandDispatcher/CommandDispatcher.cs` | 主线程 Entity 路由和每实体 FIFO |
 | `Assets/Scripts/CommandDispatcher/NpcTool.cs` | Warehouse 工具适配基类 |
-| `Assets/Scripts/GameLogic/NpcEntity.cs` | NPC 生命周期、NavMesh 行为和结果 |
+| `Assets/Scripts/Gameplay/NpcEntity.cs` | NPC 生命周期、NavMesh 行为和结果 |
+| `Assets/Scripts/Gameplay/Inventory` | 稳定 AOT 库存能力与视图模型 |
+| `Assets/Scripts/Tools` | AOT BuiltinTools 实现 |
+| `Assets/Scripts/Networking/HybridClrBootstrap.cs` | AOT 元数据和本地热更新工具包加载 |
+| `Assets/HotUpdate/SmokeTest` | H2 本地只读 Smoke Tool Pack |
+| `Assets/StreamingAssets/HotUpdate` | H2 本地 AOT metadata、DLL、Development PDB 和清单 |
+| `Assets/Editor/HybridClrProjectSetup.cs` | HybridCLR 配置、生成、staging 和 H2 Player 构建 |
 | `Packages/com.gamewithllm.agent-runtime/Runtime` | SDK 公共契约 |
 
 移动或重命名 Unity 资源时必须同时移动 `.meta` 并保留 GUID。

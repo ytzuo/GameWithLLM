@@ -8,11 +8,15 @@ using UnityEngine.InputSystem;
 /// Player mock that holds a list of NPCs in the scene, opens the ChatWindow on F,
 /// and manages the ChatWindow lifecycle. Uses Unity's new InputSystem.
 /// </summary>
-public class PlayerMock : MonoBehaviour
+public class PlayerMock : MonoBehaviour, IGameplayWorldTarget
 {
     [SerializeField] private string worldTargetId = "player:local-player-1";
 
     internal string WorldTargetId => worldTargetId;
+    string IGameplayWorldTarget.WorldTargetId => worldTargetId;
+    string IGameplayWorldTarget.WorldTargetDisplayName => "玩家";
+    string IGameplayWorldTarget.WorldTargetCategory => "player";
+    bool IGameplayWorldTarget.IsDynamicWorldTarget => true;
     internal IReadOnlyList<NpcEntity> NpcEntities => npcEntities;
 
     internal void ConfigureWorldTargetId(string configuredPlayerId)

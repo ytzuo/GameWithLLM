@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using UnityEngine;
 
-internal sealed class DotEnvConfig
+public sealed class DotEnvConfig
 {
     private readonly Dictionary<string, string> _values;
     private DotEnvConfig(Dictionary<string, string> values) { _values = values; }

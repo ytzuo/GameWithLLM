@@ -1,0 +1,17 @@
+{
+  "name": "GameWithLLM.Client.ToolFramework",
+  "rootNamespace": "",
+  "references": [
+    "GameWithLLM.AgentRuntime",
+    "GameWithLLM.Client.Gameplay"
+  ],
+  "includePlatforms": [],
+  "excludePlatforms": [],
+  "allowUnsafeCode": false,
+  "overrideReferences": false,
+  "precompiledReferences": [],
+  "autoReferenced": true,
+  "defineConstraints": [],
+  "versionDefines": [],
+  "noEngineReferences": false
+}

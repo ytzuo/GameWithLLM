@@ -1,0 +1,190 @@
+{
+  "schemaVersion": 1,
+  "tools": [
+    {
+      "name": "game_inventory_get_container",
+      "description": "获取指定容器中的全部物品及数量。目标必须是已注册的 InventoryComponent，且位于当前 NPC 的交互距离内；不能用此工具查询 NPC 自身背包。",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "containerId": {
+            "type": "string",
+            "description": "game_inventory_get_nearby_containers 返回的稳定 containerId",
+            "minLength": 1
+          }
+        },
+        "required": [
+          "containerId"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "game_inventory_get_item_definitions",
+      "description": "获取当前游戏定义的全部物品种类及其 itemId、名称、描述和最大堆叠数量。查询物品标识时使用此工具，不会读取任何运行时背包。",
+      "inputSchema": {
+        "type": "object",
+        "properties": {},
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "game_inventory_get_nearby_containers",
+      "description": "查询场景中除 NPC 自身背包外的已注册容器，返回稳定 containerId、所属 targetId、距离和是否在交互范围内。",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "inRangeOnly": {
+            "type": "boolean",
+            "description": "是否只返回当前可交互的容器"
+          },
+          "maxDistance": {
+            "type": "number",
+            "description": "最大查询距离；0 或省略表示不限制",
+            "minimum": 0.0
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "game_inventory_get_self",
+      "description": "获取当前 NPC 自身背包中的全部物品及数量。只查询当前对话 NPC，不查询其他容器。",
+      "inputSchema": {
+        "type": "object",
+        "properties": {},
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "game_inventory_put_item",
+      "description": "把当前 NPC 自身背包中的指定物品原子转移到附近容器；containerId 应来自 game_inventory_get_nearby_containers。",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "containerId": {
+            "type": "string",
+            "description": "game_inventory_get_nearby_containers 返回的稳定 containerId",
+            "minLength": 1
+          },
+          "itemId": {
+            "type": "string",
+            "description": "从 NPC 自身背包转移的稳定物品标识",
+            "minLength": 1
+          },
+          "quantity": {
+            "type": "integer",
+            "minimum": 1.0
+          }
+        },
+        "required": [
+          "containerId",
+          "itemId",
+          "quantity"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "game_inventory_take_item",
+      "description": "从附近容器中取出指定数量的物品放入当前 NPC 背包；操作原子执行，不会部分转移。",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "containerId": {
+            "type": "string",
+            "description": "game_inventory_get_nearby_containers 返回的稳定 containerId",
+            "minLength": 1
+          },
+          "itemId": {
+            "type": "string",
+            "description": "要从附近容器取出的稳定物品标识",
+            "minLength": 1
+          },
+          "quantity": {
+            "type": "integer",
+            "minimum": 1.0
+          }
+        },
+        "required": [
+          "containerId",
+          "itemId",
+          "quantity"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "game_npc_get_state",
+      "description": "查询当前对话 NPC 的实时运行状态、世界坐标和移动信息。用于确认 NPC 当前是否空闲、是否位于 NavMesh、正在前往哪个目标以及剩余距离。",
+      "inputSchema": {
+        "type": "object",
+        "properties": {},
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "game_npc_move",
+      "description": "使 NPC 前往 game_scene_get_targets 返回的目标附近。NPC 和玩家属于动态目标，执行期间会持续更新路径；targetId 不确定时应先查询目标。",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "approachDistance": {
+            "type": "number",
+            "description": "与目标保持的距离；0 或省略时使用 NPC 默认停止距离",
+            "minimum": 0.0,
+            "maximum": 10.0
+          },
+          "targetId": {
+            "type": "string",
+            "description": "game_scene_get_targets 返回的稳定 targetId",
+            "minLength": 1
+          }
+        },
+        "required": [
+          "targetId"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "game_scene_get_targets",
+      "description": "查询当前场景中的其他 NPC、玩家和地标，返回稳定 targetId、类别、距离和 NavMesh 可达性。game_npc_move 必须使用本工具返回的 targetId。",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "categories": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "npc",
+                "player",
+                "landmark"
+              ]
+            },
+            "uniqueItems": true
+          },
+          "maxDistance": {
+            "type": "number",
+            "description": "最大直线距离；0 或省略表示不限制",
+            "minimum": 0.0
+          },
+          "reachableOnly": {
+            "type": "boolean",
+            "description": "是否只返回具有完整 NavMesh 路径的目标"
+          },
+          "targetIds": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            },
+            "uniqueItems": true
+          }
+        },
+        "additionalProperties": false
+      }
+    }
+  ]
+}
