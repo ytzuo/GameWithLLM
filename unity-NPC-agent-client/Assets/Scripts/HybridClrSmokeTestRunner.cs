@@ -31,7 +31,10 @@ public sealed class HybridClrSmokeTestRunner : MonoBehaviour
 
             AgentToolDescriptor descriptor = registry.GetRuntimeTools()
                 .FirstOrDefault(tool => tool.Name == "game_hotfix_smoke_query");
+            AgentToolDescriptor packageDescriptor = registry.GetRuntimeTools()
+                .FirstOrDefault(tool => tool.Name == "game_hotfix_smoke_package_info");
             if (descriptor == null ||
+                packageDescriptor == null ||
                 string.IsNullOrWhiteSpace(descriptor.InputSchemaJson) ||
                 !descriptor.InputSchemaJson.Contains("echo"))
             {
@@ -52,6 +55,7 @@ public sealed class HybridClrSmokeTestRunner : MonoBehaviour
             }
 
             Debug.Log("[Hot Update] H2_SMOKE_SUCCESS: DLL loaded, schema generated, arguments deserialized, tool executed.");
+            Debug.Log("[Hot Update] H3_ATOMIC_PACK_SUCCESS: two tools discovered and registered as one package.");
             Application.Quit(0);
         }
         catch (Exception ex)

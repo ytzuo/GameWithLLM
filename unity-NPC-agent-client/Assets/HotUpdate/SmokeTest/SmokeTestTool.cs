@@ -44,3 +44,39 @@ public sealed class SmokeTestTool : NpcTool<SmokeTestArgs>
             "HybridCLR Smoke Tool Pack 已执行。");
     }
 }
+
+[Serializable]
+[Preserve]
+public sealed class SmokePackageInfoArgs : ToolArgsBase
+{
+    public override bool Validate(out string errorMessage)
+    {
+        errorMessage = null;
+        return true;
+    }
+}
+
+[AgentTool]
+[Preserve]
+public sealed class SmokePackageInfoTool : NpcTool<SmokePackageInfoArgs>
+{
+    public override string Name => "game_hotfix_smoke_package_info";
+
+    public override string Description =>
+        "查询 Smoke Tool Pack 的包标识与版本，用于验证多工具包的原子注册。";
+
+    protected override AgentToolResult ExecuteCore(
+        AgentToolContext context,
+        NpcEntity npc,
+        SmokePackageInfoArgs args)
+    {
+        return Success(
+            JObject.FromObject(new
+            {
+                packageId = "smoke-test",
+                packageVersion = "1.0.0",
+                toolCount = 2
+            }),
+            "Smoke Tool Pack 信息已返回。");
+    }
+}

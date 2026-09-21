@@ -1,0 +1,25 @@
+{
+  "name": "GameWithLLM.Client.HotUpdate.Tests",
+  "rootNamespace": "",
+  "references": [
+    "GameWithLLM.AgentRuntime",
+    "GameWithLLM.Client.ToolFramework",
+    "GameWithLLM.Client.BuiltinTools"
+  ],
+  "includePlatforms": [
+    "Editor"
+  ],
+  "excludePlatforms": [],
+  "allowUnsafeCode": false,
+  "overrideReferences": false,
+  "precompiledReferences": [],
+  "autoReferenced": false,
+  "defineConstraints": [
+    "UNITY_INCLUDE_TESTS"
+  ],
+  "versionDefines": [],
+  "noEngineReferences": false,
+  "optionalUnityReferences": [
+    "TestAssemblies"
+  ]
+}

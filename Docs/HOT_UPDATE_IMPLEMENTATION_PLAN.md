@@ -1,6 +1,6 @@
 # 客户端热更新实施计划
 
-> 状态：H0-H2 已完成；H3 及后续阶段待实施
+> 状态：H0-H3 已完成；H4 及后续阶段待实施
 > 创建日期：2026-09-21  
 > 适用项目：`unity-NPC-agent-client`（Unity `6000.3.19f1`，Windows）  
 > 实施范围：第一部分 HybridCLR；第二部分 Addressables
@@ -53,8 +53,9 @@
 - 当前唯一业务场景为 `SampleScene`，应先继续作为本地启动场景。
 
 H0-H2 的实际版本、生成命令、构建报告和 Smoke 验证结果记录在
-`Docs/HYBRIDCLR_H0_H2_BASELINE.md`；后续阶段以该文件和
-`ARCHITECTURE.md` 的当前边界为准。
+`Docs/HYBRIDCLR_H0_H2_BASELINE.md`，H3 的原子注册实现与验证结果记录在
+`Docs/HYBRIDCLR_H3_BASELINE.md`；后续阶段以这些基线和 `ARCHITECTURE.md`
+的当前边界为准。
 
 ## 3. 总体目标结构
 

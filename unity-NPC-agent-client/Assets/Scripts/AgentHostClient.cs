@@ -42,9 +42,10 @@ public class AgentHostClient : Singleton<AgentHostClient>
     // Init 装配唯一的出站 Runtime 连接，并发布当前场景的实体与工具 Manifest。
     protected override void Init()
     {
+        IReadOnlyList<LoadedToolPack> loadedToolPacks = Array.Empty<LoadedToolPack>();
         try
         {
-            HybridClrBootstrap.LoadLocalToolPacks(enableHybridClrBootstrap);
+            loadedToolPacks = HybridClrBootstrap.LoadLocalToolPacks(enableHybridClrBootstrap);
         }
         catch (Exception ex)
         {
@@ -66,6 +67,29 @@ public class AgentHostClient : Singleton<AgentHostClient>
             player.ConfigureWorldTargetId(playerId);
         _dispatcher = CommandDispatcher.Instance;
         _tools = ToolsRegistry.Instance;
+        foreach (LoadedToolPack package in loadedToolPacks)
+        {
+            try
+            {
+                IReadOnlyList<IAgentTool> tools =
+                    AgentToolDiscovery.DiscoverFromAssembly(package.Assembly);
+                ToolPackRegistrationResult result = _tools.RegisterToolPack(
+                    package.PackageId,
+                    package.PackageVersion,
+                    package.AssemblyHash,
+                    tools);
+                Debug.Log(
+                    $"[Hot Update] Tool package '{package.PackageId}' " +
+                    $"{(result.Idempotent ? "was already registered" : "registered atomically")} " +
+                    $"with {result.ToolCount} tools.");
+            }
+            catch (Exception ex)
+            {
+                Debug.LogError(
+                    $"[Hot Update] Tool package '{package.PackageId}' was rejected; " +
+                    $"the existing Registry is unchanged: {ex}");
+            }
+        }
         _dispatcher.EntityChanged += OnRuntimeChanged;
         _dispatcher.EntityCapabilitiesChanged += OnCapabilitiesChanged;
         _tools.ToolsChanged += OnToolsChanged;

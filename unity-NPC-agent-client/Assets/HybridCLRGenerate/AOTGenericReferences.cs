@@ -20,8 +20,10 @@ public class AOTGenericReferences : UnityEngine.MonoBehaviour
 	// NpcTool<object>
 	// System.Action<object,object>
 	// System.Action<object>
+	// System.Collections.Generic.EqualityComparer<int>
 	// System.Collections.Generic.EqualityComparer<object>
 	// System.Collections.Generic.ICollection<object>
+	// System.Collections.Generic.ObjectEqualityComparer<int>
 	// System.Collections.Generic.ObjectEqualityComparer<object>
 	// System.Func<object,System.Threading.CancellationToken,System.Threading.Tasks.ValueTask<object>>
 	// System.Func<object,object,object>

@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Security.Cryptography;
 using HybridCLR.Editor;
 using HybridCLR.Editor.Commands;
 using HybridCLR.Editor.Installer;
@@ -108,7 +109,22 @@ public static class HybridClrProjectSetup
 
     public static void GenerateAndStageFromCommandLine() => RunCommand(GenerateAndStage);
 
-    public static void BuildSmokePlayerFromCommandLine()
+    public static void BuildSmokePlayerFromCommandLine() =>
+        BuildSmokePlayerFromCommandLine(
+            "HybridClrH2",
+            "h2-windows-il2cpp-build.json",
+            "H2");
+
+    public static void BuildH3SmokePlayerFromCommandLine() =>
+        BuildSmokePlayerFromCommandLine(
+            "HybridClrH3",
+            "h3-windows-il2cpp-build.json",
+            "H3");
+
+    private static void BuildSmokePlayerFromCommandLine(
+        string buildDirectoryName,
+        string reportFileName,
+        string phase)
     {
         RunCommand(() =>
         {
@@ -116,7 +132,7 @@ public static class HybridClrProjectSetup
             string outputDirectory = Path.Combine(
                 Directory.GetParent(Application.dataPath)?.FullName ?? Application.dataPath,
                 "Builds",
-                "HybridClrH2");
+                buildDirectoryName);
             Directory.CreateDirectory(outputDirectory);
             string outputPath = Path.Combine(outputDirectory, "GameWithLLM.exe");
             BuildReport report = BuildPipeline.BuildPlayer(new BuildPlayerOptions
@@ -129,13 +145,13 @@ public static class HybridClrProjectSetup
             if (report.summary.result != BuildResult.Succeeded)
             {
                 throw new BuildFailedException(
-                    $"H2 Windows IL2CPP build failed: {report.summary.result}.");
+                    $"{phase} Windows IL2CPP build failed: {report.summary.result}.");
             }
 
             string repository = Directory.GetParent(
                 Directory.GetParent(Application.dataPath)?.FullName ?? Application.dataPath)?.FullName
                 ?? Application.dataPath;
-            string reportPath = Path.Combine(repository, "Docs", "Baselines", "h2-windows-il2cpp-build.json");
+            string reportPath = Path.Combine(repository, "Docs", "Baselines", reportFileName);
             Directory.CreateDirectory(Path.GetDirectoryName(reportPath) ?? repository);
             File.WriteAllText(reportPath, JsonConvert.SerializeObject(new
             {
@@ -149,7 +165,7 @@ public static class HybridClrProjectSetup
                 buildSeconds = report.summary.totalTime.TotalSeconds,
                 outputPath
             }, Formatting.Indented) + Environment.NewLine);
-            Debug.Log($"[Hot Update] H2 Windows IL2CPP Player built at '{outputPath}'.");
+            Debug.Log($"[Hot Update] {phase} Windows IL2CPP Player built at '{outputPath}'.");
         });
     }
 
@@ -177,6 +193,7 @@ public static class HybridClrProjectSetup
             throw new FileNotFoundException("Generated SmokeTest hot-update DLL is missing.", hotDllSource);
         string hotDllFile = SmokeAssemblyName + ".dll.bytes";
         File.Copy(hotDllSource, Path.Combine(destination, hotDllFile), true);
+        string hotDllHash = ComputeSha256(File.ReadAllBytes(hotDllSource));
 
         string pdbFile = string.Empty;
         string pdbSource = Path.Combine(hotUpdateSource, SmokeAssemblyName + ".pdb");
@@ -194,14 +211,30 @@ public static class HybridClrProjectSetup
         string manifest = JsonConvert.SerializeObject(new
         {
             aotMetadataFiles = metadataFiles,
-            hotUpdateAssemblyFiles = new[] { hotDllFile },
-            debugSymbolFiles = new[] { pdbFile }
+            toolPackages = new[]
+            {
+                new
+                {
+                    packageId = HybridClrBootstrap.SmokePackageId,
+                    packageVersion = HybridClrBootstrap.SmokePackageVersion,
+                    assemblyName = SmokeAssemblyName,
+                    assemblyFile = hotDllFile,
+                    assemblyHash = hotDllHash,
+                    debugSymbolFile = pdbFile
+                }
+            }
         }, Formatting.Indented);
         File.WriteAllText(
             Path.Combine(destination, "local-hot-update-manifest.json"),
             manifest + Environment.NewLine);
         AssetDatabase.Refresh();
         Debug.Log($"[Hot Update] Staged local HybridCLR artifacts at '{destination}'.");
+    }
+
+    private static string ComputeSha256(byte[] bytes)
+    {
+        using (SHA256 sha256 = SHA256.Create())
+            return BitConverter.ToString(sha256.ComputeHash(bytes)).Replace("-", string.Empty).ToLowerInvariant();
     }
 
     private static void RunCommand(Action action)

@@ -364,11 +364,18 @@ Windows Player 使用 IL2CPP x86_64，HybridCLR 只承载新增的 NPC 工具包
 - 热更新工具必须使用全新工具名。工具描述可以更新，但描述 JSON 不得改变工具的
   结构 Schema；参数仍以 JSON 对象跨越 Runtime/MCP 边界。
 
-当前 H2 本地启动顺序为：先通过 `RuntimeApi.LoadMetadataForAOTAssembly` 加载与
-Player 匹配的 AOT 补充元数据，再用 `Assembly.Load` 加载
-`GameWithLLM.Tools.Pack.SmokeTest`。加载失败由 `AgentHostClient` 记录并降级为只
-运行 AOT BuiltinTools，不改变 Go/Unity 权威边界。PDB 只进入 Development/QA
-产物；正式构建的 staging hook 会将其排除。
+当前 H3 本地启动顺序为：先通过 `RuntimeApi.LoadMetadataForAOTAssembly` 加载与
+Player 匹配的 AOT 补充元数据，校验工具包 DLL 的 SHA-256 后再用 `Assembly.Load`
+加载 `GameWithLLM.Tools.Pack.SmokeTest`。`AgentToolDiscovery` 仅显式扫描该程序集，
+`ToolsRegistry.RegisterToolPack` 在锁外校验整包、在锁内一次提交，并以
+`packageId + version + hash + toolNames` 识别幂等重载。内置工具只从稳定的
+`GameWithLLM.Client.BuiltinTools` 程序集注册，不再通过全 AppDomain 扫描顺带发现
+热更新工具。任何工具无效、同名冲突或包内容漂移都会拒绝整包，已注册工具不受
+影响；成功注册只产生一次 `ToolsChanged`。不提供卸载、替换或覆盖分支。
+
+加载失败由 `AgentHostClient` 记录并降级为只运行 AOT BuiltinTools，不改变
+Go/Unity 权威边界。PDB 只进入 Development/QA 产物；正式构建的 staging hook
+会将其排除。
 
 ## 7. 代码地图
 
@@ -401,9 +408,10 @@ Player 匹配的 AOT 补充元数据，再用 `Assembly.Load` 加载
 | `Assets/Scripts/Gameplay/Inventory` | 稳定 AOT 库存能力与视图模型 |
 | `Assets/Scripts/Tools` | AOT BuiltinTools 实现 |
 | `Assets/Scripts/Networking/HybridClrBootstrap.cs` | AOT 元数据和本地热更新工具包加载 |
-| `Assets/HotUpdate/SmokeTest` | H2 本地只读 Smoke Tool Pack |
-| `Assets/StreamingAssets/HotUpdate` | H2 本地 AOT metadata、DLL、Development PDB 和清单 |
-| `Assets/Editor/HybridClrProjectSetup.cs` | HybridCLR 配置、生成、staging 和 H2 Player 构建 |
+| `Assets/HotUpdate/SmokeTest` | H3 本地多工具只读 Smoke Tool Pack |
+| `Assets/StreamingAssets/HotUpdate` | 本地 AOT metadata、带 SHA-256 包身份的 DLL、Development PDB 和清单 |
+| `Assets/Editor/HybridClrProjectSetup.cs` | HybridCLR 配置、生成、带包身份的 staging 和 Player 构建 |
+| `Assets/Tests/Editor/ToolPackRegistrationTests.cs` | H3 发现、原子提交、冲突拒绝和幂等验证 |
 | `Packages/com.gamewithllm.agent-runtime/Runtime` | SDK 公共契约 |
 
 移动或重命名 Unity 资源时必须同时移动 `.meta` 并保留 GUID。
