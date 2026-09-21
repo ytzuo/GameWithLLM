@@ -54,7 +54,7 @@ public static class HybridClrProjectSetup
         if (addressableSettings != null)
         {
             // H2 stages DLLs directly in StreamingAssets. Addressables integration
-            // starts at H5 and must not run during HybridCLR's temporary AOT build.
+            // starts at H6 and must not run during HybridCLR's temporary AOT build.
             addressableSettings.BuildAddressablesWithPlayerBuild =
                 AddressableAssetSettings.PlayerBuildOption.DoNotBuildWithPlayer;
             EditorUtility.SetDirty(addressableSettings);
