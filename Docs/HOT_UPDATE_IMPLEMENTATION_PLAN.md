@@ -1,6 +1,6 @@
 # 客户端热更新实施计划
 
-> 状态：H0-H3 已完成；H4 及后续阶段待实施
+> 状态：H0-H3、A0 已完成；H4、A1 及后续阶段待实施
 > 创建日期：2026-09-21  
 > 适用项目：`unity-NPC-agent-client`（Unity `6000.3.19f1`，Windows）  
 > 实施范围：第一部分 HybridCLR；第二部分 Addressables
@@ -606,6 +606,10 @@ GameMCPServer/config/system_prompt.zh-CN.json
 # 第二部分：Addressables 实施计划
 
 ## A0：资产盘点、地址规则与本地/远端边界
+
+> 完成记录（2026-09-22）：逐项台账、稳定地址规则、Group 所有权、加载/释放
+> 生命周期和已解释场景硬引用见 `Docs/ADDRESSABLES_A0_INVENTORY.md`；机器可读基线
+> 位于 `Docs/Baselines/addressables-a0-inventory.json`，可由 Unity Editor 校验。
 
 ### 目标
 

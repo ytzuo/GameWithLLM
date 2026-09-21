@@ -377,6 +377,27 @@ Player 匹配的 AOT 补充元数据，校验工具包 DLL 的 SHA-256 后再用
 Go/Unity 权威边界。PDB 只进入 Development/QA 产物；正式构建的 staging hook
 会将其排除。
 
+### 6.2 Addressables 内容边界
+
+Addressables A0 已冻结资产所有权、稳定逻辑地址和生命周期；完整逐项台账位于
+`Docs/ADDRESSABLES_A0_INVENTORY.md` 和
+`Docs/Baselines/addressables-a0-inventory.json`。A1 尚未实施，因此当前加载路径
+保持不变，台账中的 `Remote_*` 是后续迁移的唯一目标 Group，不表示这些资产已经
+远端化。
+
+- `SampleScene`、NavMeshData 和第一阶段场景固有材质属于
+  `Local_SampleScene`；最小下载/错误 UI 和默认内容属于 `Local_Bootstrap`。
+- 客户端 JSON、AOT metadata、版本化工具 DLL、UI、物品表现、角色表现和附加
+  场景分别由唯一的 `Remote_*` Group 拥有。Go System Prompt 不进入 Addressables。
+- Address 使用稳定逻辑 ID，Label 只用于批量下载，业务 ID 独立保存。发布过的
+  Address 和业务 ID 不得删除后复用；版本化工具二进制地址包含不可复用版本。
+- 每次运行时加载都必须由 bootstrap、catalog、窗口、实体视觉或场景协调器之一
+  持有 handle，并在对应生命周期结束时释放。
+- 当前 `SampleScene` 对 UI 和 ItemData 的硬引用是 A3/A4 前的已登记迁移债务；
+  在移除这些引用前，对应资产不得实际放入远端 Group。
+- `Assets/Art/Items` 中未被当前 ItemData 使用的源 PNG 不进入发布。加入目录前必须
+  先分配稳定 itemId、Address 和唯一 owner Group。
+
 ## 7. 代码地图
 
 ### 7.1 Go
@@ -411,6 +432,7 @@ Go/Unity 权威边界。PDB 只进入 Development/QA 产物；正式构建的 st
 | `Assets/HotUpdate/SmokeTest` | H3 本地多工具只读 Smoke Tool Pack |
 | `Assets/StreamingAssets/HotUpdate` | 本地 AOT metadata、带 SHA-256 包身份的 DLL、Development PDB 和清单 |
 | `Assets/Editor/HybridClrProjectSetup.cs` | HybridCLR 配置、生成、带包身份的 staging 和 Player 构建 |
+| `Assets/Editor/AddressablesA0InventoryValidator.cs` | A0 资产所有权、地址和场景硬引用基线校验 |
 | `Assets/Tests/Editor/ToolPackRegistrationTests.cs` | H3 发现、原子提交、冲突拒绝和幂等验证 |
 | `Packages/com.gamewithllm.agent-runtime/Runtime` | SDK 公共契约 |
 
