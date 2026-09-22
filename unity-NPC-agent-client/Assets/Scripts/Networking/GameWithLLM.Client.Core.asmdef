@@ -3,6 +3,7 @@
   "rootNamespace": "",
   "references": [
     "GameWithLLM.AgentRuntime",
+    "GameWithLLM.Client.ToolFramework",
     "HybridCLR.Runtime",
     "Unity.Addressables",
     "Unity.ResourceManager"

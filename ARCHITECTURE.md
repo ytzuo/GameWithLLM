@@ -353,25 +353,33 @@ unity-NPC-agent-client/Packages/com.gamewithllm.agent-runtime/
 
 ### 6.1 HybridCLR 边界
 
-Windows Player 使用 IL2CPP x86_64，HybridCLR 只承载新增的 NPC 工具包。程序集
+Windows Player 使用 IL2CPP x86_64，HybridCLR 只承载版本化的 NPC 工具包。程序集
 边界固定如下：
 
 - `GameWithLLM.AgentRuntime` 是公共契约 AOT 程序集，不参与热更新。
 - `GameWithLLM.Client.Gameplay`、`GameWithLLM.Client.ToolFramework`、
   `GameWithLLM.Client.Core` 和 `GameWithLLM.Client.BuiltinTools` 是稳定 AOT 程序集。
-- 热更新工具包只能引用上述命名程序集，不得引用 `Assembly-CSharp`，也不得替换
-  已注册工具、修改稳定组件或引入平行 SDK 契约。
-- 热更新工具必须使用全新工具名。工具描述可以更新，但描述 JSON 不得改变工具的
-  结构 Schema；参数仍以 JSON 对象跨越 Runtime/MCP 边界。
+- 热更新工具包只能引用上述命名程序集，不得引用 `Assembly-CSharp`，不得修改稳定
+  组件或引入平行 SDK 契约。发布清单可以为同一逻辑工具选择更高实现版本，但不得
+  用热更新类型覆盖 AOT BuiltinTool。
+- 工具实现和结构 Schema 分别由 `implementationVersion` 与 `contractVersion`
+  管理；名称、逻辑身份、来源、版本和规范化 Schema hash 进入历史台账。停用名称
+  只能以同一逻辑身份和更高版本重新启用，不得改作无关语义。
+- 参数仍以 JSON 对象跨越 Runtime/MCP 边界。
 
-当前 H3 本地启动顺序为：先通过 `RuntimeApi.LoadMetadataForAOTAssembly` 加载与
-Player 匹配的 AOT 补充元数据，校验工具包 DLL 的 SHA-256 后再用 `Assembly.Load`
-加载 `GameWithLLM.Tools.Pack.SmokeTest`。`AgentToolDiscovery` 仅显式扫描该程序集，
-`ToolsRegistry.RegisterToolPack` 在锁外校验整包、在锁内一次提交，并以
-`packageId + version + hash + toolNames` 识别幂等重载。内置工具只从稳定的
-`GameWithLLM.Client.BuiltinTools` 程序集注册，不再通过全 AppDomain 扫描顺带发现
-热更新工具。任何工具无效、同名冲突或包内容漂移都会拒绝整包，已注册工具不受
-影响；成功注册只产生一次 `ToolsChanged`。不提供卸载、替换或覆盖分支。
+当前 H4 本地启动顺序为：内容 bootstrap 完成后，读取完整 release manifest，只为
+候选快照引用的包加载 AOT 补充元数据和经 SHA-256 校验的 DLL；内置程序集和选中的
+热更新程序集只产生发现候选，不直接修改 Registry。`ToolsRegistry.PrepareToolSet`
+在锁外完成名称、来源、包身份、Descriptor、Schema、版本单调性、删除/重新启用和
+历史台账校验，`ActivateToolSet` 在锁内一次交换不可变活动快照和包索引。Runtime
+Gateway 与 A2A 在激活成功后才创建，因此不会发布或执行半套新旧工具。
+
+`GetRuntimeTools`、`GetAvailableToolNames` 和 `ExecuteAsync` 每次只读取同一个快照
+引用；执行开始后捕获的实例可正常完成。已停用工具不会出现在 Manifest 或实体能力
+中，陈旧调用稳定返回 `TOOL_RETIRED`。同一候选重复激活是幂等操作，成功切换至多
+触发一次 `ToolsChanged`；不提供逐项 Unregister、原地 Replace 或程序集卸载接口。
+候选失败时 Registry 保持上一完整快照，业务回滚通过下次启动选择上一成功 release
+完成。
 
 加载失败由 `AgentHostClient` 记录并降级为只运行 AOT BuiltinTools，不改变
 Go/Unity 权威边界。PDB 只进入 Development/QA 产物；正式构建的 staging hook
@@ -406,8 +414,9 @@ Bundle cache。
 
 启动时 `AgentHostClient` 先冻结 `PlayerMock` 输入并隐藏业务 `UIDocument`，再执行
 Addressables 初始化、Catalog 检查/更新、候选验证、下载和激活。激活之前不会创建
-A2A、Save 或 Runtime Gateway 客户端，不会发布 Runtime Manifest；H3 本地工具包
-也在激活之后才加载。首次离线且无成功缓存时，本地 IMGUI 错误界面保持可见并允许
+A2A、Save 或 Runtime Gateway 客户端，不会发布 Runtime Manifest；H4 本地
+release 的完整 ToolSet 也在内容激活之后、网络输入开放之前原子激活。首次离线且无
+成功缓存时，本地 IMGUI 错误界面保持可见并允许
 重试；有最后成功缓存时可降级继续。`enableContentBootstrap` 是场景级回滚开关。
 
 `ContentAssetProvider` 是 Addressables 唯一运行时入口。资源、实例和场景加载分别
@@ -438,17 +447,18 @@ A2A、Save 或 Runtime Gateway 客户端，不会发布 Runtime Manifest；H3 �
 | `Assets/Scripts/Networking/A2AClientAdapter.cs` | A2A JSON-RPC/SSE 与 SDK 事件映射 |
 | `Assets/Scripts/Networking/RuntimeGatewayClient.cs` | `IRuntimeTransport` WebSocket 实现 |
 | `Assets/Scripts/Networking/SaveCoordinationClient.cs` | Save Coordination REST Client |
-| `Assets/Scripts/CommandDispatcher/ToolsRegistry.cs` | 工具发现、Schema 和 Manifest 工具快照 |
+| `Assets/Scripts/CommandDispatcher/ToolsRegistry.cs` | H4 ToolSet 两阶段准备/激活、Schema 和 Manifest 快照 |
+| `Assets/Scripts/CommandDispatcher/ToolSetValidator.cs` | 工具版本、结构 Schema、身份历史和 tombstone 校验 |
 | `Assets/Scripts/CommandDispatcher/CommandDispatcher.cs` | 主线程 Entity 路由和每实体 FIFO |
 | `Assets/Scripts/CommandDispatcher/NpcTool.cs` | Warehouse 工具适配基类 |
 | `Assets/Scripts/Gameplay/NpcEntity.cs` | NPC 生命周期、NavMesh 行为和结果 |
 | `Assets/Scripts/Gameplay/Inventory` | 稳定 AOT 库存能力与视图模型 |
 | `Assets/Scripts/Tools` | AOT BuiltinTools 实现 |
-| `Assets/Scripts/Networking/HybridClrBootstrap.cs` | AOT 元数据和本地热更新工具包加载 |
+| `Assets/Scripts/Networking/HybridClrBootstrap.cs` | H4 release manifest、AOT metadata 和候选工具包加载 |
 | `Assets/Scripts/Networking/ClientContentBootstrap.cs` | Addressables 启动状态机、缓存降级和内容激活门控 |
 | `Assets/Scripts/Networking/ContentAssetProvider.cs` | Addressables 初始化、Catalog、下载、加载和 handle lease |
 | `Assets/Scripts/Networking/ContentBootstrapOverlay.cs` | 不依赖远端内容的本地错误、进度与重试 UI |
-| `Assets/HotUpdate/SmokeTest` | H3 本地多工具只读 Smoke Tool Pack |
+| `Assets/HotUpdate/SmokeTest` | H3 建立、由 H4 release 选择的本地多工具 Smoke Tool Pack |
 | `Assets/StreamingAssets/HotUpdate` | 本地 AOT metadata、带 SHA-256 包身份的 DLL、Development PDB 和清单 |
 | `Assets/Editor/HybridClrProjectSetup.cs` | HybridCLR 配置、生成、带包身份的 staging 和 Player 构建 |
 | `Assets/Editor/AddressablesA0InventoryValidator.cs` | A0 资产所有权、地址和场景硬引用基线校验 |

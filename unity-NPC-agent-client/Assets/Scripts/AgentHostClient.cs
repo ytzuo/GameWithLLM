@@ -122,10 +122,10 @@ public class AgentHostClient : Singleton<AgentHostClient>
         if (_runtimeInitialized)
             return;
 
-        IReadOnlyList<LoadedToolPack> loadedToolPacks = Array.Empty<LoadedToolPack>();
+        LoadedToolSetRelease loadedRelease = null;
         try
         {
-            loadedToolPacks = HybridClrBootstrap.LoadLocalToolPacks(enableHybridClrBootstrap);
+            loadedRelease = HybridClrBootstrap.LoadLocalRelease(enableHybridClrBootstrap);
         }
         catch (Exception ex)
         {
@@ -147,27 +147,25 @@ public class AgentHostClient : Singleton<AgentHostClient>
             player.ConfigureWorldTargetId(playerId);
         _dispatcher = CommandDispatcher.Instance;
         _tools = ToolsRegistry.Instance;
-        foreach (LoadedToolPack package in loadedToolPacks)
+        if (loadedRelease != null)
         {
             try
             {
-                IReadOnlyList<IAgentTool> tools =
-                    AgentToolDiscovery.DiscoverFromAssembly(package.Assembly);
-                ToolPackRegistrationResult result = _tools.RegisterToolPack(
-                    package.PackageId,
-                    package.PackageVersion,
-                    package.AssemblyHash,
-                    tools);
+                ToolSetCandidate candidate = loadedRelease.BuildCandidate(
+                    AgentToolDiscovery.DiscoverBuiltinTools());
+                PreparedToolSet prepared = _tools.PrepareToolSet(candidate);
+                ToolSetActivationResult result = _tools.ActivateToolSet(prepared);
+                ToolSetActivationStore.Save(_tools.ActiveSnapshot);
                 Debug.Log(
-                    $"[Hot Update] Tool package '{package.PackageId}' " +
-                    $"{(result.Idempotent ? "was already registered" : "registered atomically")} " +
+                    $"[Hot Update] Release '{result.ReleaseId}' ToolSet '{result.ToolSetVersion}' " +
+                    $"{(result.Idempotent ? "was already active" : "activated atomically")} " +
                     $"with {result.ToolCount} tools.");
             }
             catch (Exception ex)
             {
                 Debug.LogError(
-                    $"[Hot Update] Tool package '{package.PackageId}' was rejected; " +
-                    $"the existing Registry is unchanged: {ex}");
+                    $"[Hot Update] Release '{loadedRelease.ReleaseId}' was rejected; " +
+                    $"the last complete Registry snapshot remains active: {ex}");
             }
         }
         _dispatcher.EntityChanged += OnRuntimeChanged;

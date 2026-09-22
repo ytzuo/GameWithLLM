@@ -2,7 +2,9 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Reflection;
 using System.Security.Cryptography;
+using GameWithLLM.AgentRuntime;
 using HybridCLR.Editor;
 using HybridCLR.Editor.Commands;
 using HybridCLR.Editor.Installer;
@@ -109,6 +111,9 @@ public static class HybridClrProjectSetup
 
     public static void GenerateAndStageFromCommandLine() => RunCommand(GenerateAndStage);
 
+    public static void StageLocalArtifactsFromCommandLine() =>
+        RunCommand(() => StageLocalArtifacts(EditorUserBuildSettings.development));
+
     public static void BuildSmokePlayerFromCommandLine() =>
         BuildSmokePlayerFromCommandLine(
             "HybridClrH2",
@@ -120,6 +125,12 @@ public static class HybridClrProjectSetup
             "HybridClrH3",
             "h3-windows-il2cpp-build.json",
             "H3");
+
+    public static void BuildH4SmokePlayerFromCommandLine() =>
+        BuildSmokePlayerFromCommandLine(
+            "HybridClrH4",
+            "h4-windows-il2cpp-build.json",
+            "H4");
 
     private static void BuildSmokePlayerFromCommandLine(
         string buildDirectoryName,
@@ -208,8 +219,47 @@ public static class HybridClrProjectSetup
             File.Delete(stagedPdb);
         }
 
+        Assembly smokeAssembly = AppDomain.CurrentDomain.GetAssemblies().Single(candidate =>
+            string.Equals(candidate.GetName().Name, SmokeAssemblyName, StringComparison.Ordinal));
+        var releaseTools = new List<IAgentTool>();
+        releaseTools.AddRange(AgentToolDiscovery.DiscoverBuiltinTools());
+        releaseTools.AddRange(AgentToolDiscovery.DiscoverFromAssembly(smokeAssembly));
+        const string releaseId = "h4-local-1.0.0";
+        var activeTools = releaseTools.Select(tool =>
+        {
+            bool hot = string.Equals(
+                tool.GetType().Assembly.GetName().Name,
+                SmokeAssemblyName,
+                StringComparison.Ordinal);
+            return new ToolReleaseDeclaration
+            {
+                name = tool.Descriptor.Name,
+                toolIdentity = tool.Descriptor.Name,
+                source = hot ? "hot-update" : "builtin",
+                implementationVersion = "1.0.0",
+                contractVersion = "1.0.0",
+                packageId = hot ? HybridClrBootstrap.SmokePackageId : null,
+                packageVersion = hot ? HybridClrBootstrap.SmokePackageVersion : null,
+                assemblyName = tool.GetType().Assembly.GetName().Name,
+                assemblyHash = hot ? hotDllHash : null,
+                schemaHash = ToolSetValidator.ComputeSchemaHash(tool.Descriptor.InputSchemaJson)
+            };
+        }).OrderBy(tool => tool.name, StringComparer.Ordinal).ToArray();
+        string repositoryRoot = Directory.GetParent(
+            Directory.GetParent(Application.dataPath)?.FullName ?? Application.dataPath)?.FullName
+            ?? Application.dataPath;
+        ToolHistoryDeclaration[] history = LoadAndValidateHistoryLedger(
+            Path.Combine(repositoryRoot, "Docs", "Baselines", "h4-tool-history.json"),
+            activeTools,
+            Array.Empty<RetiredToolDeclaration>());
+
         string manifest = JsonConvert.SerializeObject(new
         {
+            releaseId,
+            toolSetVersion = "1.0.0",
+            catalogVersion = "embedded-1",
+            minPlayerVersion = Application.version,
+            maxPlayerVersion = Application.version,
             aotMetadataFiles = metadataFiles,
             toolPackages = new[]
             {
@@ -222,13 +272,64 @@ public static class HybridClrProjectSetup
                     assemblyHash = hotDllHash,
                     debugSymbolFile = pdbFile
                 }
-            }
+            },
+            activeTools,
+            retiredTools = Array.Empty<RetiredToolDeclaration>(),
+            toolHistory = history
         }, Formatting.Indented);
         File.WriteAllText(
             Path.Combine(destination, "local-hot-update-manifest.json"),
             manifest + Environment.NewLine);
         AssetDatabase.Refresh();
         Debug.Log($"[Hot Update] Staged local HybridCLR artifacts at '{destination}'.");
+    }
+
+    private static ToolHistoryDeclaration[] LoadAndValidateHistoryLedger(
+        string path,
+        IReadOnlyList<ToolReleaseDeclaration> activeTools,
+        IReadOnlyList<RetiredToolDeclaration> retiredTools)
+    {
+        if (!File.Exists(path))
+            throw new FileNotFoundException("The committed H4 tool history ledger is missing.", path);
+        ToolHistoryDeclaration[] history =
+            JsonConvert.DeserializeObject<ToolHistoryDeclaration[]>(File.ReadAllText(path))
+            ?? throw new InvalidDataException("The H4 tool history ledger is invalid.");
+        var active = activeTools.ToDictionary(tool => tool.name, StringComparer.Ordinal);
+        var retired = retiredTools.ToDictionary(tool => tool.name, StringComparer.Ordinal);
+        var seen = new HashSet<string>(StringComparer.Ordinal);
+        foreach (ToolHistoryDeclaration record in history)
+        {
+            if (record == null || string.IsNullOrWhiteSpace(record.name) || !seen.Add(record.name))
+                throw new InvalidDataException("The H4 history ledger contains a null or duplicate tool record.");
+            if (active.TryGetValue(record.name, out ToolReleaseDeclaration declaration))
+            {
+                if (!string.Equals(record.toolIdentity, declaration.toolIdentity, StringComparison.Ordinal) ||
+                    !string.Equals(record.source, declaration.source, StringComparison.Ordinal) ||
+                    !string.Equals(record.implementationVersion, declaration.implementationVersion, StringComparison.Ordinal) ||
+                    !string.Equals(record.contractVersion, declaration.contractVersion, StringComparison.Ordinal) ||
+                    !string.Equals(record.schemaHash, declaration.schemaHash, StringComparison.OrdinalIgnoreCase) ||
+                    !string.Equals(record.assemblyHash ?? string.Empty, declaration.assemblyHash ?? string.Empty, StringComparison.OrdinalIgnoreCase) ||
+                    !string.IsNullOrEmpty(record.retiredInToolSetVersion))
+                    throw new InvalidDataException($"H4 history ledger does not match active tool '{record.name}'.");
+            }
+            else if (retired.TryGetValue(record.name, out RetiredToolDeclaration tombstone))
+            {
+                if (!string.Equals(record.toolIdentity, tombstone.toolIdentity, StringComparison.Ordinal) ||
+                    !string.Equals(record.retiredInToolSetVersion, tombstone.retiredInToolSetVersion, StringComparison.Ordinal))
+                    throw new InvalidDataException($"H4 history ledger does not match retired tool '{record.name}'.");
+            }
+            else
+            {
+                throw new InvalidDataException(
+                    $"Historical tool '{record.name}' must remain active or have a release tombstone.");
+            }
+        }
+        foreach (string name in active.Keys.Concat(retired.Keys))
+        {
+            if (!seen.Contains(name))
+                throw new InvalidDataException($"Release tool '{name}' is missing from the committed H4 history ledger.");
+        }
+        return history;
     }
 
     private static string ComputeSha256(byte[] bytes)

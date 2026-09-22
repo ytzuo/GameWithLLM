@@ -8,11 +8,8 @@ public static class AgentToolDiscovery
 {
     private const string BuiltinToolsAssemblyName = "GameWithLLM.Client.BuiltinTools";
 
-    public static void RegisterAll(ToolsRegistry registry)
+    public static IReadOnlyList<IAgentTool> DiscoverBuiltinTools()
     {
-        if (registry == null)
-            throw new ArgumentNullException(nameof(registry));
-
         Assembly assembly = AppDomain.CurrentDomain.GetAssemblies()
             .FirstOrDefault(candidate => string.Equals(
                 candidate.GetName().Name,
@@ -24,8 +21,7 @@ public static class AgentToolDiscovery
                 $"Builtin tool assembly '{BuiltinToolsAssemblyName}' is not loaded.");
         }
 
-        foreach (IAgentTool tool in DiscoverFromAssembly(assembly))
-            registry.RegisterTool(tool);
+        return DiscoverFromAssembly(assembly);
     }
 
     // 显式程序集发现是热更新工具包的唯一入口。任何已标记但不合法的工具类型

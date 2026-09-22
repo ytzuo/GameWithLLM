@@ -78,7 +78,7 @@ MonoBehaviour:
     m_BundleBuildPath: Temp/com.unity.addressables/AssetBundles
   m_ProfileSettings:
     m_Profiles:
-    - m_InheritedParent:
+    - m_InheritedParent: 
       m_Id: 3377915ddc3742742ae314835d15df75
       m_ProfileName: Default
       m_Values:
@@ -98,7 +98,7 @@ MonoBehaviour:
         m_Value: a1-bootstrap
       - m_Id: edb89a2171dd4d14db55e5a376b98816
         m_Value: '{UnityEngine.AddressableAssets.Addressables.RuntimePath}/[BuildTarget]'
-    - m_InheritedParent:
+    - m_InheritedParent: 
       m_Id: 03e45be365ad9c241a8a56ab5e9c7b0a
       m_ProfileName: LocalDevelopment
       m_Values:
@@ -118,7 +118,7 @@ MonoBehaviour:
         m_Value: a1-bootstrap
       - m_Id: edb89a2171dd4d14db55e5a376b98816
         m_Value: '{UnityEngine.AddressableAssets.Addressables.RuntimePath}/[BuildTarget]'
-    - m_InheritedParent:
+    - m_InheritedParent: 
       m_Id: 6712074e9c0399549a565b2e4caef64b
       m_ProfileName: QA
       m_Values:
@@ -138,7 +138,7 @@ MonoBehaviour:
         m_Value: a1-bootstrap
       - m_Id: edb89a2171dd4d14db55e5a376b98816
         m_Value: '{UnityEngine.AddressableAssets.Addressables.RuntimePath}/[BuildTarget]'
-    - m_InheritedParent:
+    - m_InheritedParent: 
       m_Id: fd1c1c8943cc9634ba78007e0d8ae6cf
       m_ProfileName: Production
       m_Values:
