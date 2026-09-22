@@ -37,11 +37,13 @@ public sealed class SmokeTestTool : NpcTool<SmokeTestArgs>
             JObject.FromObject(new
             {
                 packageId = "smoke-test",
-                packageVersion = "1.0.0",
+                packageVersion = "1.1.0",
                 npcId = npc.npcId,
                 echo = args.echo ?? string.Empty
             }),
-            "HybridCLR Smoke Tool Pack 已执行。");
+            ClientTextCatalogs.Message(
+                "tool.smoke.executed",
+                "HybridCLR Smoke Tool Pack 已执行。"));
     }
 }
 
@@ -74,9 +76,11 @@ public sealed class SmokePackageInfoTool : NpcTool<SmokePackageInfoArgs>
             JObject.FromObject(new
             {
                 packageId = "smoke-test",
-                packageVersion = "1.0.0",
+                packageVersion = "1.1.0",
                 toolCount = 2
             }),
-            "Smoke Tool Pack 信息已返回。");
+            ClientTextCatalogs.Message(
+                "tool.smoke.info_returned",
+                "Smoke Tool Pack 信息已返回。"));
     }
 }

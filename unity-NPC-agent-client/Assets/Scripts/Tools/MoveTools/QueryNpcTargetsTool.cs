@@ -66,9 +66,13 @@ public sealed class QuerySceneTargetsTool : NpcTool<QuerySceneTargetsArgs>
             .ToList();
 
         string message = targets.Count == 0
-            ? "当前筛选条件下没有可用移动目标。"
-            : $"当前可用移动目标有：{string.Join("、", targets.Select(target => target.DisplayName))}。" +
-              "移动时请使用返回结果中的 targetId。";
+            ? ClientTextCatalogs.Message(
+                "tool.move.no_targets",
+                "当前筛选条件下没有可用移动目标。")
+            : ClientTextCatalogs.Message(
+                "tool.move.targets_found",
+                "当前可用移动目标有：{0}。移动时请使用返回结果中的 targetId。",
+                string.Join("、", targets.Select(target => target.DisplayName)));
 
         return Success(JToken.FromObject(new { count = targets.Count, targets }), message);
     }

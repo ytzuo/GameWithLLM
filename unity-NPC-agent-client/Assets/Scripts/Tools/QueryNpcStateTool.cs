@@ -29,6 +29,9 @@ public sealed class QueryNpcStateTool : NpcTool<QueryNpcStateArgs>
     {
         return Success(
             npc.CreateRuntimeStateData(),
-            $"已获取 NPC '{npc.npcId}' 的当前状态。");
+            ClientTextCatalogs.Message(
+                "tool.state.loaded",
+                "已获取 NPC '{0}' 的当前状态。",
+                npc.npcId));
     }
 }

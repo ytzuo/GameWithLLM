@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 1,
+  "contentVersion": "2026.09.001",
+  "locale": "zh-CN",
+  "texts": {
+    "tool.error.invalid_context": "该工具要求有效的 NPC 实体。",
+    "tool.error.execution_failed": "工具 '{0}' 执行失败：{1}",
+    "tool.error.retired": "工具 '{0}' 已停用。",
+    "tool.error.unavailable": "工具 '{0}' 当前不适用于实体 '{1}'。",
+    "tool.error.unknown": "未注册工具 '{0}'。",
+    "tool.inventory.containers_found": "发现 {0} 个容器；操作前请使用返回的 containerId，并根据 inRange 判断是否需要移动。",
+    "tool.inventory.no_containers": "当前筛选条件下没有可用容器。",
+    "tool.inventory.put_succeeded": "已将 {0} 个 '{1}' 放入 '{2}'。",
+    "tool.inventory.take_succeeded": "已从 '{0}' 取出 {1} 个 '{2}'。",
+    "tool.move.arrived": "NPC 已到达 {0} 附近。",
+    "tool.move.no_targets": "当前筛选条件下没有可用移动目标。",
+    "tool.move.targets_found": "当前可用移动目标有：{0}。移动时请使用返回结果中的 targetId。",
+    "tool.smoke.executed": "HybridCLR Smoke Tool Pack 已执行。",
+    "tool.smoke.info_returned": "Smoke Tool Pack 信息已返回。",
+    "tool.state.loaded": "已获取 NPC '{0}' 的当前状态。"
+  }
+}

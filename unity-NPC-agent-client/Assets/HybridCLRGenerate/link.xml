@@ -6,6 +6,7 @@
     <type fullname="GameWithLLM.AgentRuntime.AgentToolResult" preserve="all" />
   </assembly>
   <assembly fullname="GameWithLLM.Client.Gameplay">
+    <type fullname="ClientTextCatalogs" preserve="all" />
     <type fullname="NpcEntity" preserve="all" />
   </assembly>
   <assembly fullname="GameWithLLM.Client.ToolFramework">

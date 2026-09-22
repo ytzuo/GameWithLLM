@@ -1,6 +1,8 @@
 package agent
 
 import (
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -22,6 +24,33 @@ func TestBuildSystemPromptIncludesIdentityAndCoreRules(t *testing.T) {
 			t.Errorf("system prompt does not include %q", value)
 		}
 	}
+}
+
+func TestLoadSystemPromptCatalogBuildsVersionedPrompt(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "prompt.json")
+	json := `{"schemaVersion":1,"contentVersion":"test-2","locale":"zh-CN","template":"{{displayName}}|{{npcId}}|{{identity}}|{{personality}}|{{speakingStyle}}|{{responsibilities}}|{{worldKnowledge}}|{{forbiddenTopics}}"}`
+	assert.NoError(t, os.WriteFile(path, []byte(json), 0o600))
+	catalog, err := LoadSystemPromptCatalog(path)
+	assert.NoError(t, err)
+	assert.Equal(t, "test-2", catalog.ContentVersion)
+	assert.Contains(t, catalog.Build(testNPCProfile("Ryan_001")), "Ryan_001")
+}
+
+func TestSystemPromptCatalogRejectsUnknownFieldsAndPlaceholders(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "prompt.json")
+	assert.NoError(t, os.WriteFile(path, []byte(`{"schemaVersion":1,"contentVersion":"x","locale":"zh-CN","template":"{{unknown}}","extra":true}`), 0o600))
+	_, err := LoadSystemPromptCatalog(path)
+	assert.Error(t, err)
+}
+
+func TestSystemPromptCatalogRejectsDuplicateProperties(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "prompt.json")
+	assert.NoError(t, os.WriteFile(path, []byte(`{"schemaVersion":1,"schemaVersion":1,"contentVersion":"x","locale":"zh-CN","template":"x"}`), 0o600))
+	_, err := LoadSystemPromptCatalog(path)
+	assert.ErrorContains(t, err, "duplicate JSON property")
 }
 func TestBuildSystemPromptUsesDistinctProfilesAndSharedResponsibilities(t *testing.T) {
 	ryan := testNPCProfile("Ryan_001")

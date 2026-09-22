@@ -13,7 +13,7 @@ public static class ToolSetActivationStore
         public string catalogVersion;
     }
 
-    public static void Save(ToolSetSnapshot snapshot)
+    public static void Save(ToolSetSnapshot snapshot, ToolMetadataCatalog catalog = null)
     {
         if (snapshot == null)
             throw new ArgumentNullException(nameof(snapshot));
@@ -21,7 +21,7 @@ public static class ToolSetActivationStore
         {
             releaseId = snapshot.ReleaseId,
             toolSetVersion = snapshot.ToolSetVersion,
-            catalogVersion = snapshot.CatalogVersion
+            catalogVersion = catalog?.ContentVersion ?? snapshot.CatalogVersion
         }));
         PlayerPrefs.Save();
     }

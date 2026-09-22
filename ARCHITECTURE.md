@@ -226,6 +226,12 @@ Unity 权威保存 Transform、NavMesh 位置和 Inventory；Agent Service 只�
 system 的对话快照。操作通过 `saveId + operationId` 关联。restore 使用当前
 Profile 和 system prompt 创建新的 A2A Context ID。存档操作不是模型工具。
 
+System Prompt 由 Go 启动时严格加载 `config/system_prompt.zh-CN.json`，通过
+`SYSTEM_PROMPT_PATH` 可选择其他文件。Catalog 只记录 schema、内容版本、locale
+和带固定占位符的模板，不进入 Unity 或 Addressables。活动 Catalog 的切换只影响
+之后创建或恢复出的 Context；已有 Context 保留创建时的 Prompt 字符串。日志只可
+记录版本和加载结果，不记录 Prompt 正文。
+
 ## 3. 进程内契约
 
 以下边界不经过网络，也不重复定义协议 DTO：
@@ -276,11 +282,13 @@ ConversationService
 
 ### 5.1 启动和注册
 
-1. Unity 反射发现 `IAgentTool`，注册 `IAgentEntity`，生成完整 Manifest。
-2. `RuntimeGatewayClient` 作为 WebSocket 客户端主动连接 Gateway 的
+1. Unity 完成内容 bootstrap，读取 H4 release，只加载活动工具包并发现候选工具。
+2. Unity 联合验证完整 ToolSet 与 H5 三份 JSON Catalog，原子激活后注册
+   `IAgentEntity` 并生成完整 Manifest。
+3. `RuntimeGatewayClient` 作为 WebSocket 客户端主动连接 Gateway 的
    `/runtime/ws`，并发送 `runtime.initialize`。
-3. Gateway 验证 token，登记 `instanceId`、Manifest 和 generation。
-4. Entity 或工具变化时，Unity 发送完整 `runtime.manifest.changed`。
+4. Gateway 验证 token，登记 `instanceId`、Manifest 和 generation。
+5. Entity、工具或工具描述变化时，Unity 发送完整 `runtime.manifest.changed`。
 
 Unity 启动时会在配置的 `UNITY_INSTANCE_ID` 后追加随机 GUID，因此每次运行
 获得独立 Runtime ID。
@@ -367,7 +375,7 @@ Windows Player 使用 IL2CPP x86_64，HybridCLR 只承载版本化的 NPC 工具
   只能以同一逻辑身份和更高版本重新启用，不得改作无关语义。
 - 参数仍以 JSON 对象跨越 Runtime/MCP 边界。
 
-当前 H4 本地启动顺序为：内容 bootstrap 完成后，读取完整 release manifest，只为
+当前 H4/H5 本地启动顺序为：内容 bootstrap 完成后，读取完整 release manifest，只为
 候选快照引用的包加载 AOT 补充元数据和经 SHA-256 校验的 DLL；内置程序集和选中的
 热更新程序集只产生发现候选，不直接修改 Registry。`ToolsRegistry.PrepareToolSet`
 在锁外完成名称、来源、包身份、Descriptor、Schema、版本单调性、删除/重新启用和
@@ -380,6 +388,20 @@ Gateway 与 A2A 在激活成功后才创建，因此不会发布或执行半套�
 触发一次 `ToolsChanged`；不提供逐项 Unregister、原地 Replace 或程序集卸载接口。
 候选失败时 Registry 保持上一完整快照，业务回滚通过下次启动选择上一成功 release
 完成。
+
+H5 将自然语言文案与结构契约分离。`ToolContract<TArgs>` 生成的缓存 Schema 只含
+类型、必填、范围、模式、枚举和 `additionalProperties` 等结构字段；工具及参数
+description 只从版本化 `tool_metadata.zh-CN.json` 注入。Catalog 使用严格 JSON
+解析，并与候选 ToolSet 联合验证：活动工具和结构参数必须完整覆盖，未知/停用工具、
+未知参数和路由字段 `entityId` 均被拒绝。`ToolsRegistry` 在同一激活锁内交换完整
+ToolSet/Catalog，纯文案更新则只原子交换 Catalog；成功切换只触发一次完整 Manifest
+更新，无效 Catalog 保留上一成功快照。
+
+`agent_messages.zh-CN.json` 与 `ui.zh-CN.json` 使用稳定文本键。它们与工具 Catalog
+共享同一 `contentVersion`，在 ToolSet 提交前全部完成严格验证，再由
+`ClientTextCatalogs` 一次发布；错误码、协议错误和日志事件名仍固定在代码中。
+本地 H5 staging 将三份 JSON 与 release manifest、metadata 和工具 DLL 一起写入
+`StreamingAssets/HotUpdate`；A2 再把同一逻辑地址迁移到 Addressables。
 
 加载失败由 `AgentHostClient` 记录并降级为只运行 AOT BuiltinTools，不改变
 Go/Unity 权威边界。PDB 只进入 Development/QA 产物；正式构建的 staging hook
@@ -433,7 +455,7 @@ release 的完整 ToolSet 也在内容激活之后、网络输入开放之前原
 | `internal/config` | 环境变量与根目录 dotenv |
 | `internal/handler` | 路由装配和健康检查 |
 | `internal/a2a` | Agent Card、A2A JSON-RPC/SSE、Game Context 校验 |
-| `internal/agent` | Profile、内存 Context、LLM、tool loop 和对话归档 |
+| `internal/agent` | Profile、版本化 System Prompt、内存 Context、LLM、tool loop 和对话归档 |
 | `internal/mcp` | MCP 类型、HTTP Client、Entity 绑定和 Agent Runtime Adapter |
 | `internal/gateway` | Runtime Bridge、Registry、generation 和虚拟 MCP |
 | `internal/savecoord` | prepare、commit、restore、status |
@@ -447,11 +469,13 @@ release 的完整 ToolSet 也在内容激活之后、网络输入开放之前原
 | `Assets/Scripts/Networking/A2AClientAdapter.cs` | A2A JSON-RPC/SSE 与 SDK 事件映射 |
 | `Assets/Scripts/Networking/RuntimeGatewayClient.cs` | `IRuntimeTransport` WebSocket 实现 |
 | `Assets/Scripts/Networking/SaveCoordinationClient.cs` | Save Coordination REST Client |
-| `Assets/Scripts/CommandDispatcher/ToolsRegistry.cs` | H4 ToolSet 两阶段准备/激活、Schema 和 Manifest 快照 |
+| `Assets/Scripts/CommandDispatcher/ToolsRegistry.cs` | H4/H5 ToolSet 与 Catalog 两阶段准备/原子激活、Manifest 快照 |
+| `Assets/Scripts/CommandDispatcher/ToolMetadataCatalog.cs` | H5 工具/参数描述 JSON 的严格验证与 Schema 注入 |
 | `Assets/Scripts/CommandDispatcher/ToolSetValidator.cs` | 工具版本、结构 Schema、身份历史和 tombstone 校验 |
 | `Assets/Scripts/CommandDispatcher/CommandDispatcher.cs` | 主线程 Entity 路由和每实体 FIFO |
 | `Assets/Scripts/CommandDispatcher/NpcTool.cs` | Warehouse 工具适配基类 |
 | `Assets/Scripts/Gameplay/NpcEntity.cs` | NPC 生命周期、NavMesh 行为和结果 |
+| `Assets/Scripts/Gameplay/ClientTextCatalog.cs` | H5 agent/UI 稳定文本键 Catalog 与活动快照 |
 | `Assets/Scripts/Gameplay/Inventory` | 稳定 AOT 库存能力与视图模型 |
 | `Assets/Scripts/Tools` | AOT BuiltinTools 实现 |
 | `Assets/Scripts/Networking/HybridClrBootstrap.cs` | H4 release manifest、AOT metadata 和候选工具包加载 |
@@ -459,6 +483,7 @@ release 的完整 ToolSet 也在内容激活之后、网络输入开放之前原
 | `Assets/Scripts/Networking/ContentAssetProvider.cs` | Addressables 初始化、Catalog、下载、加载和 handle lease |
 | `Assets/Scripts/Networking/ContentBootstrapOverlay.cs` | 不依赖远端内容的本地错误、进度与重试 UI |
 | `Assets/HotUpdate/SmokeTest` | H3 建立、由 H4 release 选择的本地多工具 Smoke Tool Pack |
+| `Assets/Content/Catalogs` | H5 工具元数据、Agent 消息和 UI 文本 JSON 源文件 |
 | `Assets/StreamingAssets/HotUpdate` | 本地 AOT metadata、带 SHA-256 包身份的 DLL、Development PDB 和清单 |
 | `Assets/Editor/HybridClrProjectSetup.cs` | HybridCLR 配置、生成、带包身份的 staging 和 Player 构建 |
 | `Assets/Editor/AddressablesA0InventoryValidator.cs` | A0 资产所有权、地址和场景硬引用基线校验 |
@@ -486,6 +511,7 @@ Agent Service：
 - `LLM_MAX_CONTEXT_CHARS`
 - `CONVERSATION_SAVE_DIR`
 - `NPC_PROFILE_PATH`
+- `SYSTEM_PROMPT_PATH`
 
 Unity：
 

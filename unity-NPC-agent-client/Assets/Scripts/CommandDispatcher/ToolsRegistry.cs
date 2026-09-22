@@ -12,6 +12,7 @@ public class ToolsRegistry : Singleton<ToolsRegistry>
 {
     private readonly object _activationLock = new object();
     private ToolSetSnapshot _activeSnapshot;
+    private ToolMetadataCatalog _activeCatalog;
 
     public event Action ToolsChanged;
 
@@ -25,9 +26,18 @@ public class ToolsRegistry : Singleton<ToolsRegistry>
             lock (_activationLock)
             {
                 if (_activeSnapshot == null)
-                    _activeSnapshot = CreateBuiltinSnapshot();
+                    InitializeBuiltinState();
                 return _activeSnapshot;
             }
+        }
+    }
+
+    public ToolMetadataCatalog ActiveCatalog
+    {
+        get
+        {
+            _ = ActiveSnapshot;
+            return Volatile.Read(ref _activeCatalog);
         }
     }
 
@@ -35,14 +45,18 @@ public class ToolsRegistry : Singleton<ToolsRegistry>
     {
         base.Init();
         if (_activeSnapshot == null)
-            _activeSnapshot = CreateBuiltinSnapshot();
+            InitializeBuiltinState();
     }
 
-    private static ToolSetSnapshot CreateBuiltinSnapshot()
+    private void InitializeBuiltinState()
     {
         IReadOnlyList<IAgentTool> builtins = AgentToolDiscovery.DiscoverBuiltinTools();
         ToolSetCandidate baseline = ToolSetCandidateFactory.CreateBuiltinDefault(builtins);
-        return ToolSetValidator.Prepare(baseline, null);
+        ToolSetSnapshot snapshot = ToolSetValidator.Prepare(baseline, null);
+        Volatile.Write(ref _activeSnapshot, snapshot);
+        Volatile.Write(
+            ref _activeCatalog,
+            ToolMetadataCatalog.CreateCompatibilityCatalog(snapshot, baseline.CatalogVersion));
     }
 
     // 所有反射发现、Descriptor、Schema、版本和历史校验都在活动锁外完成。
@@ -50,7 +64,30 @@ public class ToolsRegistry : Singleton<ToolsRegistry>
     {
         ToolSetSnapshot current = ActiveSnapshot;
         ToolSetSnapshot prepared = ToolSetValidator.Prepare(candidate, current);
-        return new PreparedToolSet(prepared, current?.Fingerprint);
+        ToolMetadataCatalog catalog = ToolMetadataCatalog.CreateCompatibilityCatalog(
+            prepared,
+            candidate.CatalogVersion);
+        return new PreparedToolSet(
+            prepared,
+            catalog,
+            current?.Fingerprint,
+            ActiveCatalog?.Fingerprint);
+    }
+
+    // 发布路径必须把 ToolSet 和 JSON Catalog 一起准备；任一验证失败都不改变活动状态。
+    public PreparedToolSet PrepareToolSet(ToolSetCandidate candidate, string toolMetadataJson)
+    {
+        ToolSetSnapshot current = ActiveSnapshot;
+        ToolSetSnapshot prepared = ToolSetValidator.Prepare(candidate, current);
+        ToolMetadataCatalog catalog = ToolMetadataCatalog.ParseAndValidate(
+            toolMetadataJson,
+            prepared,
+            candidate.CatalogVersion);
+        return new PreparedToolSet(
+            prepared,
+            catalog,
+            current?.Fingerprint,
+            ActiveCatalog?.Fingerprint);
     }
 
     // 只有完整候选可进入这里；锁内仅验证基线并原子交换一次快照引用。
@@ -62,14 +99,20 @@ public class ToolsRegistry : Singleton<ToolsRegistry>
         lock (_activationLock)
         {
             ToolSetSnapshot current = _activeSnapshot;
+            ToolMetadataCatalog currentCatalog = _activeCatalog;
             if (current != null && string.Equals(
                     current.Fingerprint,
                     prepared.Snapshot.Fingerprint,
-                    StringComparison.Ordinal))
+                    StringComparison.Ordinal) &&
+                string.Equals(currentCatalog?.Fingerprint, prepared.Catalog.Fingerprint, StringComparison.Ordinal))
                 return new ToolSetActivationResult(false, true, current);
             if (!string.Equals(current?.Fingerprint, prepared.BaseFingerprint, StringComparison.Ordinal))
                 throw new InvalidOperationException(
                     "The prepared ToolSet is stale because another snapshot was activated first.");
+            if (!string.Equals(currentCatalog?.Fingerprint, prepared.BaseCatalogFingerprint, StringComparison.Ordinal))
+                throw new InvalidOperationException(
+                    "The prepared ToolSet is stale because another Catalog was activated first.");
+            Volatile.Write(ref _activeCatalog, prepared.Catalog);
             Volatile.Write(ref _activeSnapshot, prepared.Snapshot);
             result = prepared.Snapshot;
         }
@@ -77,16 +120,52 @@ public class ToolsRegistry : Singleton<ToolsRegistry>
         return new ToolSetActivationResult(true, false, result);
     }
 
+    public PreparedToolMetadataCatalog PrepareCatalog(string toolMetadataJson)
+    {
+        ToolSetSnapshot snapshot = ActiveSnapshot;
+        ToolMetadataCatalog catalog = ToolMetadataCatalog.ParseAndValidate(toolMetadataJson, snapshot);
+        return new PreparedToolMetadataCatalog(
+            catalog,
+            snapshot.Fingerprint,
+            ActiveCatalog?.Fingerprint);
+    }
+
+    // 纯文案更新/回滚不触碰执行路由，只原子交换 Catalog，并发布一次完整 Manifest。
+    public bool ActivateCatalog(PreparedToolMetadataCatalog prepared)
+    {
+        if (prepared == null)
+            throw new ArgumentNullException(nameof(prepared));
+        lock (_activationLock)
+        {
+            if (!string.Equals(_activeSnapshot?.Fingerprint, prepared.BaseToolSetFingerprint, StringComparison.Ordinal))
+                throw new InvalidOperationException("The prepared Catalog is stale because the ToolSet changed.");
+            if (string.Equals(_activeCatalog?.Fingerprint, prepared.Catalog.Fingerprint, StringComparison.Ordinal))
+                return false;
+            if (!string.Equals(_activeCatalog?.Fingerprint, prepared.BaseCatalogFingerprint, StringComparison.Ordinal))
+                throw new InvalidOperationException("The prepared Catalog is stale because another Catalog was activated first.");
+            Volatile.Write(ref _activeCatalog, prepared.Catalog);
+        }
+        ToolsChanged?.Invoke();
+        return true;
+    }
+
     // 在业务 Schema 外层注入必需的 entityId；业务工具本身无需声明路由字段。
     public List<AgentToolDescriptor> GetRuntimeTools()
     {
-        ToolSetSnapshot snapshot = ActiveSnapshot;
+        _ = ActiveSnapshot;
+        ToolSetSnapshot snapshot;
+        ToolMetadataCatalog catalog;
+        lock (_activationLock)
+        {
+            snapshot = _activeSnapshot;
+            catalog = _activeCatalog;
+        }
         var list = new List<AgentToolDescriptor>(snapshot?.Tools.Count ?? 0);
         if (snapshot == null)
             return list;
         foreach (KeyValuePair<string, IAgentTool> entry in snapshot.Tools)
         {
-            AgentToolDescriptor descriptor = snapshot.Descriptors[entry.Key];
+            AgentToolDescriptor descriptor = catalog.Apply(snapshot.Descriptors[entry.Key]);
             var schema = JObject.Parse(descriptor.InputSchemaJson);
             var properties = schema["properties"] as JObject ?? new JObject();
             schema["type"] = "object";
@@ -161,8 +240,12 @@ public class ToolsRegistry : Singleton<ToolsRegistry>
         if (snapshot == null || !snapshot.Tools.TryGetValue(toolName, out IAgentTool tool))
         {
             if (snapshot?.IsRetired(toolName) == true)
-                return AgentToolResult.Failure("TOOL_RETIRED", $"工具 '{toolName}' 已停用。");
-            return AgentToolResult.Failure("UNKNOWN_TOOL", $"未注册工具 '{toolName}'。");
+                return AgentToolResult.Failure(
+                    "TOOL_RETIRED",
+                    ClientTextCatalogs.Message("tool.error.retired", "工具 '{0}' 已停用。", toolName));
+            return AgentToolResult.Failure(
+                "UNKNOWN_TOOL",
+                ClientTextCatalogs.Message("tool.error.unknown", "未注册工具 '{0}'。", toolName));
         }
 
         try
@@ -171,7 +254,11 @@ public class ToolsRegistry : Singleton<ToolsRegistry>
             {
                 return AgentToolResult.Failure(
                     "TOOL_UNAVAILABLE",
-                    $"工具 '{toolName}' 当前不适用于实体 '{context?.Entity?.EntityId}'。");
+                    ClientTextCatalogs.Message(
+                        "tool.error.unavailable",
+                        "工具 '{0}' 当前不适用于实体 '{1}'。",
+                        toolName,
+                        context?.Entity?.EntityId));
             }
             return await tool.ExecuteAsync(context, argumentsJson, cancellationToken);
         }
@@ -184,7 +271,11 @@ public class ToolsRegistry : Singleton<ToolsRegistry>
             Debug.LogError($"[ToolsRegistry] 工具 '{toolName}' 发生未处理异常: {ex}");
             return AgentToolResult.Failure(
                 "TOOL_EXECUTION_FAILED",
-                $"工具 '{toolName}' 执行失败：{ex.Message}");
+                ClientTextCatalogs.Message(
+                    "tool.error.execution_failed",
+                    "工具 '{0}' 执行失败：{1}",
+                    toolName,
+                    ex.Message));
         }
     }
 }

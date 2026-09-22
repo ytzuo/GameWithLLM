@@ -30,12 +30,19 @@ func RegisterRoutesWithConfig(mux *http.ServeMux, cfg config.Config) (*App, erro
 	if err != nil {
 		return nil, fmt.Errorf("load NPC profiles: %w", err)
 	}
+	promptCatalog, err := agent.LoadSystemPromptCatalog(cfg.SystemPromptPath)
+	if err != nil {
+		return nil, fmt.Errorf("load system prompt catalog: %w", err)
+	}
 	llm := agent.NewOpenAICompatibleClient(cfg.LLMAPIURL, cfg.LLMAPIKey, cfg.LLMModel, cfg.LLMRequestTimeout, cfg.LLMMaxRetries)
 	registry := gateway.NewRegistry()
 	runtime := mcp.NewAgentRuntime(registry)
 	conversations := agent.NewConversationServiceWithArchive(
 		llm, agent.NewMemorySessionStore(), runtime, profiles, cfg.LLMModel,
 		cfg.LLMMaxToolRounds, agent.NewFileConversationArchive(cfg.ConversationSaveDir), cfg.LLMMaxContextChars)
+	if err := conversations.ActivateSystemPromptCatalog(promptCatalog); err != nil {
+		return nil, fmt.Errorf("activate system prompt catalog: %w", err)
+	}
 	a2aServer := a2a.NewServer(conversations, cfg.BaseURL, cfg.A2ABearerToken)
 	gatewayServer := gateway.NewServer(registry, cfg.RuntimeGatewayToken, cfg.GatewayServiceToken)
 	saveCoordinator := savecoord.New(conversations, cfg.A2ABearerToken)

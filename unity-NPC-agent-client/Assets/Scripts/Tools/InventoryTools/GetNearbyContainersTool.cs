@@ -18,8 +18,13 @@ public sealed class GetNearbyContainersTool : InventoryNpcTool<NearbyContainersA
         List<NearbyInventoryContainer> containers =
             InventoryToolSupport.GetContainers(npc, args.maxDistance, args.inRangeOnly);
         string message = containers.Count == 0
-            ? "当前筛选条件下没有可用容器。"
-            : $"发现 {containers.Count} 个容器；操作前请使用返回的 containerId，并根据 inRange 判断是否需要移动。";
+            ? ClientTextCatalogs.Message(
+                "tool.inventory.no_containers",
+                "当前筛选条件下没有可用容器。")
+            : ClientTextCatalogs.Message(
+                "tool.inventory.containers_found",
+                "发现 {0} 个容器；操作前请使用返回的 containerId，并根据 inRange 判断是否需要移动。",
+                containers.Count);
         return Success(InventoryToolSupport.CreateNearbyContainersData(containers), message);
     }
 }

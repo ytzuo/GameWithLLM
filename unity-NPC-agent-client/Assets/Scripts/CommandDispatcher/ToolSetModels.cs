@@ -172,12 +172,20 @@ public sealed class ToolSetSnapshot
 public sealed class PreparedToolSet
 {
     internal ToolSetSnapshot Snapshot { get; }
+    internal ToolMetadataCatalog Catalog { get; }
     internal string BaseFingerprint { get; }
+    internal string BaseCatalogFingerprint { get; }
 
-    internal PreparedToolSet(ToolSetSnapshot snapshot, string baseFingerprint)
+    internal PreparedToolSet(
+        ToolSetSnapshot snapshot,
+        ToolMetadataCatalog catalog,
+        string baseFingerprint,
+        string baseCatalogFingerprint)
     {
         Snapshot = snapshot;
+        Catalog = catalog;
         BaseFingerprint = baseFingerprint;
+        BaseCatalogFingerprint = baseCatalogFingerprint;
     }
 }
 
@@ -188,6 +196,7 @@ public sealed class ToolSetActivationResult
     public int ToolCount { get; }
     public string ReleaseId { get; }
     public string ToolSetVersion { get; }
+    public string CatalogVersion { get; }
 
     internal ToolSetActivationResult(
         bool activated,
@@ -199,5 +208,6 @@ public sealed class ToolSetActivationResult
         ToolCount = snapshot.Tools.Count;
         ReleaseId = snapshot.ReleaseId;
         ToolSetVersion = snapshot.ToolSetVersion;
+        CatalogVersion = snapshot.CatalogVersion;
     }
 }

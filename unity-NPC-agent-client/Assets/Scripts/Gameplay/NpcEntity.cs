@@ -320,7 +320,10 @@ public class NpcEntity : MonoBehaviour, IGameObjectAgentEntity, IGameplayWorldTa
         string arrivedTargetId = _activeMoveTarget.TargetId;
         float elapsed = Time.time - _movementStartedAt;
         FinishActiveMovement(AgentToolResult.Success(
-            $"NPC 已到达 {arrivedTargetId} 附近。",
+            ClientTextCatalogs.Message(
+                "tool.move.arrived",
+                "NPC 已到达 {0} 附近。",
+                arrivedTargetId),
             JToken.FromObject(new
             {
                 targetId = arrivedTargetId,

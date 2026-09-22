@@ -50,5 +50,6 @@ public class AOTGenericReferences : UnityEngine.MonoBehaviour
 
 	public void RefMethods()
 	{
+		// object[] System.Array.Empty<object>()
 	}
 }

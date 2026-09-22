@@ -42,6 +42,7 @@ type Service struct {
 	model           string
 	maxContextChars int
 	archive         *FileConversationArchive
+	promptCatalog   *SystemPromptCatalog
 	lifecycleMu     sync.Mutex
 }
 
@@ -63,7 +64,19 @@ func newConversationService(llm LLMClient, store SessionStore, runtime Runtime, 
 	return &Service{
 		llm: llm, store: store, runtime: runtime, policy: gametools.NewPolicy(maxToolRounds), profiles: profiles,
 		model: model, maxContextChars: maxContextChars, archive: archive,
+		promptCatalog: DefaultSystemPromptCatalog(),
 	}
+}
+
+// ActivateSystemPromptCatalog affects only Contexts created after the swap.
+func (s *Service) ActivateSystemPromptCatalog(catalog *SystemPromptCatalog) error {
+	if err := catalog.Validate(); err != nil {
+		return err
+	}
+	s.lifecycleMu.Lock()
+	defer s.lifecycleMu.Unlock()
+	s.promptCatalog = catalog
+	return nil
 }
 
 // StartSession 校验 NPC 在线状态，生成系统提示词并创建内存 Session。
@@ -94,7 +107,7 @@ func (s *Service) StartSessionForRuntime(ctx context.Context, instanceID, player
 	now := time.Now().UTC()
 	session := &Session{
 		ID: newSessionID(), PlayerID: playerID, NPCID: npcID, UnityInstanceID: instanceID,
-		SystemPrompt: BuildSystemPrompt(profile),
+		SystemPrompt: s.promptCatalog.Build(profile),
 		Model:        s.model, CreatedAt: now, LastActiveAt: now,
 	}
 	session.Messages = []Message{{Role: "system", Content: session.SystemPrompt}}

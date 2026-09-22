@@ -189,14 +189,15 @@ public static class ToolSetValidator
         if (descriptor == null)
             throw new InvalidOperationException($"Tool type '{tool.GetType().FullName}' has no Descriptor.");
         ValidateToolName(descriptor.Name);
-        if (string.IsNullOrWhiteSpace(descriptor.Description))
-            throw new InvalidOperationException($"Tool '{descriptor.Name}' has no embedded catalog description.");
         if (string.IsNullOrWhiteSpace(descriptor.InputSchemaJson))
             throw new InvalidOperationException($"Tool '{descriptor.Name}' has an empty inputSchema.");
         try
         {
-            if (!(JToken.Parse(descriptor.InputSchemaJson) is JObject))
+            if (!(JToken.Parse(descriptor.InputSchemaJson) is JObject schema))
                 throw new InvalidOperationException("inputSchema must be a JSON object.");
+            if (schema.DescendantsAndSelf().OfType<JObject>().Any(item => item["description"] != null))
+                throw new InvalidOperationException(
+                    $"Tool '{descriptor.Name}' structural inputSchema cannot contain descriptions.");
         }
         catch (Exception ex)
         {
@@ -332,8 +333,7 @@ public static class ToolSetValidator
     {
         var value = new StringBuilder()
             .Append(releaseId).Append('\n')
-            .Append(toolSetVersion).Append('\n')
-            .Append(catalogVersion).Append('\n');
+            .Append(toolSetVersion).Append('\n');
         foreach (ToolReleaseDeclaration item in active.OrderBy(item => item.name, StringComparer.Ordinal))
             value.Append(item.name).Append('|').Append(item.toolIdentity).Append('|').Append(item.source).Append('|')
                 .Append(item.implementationVersion).Append('|').Append(item.contractVersion).Append('|')

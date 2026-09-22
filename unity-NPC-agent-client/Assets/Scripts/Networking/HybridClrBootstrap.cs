@@ -38,6 +38,9 @@ public sealed class LoadedToolSetRelease
     public IReadOnlyList<RetiredToolDeclaration> RetiredTools { get; }
     public IReadOnlyList<ToolHistoryDeclaration> History { get; }
     public IReadOnlyList<LoadedToolPack> ToolPacks { get; }
+    public string ToolMetadataJson { get; }
+    public string AgentMessagesJson { get; }
+    public string UiJson { get; }
 
     public LoadedToolSetRelease(
         string releaseId,
@@ -46,7 +49,10 @@ public sealed class LoadedToolSetRelease
         IReadOnlyList<ToolReleaseDeclaration> activeTools,
         IReadOnlyList<RetiredToolDeclaration> retiredTools,
         IReadOnlyList<ToolHistoryDeclaration> history,
-        IReadOnlyList<LoadedToolPack> toolPacks)
+        IReadOnlyList<LoadedToolPack> toolPacks,
+        string toolMetadataJson,
+        string agentMessagesJson,
+        string uiJson)
     {
         ReleaseId = releaseId;
         ToolSetVersion = toolSetVersion;
@@ -55,6 +61,9 @@ public sealed class LoadedToolSetRelease
         RetiredTools = retiredTools;
         History = history;
         ToolPacks = toolPacks;
+        ToolMetadataJson = toolMetadataJson;
+        AgentMessagesJson = agentMessagesJson;
+        UiJson = uiJson;
     }
 
     public ToolSetCandidate BuildCandidate(IReadOnlyList<IAgentTool> builtinTools)
@@ -109,8 +118,11 @@ public static class HybridClrBootstrap
 {
     private const string ManifestFileName = "local-hot-update-manifest.json";
     private const string RootDirectoryName = "HotUpdate";
+    private const string ToolMetadataFileName = "tool_metadata.zh-CN.json";
+    private const string AgentMessagesFileName = "agent_messages.zh-CN.json";
+    private const string UiFileName = "ui.zh-CN.json";
     public const string SmokePackageId = "smoke-test";
-    public const string SmokePackageVersion = "1.0.0";
+    public const string SmokePackageVersion = "1.1.0";
     public const string SmokeAssemblyName = "GameWithLLM.Tools.Pack.SmokeTest";
 
     [Serializable]
@@ -172,6 +184,9 @@ public static class HybridClrBootstrap
         if (manifest == null)
             throw new InvalidDataException("HybridCLR local manifest is invalid.");
         ValidateManifestHeader(manifest);
+        string toolMetadataJson = ReadCatalog(root, ToolMetadataFileName);
+        string agentMessagesJson = ReadCatalog(root, AgentMessagesFileName);
+        string uiJson = ReadCatalog(root, UiFileName);
 
         foreach (string fileName in manifest.aotMetadataFiles ?? Array.Empty<string>())
         {
@@ -245,7 +260,10 @@ public static class HybridClrBootstrap
             activeTools,
             manifest.retiredTools ?? Array.Empty<RetiredToolDeclaration>(),
             manifest.toolHistory ?? Array.Empty<ToolHistoryDeclaration>(),
-            loadedPacks);
+            loadedPacks,
+            toolMetadataJson,
+            agentMessagesJson,
+            uiJson);
 #endif
     }
 
@@ -264,7 +282,7 @@ public static class HybridClrBootstrap
                 name = tool.Descriptor.Name,
                 toolIdentity = tool.Descriptor.Name,
                 source = hot ? "hot-update" : "builtin",
-                implementationVersion = "1.0.0",
+                implementationVersion = hot ? "2.0.0" : "1.0.0",
                 contractVersion = "1.0.0",
                 packageId = hot ? pack.PackageId : null,
                 packageVersion = hot ? pack.PackageVersion : null,
@@ -273,16 +291,28 @@ public static class HybridClrBootstrap
                 schemaHash = ToolSetValidator.ComputeSchemaHash(tool.Descriptor.InputSchemaJson)
             };
             declarations.Add(declaration);
-            history.Add(ToolSetCandidateFactory.ToHistory(declaration, "h4-editor-local"));
+            history.Add(ToolSetCandidateFactory.ToHistory(declaration, "h5-editor-local"));
         }
+        string catalogRoot = Path.Combine(Application.dataPath, "Content", "Catalogs");
         return new LoadedToolSetRelease(
-            "h4-editor-local",
-            "1.0.0",
-            "embedded-1",
+            "h5-editor-local",
+            "2.0.0",
+            "2026.09.001",
             declarations,
             Array.Empty<RetiredToolDeclaration>(),
             history,
-            new[] { pack });
+            new[] { pack },
+            ReadCatalog(catalogRoot, ToolMetadataFileName),
+            ReadCatalog(catalogRoot, AgentMessagesFileName),
+            ReadCatalog(catalogRoot, UiFileName));
+    }
+
+    private static string ReadCatalog(string root, string fileName)
+    {
+        string path = Path.Combine(root, fileName);
+        if (!File.Exists(path))
+            throw new FileNotFoundException($"Required H5 Catalog '{fileName}' is missing.", path);
+        return File.ReadAllText(path, Encoding.UTF8);
     }
 
     private static void ValidateManifestHeader(LocalManifest manifest)

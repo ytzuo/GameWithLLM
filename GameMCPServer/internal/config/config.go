@@ -40,6 +40,7 @@ type Config struct {
 	LLMMaxContextChars      int
 	ConversationSaveDir     string
 	NPCProfilePath          string
+	SystemPromptPath        string
 }
 
 // Load reads .env.local/.env while allowing real process environment variables
@@ -64,7 +65,25 @@ func Load() Config {
 		LLMMaxContextChars:      intValue("LLM_MAX_CONTEXT_CHARS", values, defaultLLMMaxContextChars),
 		ConversationSaveDir:     conversationSaveDir(values),
 		NPCProfilePath:          npcProfilePath(values),
+		SystemPromptPath:        systemPromptPath(values),
 	}
+}
+
+func systemPromptPath(values map[string]string) string {
+	value := stringValue("SYSTEM_PROMPT_PATH", values, "")
+	if value != "" {
+		if filepath.IsAbs(value) {
+			return filepath.Clean(value)
+		}
+		if root, ok := findRepoRoot(); ok {
+			return filepath.Join(root, value)
+		}
+		return filepath.Clean(value)
+	}
+	if root, ok := findRepoRoot(); ok {
+		return filepath.Join(root, "GameMCPServer", "config", "system_prompt.zh-CN.json")
+	}
+	return filepath.Join("config", "system_prompt.zh-CN.json")
 }
 
 func npcProfilePath(values map[string]string) string {

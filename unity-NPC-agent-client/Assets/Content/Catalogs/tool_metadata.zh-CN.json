@@ -1,0 +1,75 @@
+{
+  "schemaVersion": 1,
+  "contentVersion": "2026.09.001",
+  "locale": "zh-CN",
+  "tools": {
+    "game_hotfix_smoke_package_info": {
+      "description": "查询 Smoke Tool Pack 的包标识与版本，用于验证多工具包的原子注册。",
+      "parameters": {}
+    },
+    "game_hotfix_smoke_query": {
+      "description": "查询本地 HybridCLR Smoke Tool Pack 是否已加载，并返回当前 NPC 标识；不会修改游戏或存档状态。",
+      "parameters": {
+        "echo": { "description": "随查询原样返回的可选诊断文本。" }
+      }
+    },
+    "game_inventory_get_container": {
+      "description": "获取指定容器中的全部物品及数量。目标必须是已注册且位于当前 NPC 交互距离内的容器。",
+      "parameters": {
+        "containerId": { "description": "game_inventory_get_nearby_containers 返回的稳定 containerId。" }
+      }
+    },
+    "game_inventory_get_item_definitions": {
+      "description": "获取当前游戏定义的全部物品种类及其 itemId、名称、描述和最大堆叠数量。",
+      "parameters": {}
+    },
+    "game_inventory_get_nearby_containers": {
+      "description": "查询场景中除 NPC 自身背包外的已注册容器，返回稳定标识、距离和交互状态。",
+      "parameters": {
+        "inRangeOnly": { "description": "是否只返回当前可交互的容器。" },
+        "maxDistance": { "description": "最大查询距离；0 或省略表示不限制。" }
+      }
+    },
+    "game_inventory_get_self": {
+      "description": "获取当前对话 NPC 自身背包中的全部物品及数量。",
+      "parameters": {}
+    },
+    "game_inventory_put_item": {
+      "description": "把当前 NPC 自身背包中的指定物品原子转移到附近容器。",
+      "parameters": {
+        "containerId": { "description": "game_inventory_get_nearby_containers 返回的稳定 containerId。" },
+        "itemId": { "description": "从 NPC 自身背包转移的稳定物品标识。" },
+        "quantity": { "description": "要放入容器的物品数量。" }
+      }
+    },
+    "game_inventory_take_item": {
+      "description": "从附近容器中取出指定数量的物品放入当前 NPC 背包；操作原子执行。",
+      "parameters": {
+        "containerId": { "description": "game_inventory_get_nearby_containers 返回的稳定 containerId。" },
+        "itemId": { "description": "要从附近容器取出的稳定物品标识。" },
+        "quantity": { "description": "要取出的物品数量。" }
+      }
+    },
+    "game_npc_get_state": {
+      "description": "查询当前对话 NPC 的实时运行状态、世界坐标和移动信息。",
+      "parameters": {}
+    },
+    "game_npc_move": {
+      "description": "使 NPC 前往目标查询结果所指向的位置附近。",
+      "usageHint": "targetId 不确定时应先调用 game_scene_get_targets。",
+      "parameters": {
+        "approachDistance": { "description": "与目标保持的距离；0 表示使用默认停止距离。" },
+        "targetId": { "description": "game_scene_get_targets 返回的稳定 targetId。" }
+      }
+    },
+    "game_scene_get_targets": {
+      "description": "查询当前场景中的其他 NPC、玩家和地标，返回稳定 targetId、类别、距离和可达性。",
+      "parameters": {
+        "categories": { "description": "可选目标类别列表：npc、player 或 landmark。" },
+        "maxDistance": { "description": "最大直线距离；0 或省略表示不限制。" },
+        "reachableOnly": { "description": "是否只返回具有完整 NavMesh 路径的目标。" },
+        "targetIds": { "description": "只查询这些稳定 targetId；省略表示不按标识筛选。" }
+      }
+    }
+  }
+}

@@ -25,6 +25,11 @@ public sealed class PutItemInContainerTool : InventoryNpcTool<PutItemInContainer
             args.quantity,
             "INSUFFICIENT_ITEM_QUANTITY",
             "TARGET_INVENTORY_FULL");
-        return Success(data, $"已将 {args.quantity} 个 '{item.ItemName}' 放入 '{target.ContainerId}'。");
+        return Success(data, ClientTextCatalogs.Message(
+            "tool.inventory.put_succeeded",
+            "已将 {0} 个 '{1}' 放入 '{2}'。",
+            args.quantity,
+            item.ItemName,
+            target.ContainerId));
     }
 }

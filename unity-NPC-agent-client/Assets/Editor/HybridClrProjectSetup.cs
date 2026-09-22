@@ -132,6 +132,12 @@ public static class HybridClrProjectSetup
             "h4-windows-il2cpp-build.json",
             "H4");
 
+    public static void BuildH5SmokePlayerFromCommandLine() =>
+        BuildSmokePlayerFromCommandLine(
+            "HybridClrH5",
+            "h5-windows-il2cpp-build.json",
+            "H5");
+
     private static void BuildSmokePlayerFromCommandLine(
         string buildDirectoryName,
         string reportFileName,
@@ -188,6 +194,20 @@ public static class HybridClrProjectSetup
         string destination = Path.Combine(Application.streamingAssetsPath, "HotUpdate");
         Directory.CreateDirectory(destination);
 
+        string catalogSource = Path.Combine(Application.dataPath, "Content", "Catalogs");
+        foreach (string catalogFile in new[]
+                 {
+                     "tool_metadata.zh-CN.json",
+                     "agent_messages.zh-CN.json",
+                     "ui.zh-CN.json"
+                 })
+        {
+            string source = Path.Combine(catalogSource, catalogFile);
+            if (!File.Exists(source))
+                throw new FileNotFoundException($"Required H5 Catalog is missing: '{catalogFile}'.", source);
+            File.Copy(source, Path.Combine(destination, catalogFile), true);
+        }
+
         var metadataFiles = new List<string>();
         foreach (string assemblyName in PatchAotAssemblies)
         {
@@ -224,7 +244,7 @@ public static class HybridClrProjectSetup
         var releaseTools = new List<IAgentTool>();
         releaseTools.AddRange(AgentToolDiscovery.DiscoverBuiltinTools());
         releaseTools.AddRange(AgentToolDiscovery.DiscoverFromAssembly(smokeAssembly));
-        const string releaseId = "h4-local-1.0.0";
+        const string releaseId = "h5-local-1.0.0";
         var activeTools = releaseTools.Select(tool =>
         {
             bool hot = string.Equals(
@@ -236,7 +256,7 @@ public static class HybridClrProjectSetup
                 name = tool.Descriptor.Name,
                 toolIdentity = tool.Descriptor.Name,
                 source = hot ? "hot-update" : "builtin",
-                implementationVersion = "1.0.0",
+                implementationVersion = hot ? "2.0.0" : "1.0.0",
                 contractVersion = "1.0.0",
                 packageId = hot ? HybridClrBootstrap.SmokePackageId : null,
                 packageVersion = hot ? HybridClrBootstrap.SmokePackageVersion : null,
@@ -256,8 +276,8 @@ public static class HybridClrProjectSetup
         string manifest = JsonConvert.SerializeObject(new
         {
             releaseId,
-            toolSetVersion = "1.0.0",
-            catalogVersion = "embedded-1",
+            toolSetVersion = "2.0.0",
+            catalogVersion = "2026.09.001",
             minPlayerVersion = Application.version,
             maxPlayerVersion = Application.version,
             aotMetadataFiles = metadataFiles,

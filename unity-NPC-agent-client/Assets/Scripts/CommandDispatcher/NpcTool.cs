@@ -31,7 +31,9 @@ public abstract class NpcTool<TArgs> : IAgentTool where TArgs : ToolArgsBase
             return new ValueTask<AgentToolResult>(
                 AgentToolResult.Failure(
                     "INVALID_CONTEXT",
-                    "该工具要求实现 IGameObjectAgentEntity 的 NPC 实体。"));
+                    ClientTextCatalogs.Message(
+                        "tool.error.invalid_context",
+                        "该工具要求有效的 NPC 实体。")));
         }
 
         var wrapper = new GameToolWrapper<TArgs>(

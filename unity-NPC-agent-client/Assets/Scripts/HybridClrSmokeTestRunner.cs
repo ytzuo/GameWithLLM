@@ -30,7 +30,17 @@ public sealed class HybridClrSmokeTestRunner : MonoBehaviour
                 throw new InvalidOperationException("H4 local release was not loaded.");
             ToolSetCandidate candidate = release.BuildCandidate(
                 AgentToolDiscovery.DiscoverBuiltinTools());
-            registry.ActivateToolSet(registry.PrepareToolSet(candidate));
+            PreparedToolSet prepared = registry.PrepareToolSet(
+                candidate,
+                release.ToolMetadataJson);
+            ClientTextCatalog agentMessages = ClientTextCatalog.Parse(
+                release.AgentMessagesJson,
+                release.CatalogVersion);
+            ClientTextCatalog ui = ClientTextCatalog.Parse(
+                release.UiJson,
+                release.CatalogVersion);
+            registry.ActivateToolSet(prepared);
+            ClientTextCatalogs.Activate(agentMessages, ui);
             NpcEntity npc = FindFirstObjectByType<NpcEntity>();
             if (npc == null)
                 throw new InvalidOperationException("Smoke test requires an active NpcEntity.");
@@ -41,14 +51,17 @@ public sealed class HybridClrSmokeTestRunner : MonoBehaviour
                 .FirstOrDefault(tool => tool.Name == "game_hotfix_smoke_package_info");
             if (descriptor == null ||
                 packageDescriptor == null ||
+                !descriptor.Description.Contains("HybridCLR Smoke Tool Pack 是否已加载") ||
                 string.IsNullOrWhiteSpace(descriptor.InputSchemaJson) ||
-                !descriptor.InputSchemaJson.Contains("echo"))
+                !descriptor.InputSchemaJson.Contains("echo") ||
+                !descriptor.InputSchemaJson.Contains("随查询原样返回的可选诊断文本"))
             {
                 throw new InvalidOperationException("Smoke tool descriptor or schema is missing.");
             }
             ToolSetSnapshot snapshot = registry.ActiveSnapshot;
-            if (snapshot == null || snapshot.ReleaseId != "h4-local-1.0.0" ||
-                snapshot.ToolSetVersion != "1.0.0")
+            if (snapshot == null || snapshot.ReleaseId != "h5-local-1.0.0" ||
+                snapshot.ToolSetVersion != "2.0.0" ||
+                registry.ActiveCatalog.ContentVersion != "2026.09.001")
                 throw new InvalidOperationException(
                     $"Unexpected active ToolSet: {snapshot?.ReleaseId}/{snapshot?.ToolSetVersion}.");
 
@@ -68,6 +81,7 @@ public sealed class HybridClrSmokeTestRunner : MonoBehaviour
             Debug.Log("[Hot Update] H2_SMOKE_SUCCESS: DLL loaded, schema generated, arguments deserialized, tool executed.");
             Debug.Log("[Hot Update] H3_ATOMIC_PACK_SUCCESS: two package tools remain available in one snapshot.");
             Debug.Log("[Hot Update] H4_TOOLSET_SUCCESS: complete versioned ToolSet activated before runtime input.");
+            Debug.Log("[Hot Update] H5_CATALOG_SUCCESS: JSON tool metadata and client text Catalogs activated atomically.");
             Application.Quit(0);
         }
         catch (Exception ex)

@@ -1,0 +1,15 @@
+{
+  "schemaVersion": 1,
+  "contentVersion": "2026.09.001",
+  "locale": "zh-CN",
+  "texts": {
+    "ui.bootstrap.checking_catalog": "正在检查内容目录更新",
+    "ui.bootstrap.downloading": "正在下载必要内容",
+    "ui.bootstrap.failed": "内容准备失败",
+    "ui.bootstrap.initializing": "正在初始化内容系统",
+    "ui.bootstrap.ready": "内容已准备完成",
+    "ui.common.cancel": "取消",
+    "ui.common.confirm": "确认",
+    "ui.common.retry": "重试"
+  }
+}

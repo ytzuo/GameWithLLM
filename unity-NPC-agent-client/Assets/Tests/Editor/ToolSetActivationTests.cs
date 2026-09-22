@@ -4,6 +4,8 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using GameWithLLM.AgentRuntime;
+using Newtonsoft.Json;
+using Newtonsoft.Json.Linq;
 using NUnit.Framework;
 using UnityEngine;
 
@@ -196,6 +198,67 @@ public sealed class ToolSetActivationTests
         CollectionAssert.AreEquivalent(
             new[] { "game_hotfix_smoke_query", "game_hotfix_smoke_package_info" },
             tools.Select(tool => tool.Descriptor.Name).ToArray());
+    }
+
+    [Test]
+    public void CatalogOnlyActivation_ChangesDescriptionsButNotStructuralSchema()
+    {
+        AgentToolDescriptor before = _registry.GetRuntimeTools().Single(tool => tool.Name == "game_npc_move");
+        string json = CreateCatalogJson(_registry.ActiveSnapshot, "2026.09.002", "H5 更新后的移动描述");
+        int changes = 0;
+        _registry.ToolsChanged += () => changes++;
+
+        bool activated = _registry.ActivateCatalog(_registry.PrepareCatalog(json));
+
+        AgentToolDescriptor after = _registry.GetRuntimeTools().Single(tool => tool.Name == "game_npc_move");
+        Assert.That(activated, Is.True);
+        Assert.That(changes, Is.EqualTo(1));
+        Assert.That(after.Description, Is.EqualTo("H5 更新后的移动描述"));
+        Assert.That(
+            ToolSetValidator.ComputeSchemaHash(after.InputSchemaJson),
+            Is.EqualTo(ToolSetValidator.ComputeSchemaHash(before.InputSchemaJson)));
+        Assert.That(_registry.ActivateCatalog(_registry.PrepareCatalog(json)), Is.False);
+        Assert.That(changes, Is.EqualTo(1));
+    }
+
+    [Test]
+    public void InvalidCatalog_DoesNotMutateActiveCatalog()
+    {
+        string before = _registry.ActiveCatalog.Fingerprint;
+        string invalid = CreateCatalogJson(_registry.ActiveSnapshot, "2026.09.003", "changed");
+        var root = JObject.Parse(invalid);
+        ((JObject)root["tools"]).Remove("game_npc_move");
+
+        Assert.Throws<InvalidOperationException>(() =>
+            _registry.PrepareCatalog(root.ToString(Formatting.None)));
+        Assert.That(_registry.ActiveCatalog.Fingerprint, Is.EqualTo(before));
+    }
+
+    private static string CreateCatalogJson(
+        ToolSetSnapshot snapshot,
+        string version,
+        string moveDescription)
+    {
+        var tools = new JObject();
+        foreach (KeyValuePair<string, AgentToolDescriptor> pair in snapshot.Descriptors)
+        {
+            var parameters = new JObject();
+            var schema = JObject.Parse(pair.Value.InputSchemaJson);
+            foreach (JProperty property in (schema["properties"] as JObject ?? new JObject()).Properties())
+                parameters[property.Name] = new JObject { ["description"] = "参数说明" };
+            tools[pair.Key] = new JObject
+            {
+                ["description"] = pair.Key == "game_npc_move" ? moveDescription : "工具说明",
+                ["parameters"] = parameters
+            };
+        }
+        return new JObject
+        {
+            ["schemaVersion"] = 1,
+            ["contentVersion"] = version,
+            ["locale"] = "zh-CN",
+            ["tools"] = tools
+        }.ToString(Formatting.None);
     }
 
     private ToolSetCandidate CandidateFromCurrent(

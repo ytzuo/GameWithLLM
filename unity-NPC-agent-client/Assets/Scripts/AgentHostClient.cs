@@ -153,9 +153,18 @@ public class AgentHostClient : Singleton<AgentHostClient>
             {
                 ToolSetCandidate candidate = loadedRelease.BuildCandidate(
                     AgentToolDiscovery.DiscoverBuiltinTools());
-                PreparedToolSet prepared = _tools.PrepareToolSet(candidate);
+                PreparedToolSet prepared = _tools.PrepareToolSet(
+                    candidate,
+                    loadedRelease.ToolMetadataJson);
+                ClientTextCatalog agentMessages = ClientTextCatalog.Parse(
+                    loadedRelease.AgentMessagesJson,
+                    loadedRelease.CatalogVersion);
+                ClientTextCatalog ui = ClientTextCatalog.Parse(
+                    loadedRelease.UiJson,
+                    loadedRelease.CatalogVersion);
                 ToolSetActivationResult result = _tools.ActivateToolSet(prepared);
-                ToolSetActivationStore.Save(_tools.ActiveSnapshot);
+                ClientTextCatalogs.Activate(agentMessages, ui);
+                ToolSetActivationStore.Save(_tools.ActiveSnapshot, _tools.ActiveCatalog);
                 Debug.Log(
                     $"[Hot Update] Release '{result.ReleaseId}' ToolSet '{result.ToolSetVersion}' " +
                     $"{(result.Idempotent ? "was already active" : "activated atomically")} " +

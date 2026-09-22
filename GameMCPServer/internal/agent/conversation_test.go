@@ -80,6 +80,28 @@ func TestConversationService_NoToolReplyAndIsolation(t *testing.T) {
 	assert.Len(t, second.Messages, 3)
 }
 
+func TestSystemPromptCatalogSwapOnlyAffectsNewSessions(t *testing.T) {
+	service := NewConversationService(
+		&scriptedLLM{},
+		NewMemorySessionStore(),
+		&fakeRuntime{},
+		testProfileCatalog("npc-1"),
+		"test-model",
+		3,
+	)
+	before, err := service.StartSession(context.Background(), "player-1", "npc-1")
+	require.NoError(t, err)
+	catalog := DefaultSystemPromptCatalog()
+	catalog.ContentVersion = "test-2"
+	catalog.Template = "新版：" + catalog.Template
+	require.NoError(t, service.ActivateSystemPromptCatalog(catalog))
+	after, err := service.StartSession(context.Background(), "player-2", "npc-1")
+	require.NoError(t, err)
+
+	assert.NotContains(t, before.SystemPrompt, "新版：")
+	assert.Contains(t, after.SystemPrompt, "新版：")
+}
+
 func TestConversationService_ToolLoopKeepsAtomicPair(t *testing.T) {
 	llm := &scriptedLLM{results: []*CompletionResult{
 		{ToolCalls: []ToolCall{{ID: "call-1", Name: "game_npc_move", Arguments: json.RawMessage(`{"targetId":"landmark:gate"}`)}}},

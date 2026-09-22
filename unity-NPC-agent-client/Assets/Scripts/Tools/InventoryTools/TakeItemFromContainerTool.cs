@@ -25,6 +25,11 @@ public sealed class TakeItemFromContainerTool : InventoryNpcTool<TakeItemFromCon
             args.quantity,
             "INSUFFICIENT_CONTAINER_QUANTITY",
             "NPC_INVENTORY_FULL");
-        return Success(data, $"已从 '{source.ContainerId}' 取出 {args.quantity} 个 '{item.ItemName}'。");
+        return Success(data, ClientTextCatalogs.Message(
+            "tool.inventory.take_succeeded",
+            "已从 '{0}' 取出 {1} 个 '{2}'。",
+            source.ContainerId,
+            args.quantity,
+            item.ItemName));
     }
 }

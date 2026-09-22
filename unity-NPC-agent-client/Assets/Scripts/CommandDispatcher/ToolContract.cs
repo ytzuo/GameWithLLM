@@ -184,9 +184,6 @@ internal static class ToolContractSchema
         string fieldName)
     {
         string type = schema.Value<string>("type");
-        if (!string.IsNullOrWhiteSpace(parameter.Description))
-            schema["description"] = parameter.Description;
-
         if (!double.IsNaN(parameter.Minimum) || !double.IsNaN(parameter.Maximum))
         {
             RequireType(type, fieldName, "number", "integer");
