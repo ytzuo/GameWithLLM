@@ -381,9 +381,9 @@ Go/Unity 权威边界。PDB 只进入 Development/QA 产物；正式构建的 st
 
 Addressables A0 已冻结资产所有权、稳定逻辑地址和生命周期；完整逐项台账位于
 `Docs/ADDRESSABLES_A0_INVENTORY.md` 和
-`Docs/Baselines/addressables-a0-inventory.json`。A1 尚未实施，因此当前加载路径
-保持不变，台账中的 `Remote_*` 是后续迁移的唯一目标 Group，不表示这些资产已经
-远端化。
+`Docs/Baselines/addressables-a0-inventory.json`。A1 已建立 Bootstrap、Remote
+Catalog、Profile 和空的目标 Group，但尚未迁移业务资产；台账中的 `Remote_*`
+仍表示 A2-A6 的唯一目标 Group，不表示现有 UI、Item 或 H3 文件已经远端化。
 
 - `SampleScene`、NavMeshData 和第一阶段场景固有材质属于
   `Local_SampleScene`；最小下载/错误 UI 和默认内容属于 `Local_Bootstrap`。
@@ -397,6 +397,22 @@ Addressables A0 已冻结资产所有权、稳定逻辑地址和生命周期；�
   在移除这些引用前，对应资产不得实际放入远端 Group。
 - `Assets/Art/Items` 中未被当前 ItemData 使用的源 PNG 不进入发布。加入目录前必须
   先分配稳定 itemId、Address 和唯一 owner Group。
+
+部署 Profile 为 `LocalDevelopment`、`QA`、`Production`。Bundle Build/Load Path
+包含不可复用 `ReleaseId`，Catalog 使用不含 `ReleaseId` 的稳定入口；三套 Profile
+使用独立 channel 目录。Remote Catalog 已开启，Addressables 自启动更新已关闭，
+Catalog 检查和更新只由 `ClientContentBootstrap` 执行。Catalog 更新不自动清理旧
+Bundle cache。
+
+启动时 `AgentHostClient` 先冻结 `PlayerMock` 输入并隐藏业务 `UIDocument`，再执行
+Addressables 初始化、Catalog 检查/更新、候选验证、下载和激活。激活之前不会创建
+A2A、Save 或 Runtime Gateway 客户端，不会发布 Runtime Manifest；H3 本地工具包
+也在激活之后才加载。首次离线且无成功缓存时，本地 IMGUI 错误界面保持可见并允许
+重试；有最后成功缓存时可降级继续。`enableContentBootstrap` 是场景级回滚开关。
+
+`ContentAssetProvider` 是 Addressables 唯一运行时入口。资源、实例和场景加载分别
+返回显式 lease，调用方负责释放，Provider 在应用退出时兜底；禁止业务代码获取后
+丢弃裸 handle。A1 的详细基线见 `Docs/ADDRESSABLES_A1_BASELINE.md`。
 
 ## 7. 代码地图
 
@@ -429,10 +445,14 @@ Addressables A0 已冻结资产所有权、稳定逻辑地址和生命周期；�
 | `Assets/Scripts/Gameplay/Inventory` | 稳定 AOT 库存能力与视图模型 |
 | `Assets/Scripts/Tools` | AOT BuiltinTools 实现 |
 | `Assets/Scripts/Networking/HybridClrBootstrap.cs` | AOT 元数据和本地热更新工具包加载 |
+| `Assets/Scripts/Networking/ClientContentBootstrap.cs` | Addressables 启动状态机、缓存降级和内容激活门控 |
+| `Assets/Scripts/Networking/ContentAssetProvider.cs` | Addressables 初始化、Catalog、下载、加载和 handle lease |
+| `Assets/Scripts/Networking/ContentBootstrapOverlay.cs` | 不依赖远端内容的本地错误、进度与重试 UI |
 | `Assets/HotUpdate/SmokeTest` | H3 本地多工具只读 Smoke Tool Pack |
 | `Assets/StreamingAssets/HotUpdate` | 本地 AOT metadata、带 SHA-256 包身份的 DLL、Development PDB 和清单 |
 | `Assets/Editor/HybridClrProjectSetup.cs` | HybridCLR 配置、生成、带包身份的 staging 和 Player 构建 |
 | `Assets/Editor/AddressablesA0InventoryValidator.cs` | A0 资产所有权、地址和场景硬引用基线校验 |
+| `Assets/Editor/AddressablesA1ProjectSetup.cs` | A1 Profile、Group、Remote Catalog 配置、校验和多 Profile 构建 |
 | `Assets/Tests/Editor/ToolPackRegistrationTests.cs` | H3 发现、原子提交、冲突拒绝和幂等验证 |
 | `Packages/com.gamewithllm.agent-runtime/Runtime` | SDK 公共契约 |
 

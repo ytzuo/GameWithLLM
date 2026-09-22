@@ -16,6 +16,7 @@ public static class AddressablesA0InventoryValidator
         "Assets/Art/Items",
         "Assets/Art/Material",
         "Assets/Art/UI",
+        "Assets/Content/Bootstrap",
         "Assets/Data/Items",
         "Assets/Resources/UI",
         "Assets/Scenes",

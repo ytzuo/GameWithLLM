@@ -3,6 +3,7 @@
   "rootNamespace": "",
   "references": [
     "GameWithLLM.AgentRuntime",
+    "GameWithLLM.Client.Core",
     "GameWithLLM.Client.ToolFramework",
     "GameWithLLM.Client.BuiltinTools"
   ],

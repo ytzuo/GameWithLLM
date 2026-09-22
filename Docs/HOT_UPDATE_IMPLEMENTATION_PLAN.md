@@ -1,6 +1,6 @@
 # 客户端热更新实施计划
 
-> 状态：H0-H3、A0 已完成；H4、A1 及后续阶段待实施
+> 状态：H0-H3、A0-A1 已完成；H4、A2 及后续阶段待实施
 > 创建日期：2026-09-21  
 > 适用项目：`unity-NPC-agent-client`（Unity `6000.3.19f1`，Windows）  
 > 实施范围：第一部分 HybridCLR；第二部分 Addressables
@@ -651,6 +651,10 @@ GameMCPServer/config/system_prompt.zh-CN.json
 - 地址、Label 和业务 ID 分离。
 
 ## A1：建立 Addressables Bootstrap 和 Windows Remote Catalog
+
+> 完成记录（2026-09-22）：Profile、Group、Remote Catalog、启动状态机、统一
+> Provider、错误/重试 UI、缓存降级和启动门控均已实现；配置与验证结果见
+> `Docs/ADDRESSABLES_A1_BASELINE.md`。
 
 ### 目标
 

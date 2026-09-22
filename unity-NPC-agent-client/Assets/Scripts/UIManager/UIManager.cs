@@ -12,6 +12,7 @@ public class UIManager : MonoBehaviour
     public static UIManager Instance { get; private set; }
     private UIDocument _uiDocument;
     private VisualElement _gameplayHud;
+    private bool _contentReady = true;
 
     [Serializable]
     public struct UIConfig
@@ -36,6 +37,7 @@ public class UIManager : MonoBehaviour
         Instance = this;
         _uiDocument = GetComponent<UIDocument>();
         CreateGameplayHud();
+        ApplyContentVisibility();
     }
     private void Start()
     {
@@ -58,6 +60,9 @@ public class UIManager : MonoBehaviour
     /// </summary>
     public T OpenNewWindow<T>() where T : BaseWindow, new()
     {
+        if (!_contentReady)
+            throw new InvalidOperationException("UI content is not ready.");
+
         // 1. 实例化纯 C# 类
         T window = new T();
         VisualTreeAsset uxmlAsset = _uiConfigs[typeof(T).Name];
@@ -161,6 +166,20 @@ public class UIManager : MonoBehaviour
             window => window != null && window.IsOpen);
         _gameplayHud.style.display =
             hasOpenWindow ? DisplayStyle.None : DisplayStyle.Flex;
+    }
+
+    public void SetContentReady(bool ready)
+    {
+        _contentReady = ready;
+        ApplyContentVisibility();
+    }
+
+    private void ApplyContentVisibility()
+    {
+        if (_uiDocument?.rootVisualElement == null)
+            return;
+        _uiDocument.rootVisualElement.style.display =
+            _contentReady ? DisplayStyle.Flex : DisplayStyle.None;
     }
 
     private static void DisablePickingRecursively(VisualElement element)

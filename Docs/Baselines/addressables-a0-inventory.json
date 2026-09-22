@@ -19,6 +19,22 @@
       "sceneReferenceDisposition": "local bootstrap content must not depend on remote assets"
     },
     {
+      "id": "a1-bootstrap-delivery-probe",
+      "sourcePaths": ["Assets/Content/Bootstrap/a1-bootstrap-probe.json"],
+      "sourceState": "existing",
+      "location": "Remote",
+      "ownerGroup": "Remote_ClientConfig",
+      "address": "config/bootstrap/a1-probe",
+      "labels": ["content.a1-required"],
+      "businessIds": ["addressables-a1-bootstrap-probe"],
+      "dependencies": [],
+      "loadPoint": "A1 ClientContentBootstrap required download",
+      "releaseOwner": "ClientContentBootstrap",
+      "releasePoint": "download operation completion",
+      "activationPoint": "player startup",
+      "sceneReferenceDisposition": "none"
+    },
+    {
       "id": "sample-scene",
       "sourcePaths": ["Assets/Scenes/SampleScene.unity"],
       "sourceState": "existing",

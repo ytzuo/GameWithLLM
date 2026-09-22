@@ -56,6 +56,7 @@ HybridCLR 文件仍沿用现有本地加载方式；表中的 `Remote_*` 表示�
 | 角色/动画 | 没有独立模型、Prefab、Animator、Avatar 或 AnimationClip；角色是场景内对象 | A5 前保持本地；将来只迁移 `VisualRoot` 下的表现 Prefab，权威组件仍是 AOT |
 | HybridCLR | 7 个 AOT metadata、1 个 smoke DLL、1 个 Development PDB 和本地 manifest 位于 StreamingAssets | A2 分别迁到 metadata/tool groups；bootstrap/release candidate 持有 bytes handle，装载后释放下载 handle，代码只在下次启动激活 |
 | 客户端 JSON | 三个计划中的客户端文本 JSON 尚不存在 | 地址已预留；A2 创建本地默认和远端版本。Go `system_prompt.zh-CN.json` 不进入客户端 |
+| A1 delivery probe | 一个不含业务数据的极小 JSON | `Remote_ClientConfig` / `config/bootstrap/a1-probe`，仅用于验证真实下载与缓存链路 |
 | 远端场景 | 当前不存在 | `scene/warehouse/main` 地址保留给未来远端业务场景，不能指向 `SampleScene` |
 
 ## 4. 已解释的临时场景硬引用

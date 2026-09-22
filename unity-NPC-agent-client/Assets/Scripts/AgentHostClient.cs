@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using GameWithLLM.AgentRuntime;
@@ -11,6 +12,7 @@ public class AgentHostClient : Singleton<AgentHostClient>
 {
     [Header("Hot update")]
     [SerializeField] private bool enableHybridClrBootstrap = true;
+    [SerializeField] private bool enableContentBootstrap = true;
 
     public string a2aUrl = "http://127.0.0.1:8080/a2a";
     public string agentServiceBaseUrl = "http://127.0.0.1:8080";
@@ -37,11 +39,89 @@ public class AgentHostClient : Singleton<AgentHostClient>
     private string _activeNpcId;
     private volatile bool _saveBusy;
     private volatile bool _restoreFailed;
+    private volatile bool _contentReady;
+    private bool _initializationStarted;
+    private bool _runtimeInitialized;
+    private ContentAssetProvider _contentProvider;
+    private ClientContentBootstrap _contentBootstrap;
+    private ContentBootstrapOverlay _contentOverlay;
+    private PlayerMock[] _gatedPlayers = Array.Empty<PlayerMock>();
+    private UIManager _gatedUi;
     private float _nextCapabilityCheckAt;
 
-    // Init 装配唯一的出站 Runtime 连接，并发布当前场景的实体与工具 Manifest。
+    public bool IsContentReady => _contentReady;
+    public ClientContentBootstrapState ContentBootstrapState =>
+        _contentBootstrap?.State ?? ClientContentBootstrapState.NotStarted;
+
+    // 内容激活前不创建 A2A/Runtime 客户端，也不开放游戏输入和业务 UI。
     protected override void Init()
     {
+        if (_initializationStarted)
+            return;
+        _initializationStarted = true;
+        GateGameplay(false);
+        _ = InitializeAfterContentAsync();
+    }
+
+    private async Task InitializeAfterContentAsync()
+    {
+        try
+        {
+            if (enableContentBootstrap)
+            {
+                _contentProvider = new ContentAssetProvider();
+                _contentBootstrap = new ClientContentBootstrap(
+                    _contentProvider,
+                    new PlayerPrefsContentBootstrapStore(),
+                    new ClientContentBootstrapOptions
+                    {
+                        RequiredDownloadLabels = new[] { "content.a1-required" }
+                    });
+                _contentOverlay = GetComponent<ContentBootstrapOverlay>() ??
+                                  gameObject.AddComponent<ContentBootstrapOverlay>();
+                _contentOverlay.Bind(_contentBootstrap);
+
+                while (!_appCts.IsCancellationRequested)
+                {
+                    ClientContentBootstrapResult result =
+                        await _contentBootstrap.RunAttemptAsync(_appCts.Token);
+                    if (result.Succeeded)
+                    {
+                        if (result.UsedCachedCatalog)
+                            Debug.LogWarning("[Content] Started with the last successful cached catalog.");
+                        break;
+                    }
+
+                    Debug.LogError(
+                        $"[Content] Bootstrap failed; runtime remains disabled: " +
+                        result.Error?.GetBaseException().Message);
+                    _contentOverlay.ShowFailure(result.Error);
+                    await _contentOverlay.WaitForRetryAsync(_appCts.Token);
+                }
+            }
+
+            _appCts.Token.ThrowIfCancellationRequested();
+            InitializeRuntimeServices();
+            _contentReady = true;
+            GateGameplay(true);
+            _contentOverlay?.Hide();
+        }
+        catch (OperationCanceledException) when (_appCts.IsCancellationRequested)
+        {
+        }
+        catch (Exception ex)
+        {
+            Debug.LogError($"[Content] Fatal bootstrap error; runtime remains disabled: {ex}");
+            _contentOverlay?.ShowFailure(ex);
+        }
+    }
+
+    // 装配唯一的出站 Runtime 连接，并发布当前场景的实体与工具 Manifest。
+    private void InitializeRuntimeServices()
+    {
+        if (_runtimeInitialized)
+            return;
+
         IReadOnlyList<LoadedToolPack> loadedToolPacks = Array.Empty<LoadedToolPack>();
         try
         {
@@ -114,7 +194,34 @@ public class AgentHostClient : Singleton<AgentHostClient>
         gateway.Info += message => Debug.Log($"[Agent Runtime] {message}");
         gateway.Warning += message => Debug.LogWarning($"[Agent Runtime] {message}");
         _runtimeTransport = gateway;
+        _runtimeInitialized = true;
         _ = RunRuntimeAsync();
+    }
+
+    private void GateGameplay(bool ready)
+    {
+        if (!ready)
+        {
+            _gatedPlayers = FindObjectsByType<PlayerMock>(
+                    FindObjectsInactive.Include,
+                    FindObjectsSortMode.None)
+                .Where(player => player != null && player.enabled)
+                .ToArray();
+            foreach (PlayerMock player in _gatedPlayers)
+                player.enabled = false;
+            _gatedUi = FindFirstObjectByType<UIManager>(FindObjectsInactive.Include);
+            _gatedUi?.SetContentReady(false);
+            return;
+        }
+
+        _gatedUi ??= FindFirstObjectByType<UIManager>(FindObjectsInactive.Include);
+        _gatedUi?.SetContentReady(true);
+        foreach (PlayerMock player in _gatedPlayers)
+        {
+            if (player != null)
+                player.enabled = true;
+        }
+        _gatedPlayers = Array.Empty<PlayerMock>();
     }
 
     private void Update()
@@ -124,7 +231,8 @@ public class AgentHostClient : Singleton<AgentHostClient>
             try { action(); }
             catch (Exception ex) { Debug.LogWarning($"[Agent Runtime] UI callback failed: {ex.Message}"); }
         }
-        RefreshNpcCapabilitiesIfNeeded();
+        if (_runtimeInitialized)
+            RefreshNpcCapabilitiesIfNeeded();
     }
 
     private void OnNpcRuntimeAvailabilityChanged(NpcEntity npc, bool available)
@@ -186,12 +294,13 @@ public class AgentHostClient : Singleton<AgentHostClient>
 
     public void OnPlayerInteractWithNpc(string npcId)
     {
-        if (!_saveBusy && !_restoreFailed && !string.IsNullOrWhiteSpace(npcId))
+        if (_contentReady && !_saveBusy && !_restoreFailed && !string.IsNullOrWhiteSpace(npcId))
             _activeNpcId = npcId;
     }
 
     public void SubmitPlayerInput(string text)
     {
+        if (!_contentReady) return;
         if (_saveBusy) { SystemMessage("存档操作进行中，请稍候。"); return; }
         if (_restoreFailed) { SystemMessage("对话历史尚未恢复，请重试加载。"); return; }
         if (string.IsNullOrWhiteSpace(_activeNpcId))
@@ -232,7 +341,7 @@ public class AgentHostClient : Singleton<AgentHostClient>
     }
 
     public Task CancelActiveResponseAsync() =>
-        _a2a.CancelActiveTaskAsync(_appCts.Token);
+        _a2a == null ? Task.CompletedTask : _a2a.CancelActiveTaskAsync(_appCts.Token);
 
     // 网络线程只转换事件并投递 UI 回调，实际 Unity API 在 Update 中执行。
     private void HandleResponseEvent(string npcId, AgentResponseEvent responseEvent)
@@ -507,6 +616,7 @@ public class AgentHostClient : Singleton<AgentHostClient>
         (_runtimeTransport as IDisposable)?.Dispose();
         _a2a?.Dispose();
         _saveCoordinator?.Dispose();
+        _contentProvider?.Dispose();
         _sendLock.Dispose();
         _appCts.Dispose();
     }
