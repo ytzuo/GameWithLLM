@@ -81,7 +81,6 @@ public static class HotUpdateBaselineBuilder
             tools.Add(new JObject
             {
                 ["name"] = descriptor.Name,
-                ["description"] = descriptor.Description,
                 ["inputSchema"] = JObject.Parse(descriptor.InputSchemaJson)
             });
         }

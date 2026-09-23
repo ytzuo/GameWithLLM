@@ -122,7 +122,7 @@ public static class HybridClrBootstrap
     private const string AgentMessagesFileName = "agent_messages.zh-CN.json";
     private const string UiFileName = "ui.zh-CN.json";
     public const string SmokePackageId = "smoke-test";
-    public const string SmokePackageVersion = "1.1.0";
+    public const string SmokePackageVersion = "1.3.0";
     public const string SmokeAssemblyName = "GameWithLLM.Tools.Pack.SmokeTest";
 
     [Serializable]
@@ -282,7 +282,7 @@ public static class HybridClrBootstrap
                 name = tool.Descriptor.Name,
                 toolIdentity = tool.Descriptor.Name,
                 source = hot ? "hot-update" : "builtin",
-                implementationVersion = hot ? "2.0.0" : "1.0.0",
+                implementationVersion = hot ? "4.0.0" : "1.0.0",
                 contractVersion = "1.0.0",
                 packageId = hot ? pack.PackageId : null,
                 packageVersion = hot ? pack.PackageVersion : null,
@@ -296,7 +296,7 @@ public static class HybridClrBootstrap
         string catalogRoot = Path.Combine(Application.dataPath, "Content", "Catalogs");
         return new LoadedToolSetRelease(
             "h5-editor-local",
-            "2.0.0",
+            "4.0.0",
             "2026.09.001",
             declarations,
             Array.Empty<RetiredToolDeclaration>(),
@@ -311,7 +311,12 @@ public static class HybridClrBootstrap
     {
         string path = Path.Combine(root, fileName);
         if (!File.Exists(path))
+        {
+            Debug.LogWarning(
+                $"[Hot Update] Required H5 Catalog '{fileName}' was not found at '{path}'. " +
+                "JSON descriptions cannot be activated.");
             throw new FileNotFoundException($"Required H5 Catalog '{fileName}' is missing.", path);
+        }
         return File.ReadAllText(path, Encoding.UTF8);
     }
 

@@ -10,11 +10,10 @@ public abstract class NpcTool<TArgs> : IAgentTool where TArgs : ToolArgsBase
     private AgentToolDescriptor _descriptor;
 
     public abstract string Name { get; }
-    public abstract string Description { get; }
     public AgentToolDescriptor Descriptor =>
         _descriptor ??= new AgentToolDescriptor(
             Name,
-            Description,
+            string.Empty,
             ToolContract<TArgs>.GetInputSchema().ToString(Formatting.None));
 
     public virtual bool IsAvailable(AgentToolContext context) =>
@@ -31,9 +30,7 @@ public abstract class NpcTool<TArgs> : IAgentTool where TArgs : ToolArgsBase
             return new ValueTask<AgentToolResult>(
                 AgentToolResult.Failure(
                     "INVALID_CONTEXT",
-                    ClientTextCatalogs.Message(
-                        "tool.error.invalid_context",
-                        "该工具要求有效的 NPC 实体。")));
+                    ClientTextCatalogs.Message("tool.error.invalid_context")));
         }
 
         var wrapper = new GameToolWrapper<TArgs>(

@@ -128,21 +128,18 @@ public static class ClientTextCatalogs
         Volatile.Write(ref _ui, ui);
     }
 
-    public static string Message(string key, string fallback, params object[] arguments) =>
-        Resolve(AgentMessages, key, fallback, arguments);
+    public static string Message(string key, params object[] arguments) =>
+        Resolve(AgentMessages, key, arguments);
 
-    public static string UiText(string key, string fallback, params object[] arguments) =>
-        Resolve(UI, key, fallback, arguments);
+    public static string UiText(string key, params object[] arguments) =>
+        Resolve(UI, key, arguments);
 
     private static string Resolve(
         ClientTextCatalog catalog,
         string key,
-        string fallback,
         object[] arguments)
     {
-        string template = fallback;
-        if (catalog != null && catalog.Texts.TryGetValue(key, out string value))
-            template = value;
+        string template = catalog == null ? key : catalog.Get(key);
         return arguments == null || arguments.Length == 0
             ? template
             : string.Format(CultureInfo.InvariantCulture, template, arguments);

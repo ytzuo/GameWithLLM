@@ -5,7 +5,7 @@
   "scriptingBackend": "IL2CPP",
   "apiCompatibility": "NET_Standard_2_0",
   "development": true,
-  "totalBytes": 1601959987,
-  "buildSeconds": 151.9700971,
+  "totalBytes": 1601972315,
+  "buildSeconds": 151.77385099999998,
   "outputPath": "D:\\UnityProject\\GameWithLLM\\unity-NPC-agent-client\\Builds\\HybridClrH5\\GameWithLLM.exe"
 }

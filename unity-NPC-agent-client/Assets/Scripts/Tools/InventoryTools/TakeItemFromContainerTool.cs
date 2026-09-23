@@ -7,9 +7,6 @@ using UnityEngine.Scripting;
 public sealed class TakeItemFromContainerTool : InventoryNpcTool<TakeItemFromContainerArgs>
 {
     public override string Name => "game_inventory_take_item";
-    public override string Description =>
-        "从附近容器中取出指定数量的物品放入当前 NPC 背包；操作原子执行，不会部分转移。";
-
     protected override AgentToolResult ExecuteCore(
         AgentToolContext context,
         NpcEntity npc,
@@ -27,7 +24,6 @@ public sealed class TakeItemFromContainerTool : InventoryNpcTool<TakeItemFromCon
             "NPC_INVENTORY_FULL");
         return Success(data, ClientTextCatalogs.Message(
             "tool.inventory.take_succeeded",
-            "已从 '{0}' 取出 {1} 个 '{2}'。",
             source.ContainerId,
             args.quantity,
             item.ItemName));

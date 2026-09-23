@@ -395,11 +395,14 @@ description 只从版本化 `tool_metadata.zh-CN.json` 注入。Catalog 使用�
 解析，并与候选 ToolSet 联合验证：活动工具和结构参数必须完整覆盖，未知/停用工具、
 未知参数和路由字段 `entityId` 均被拒绝。`ToolsRegistry` 在同一激活锁内交换完整
 ToolSet/Catalog，纯文案更新则只原子交换 Catalog；成功切换只触发一次完整 Manifest
-更新，无效 Catalog 保留上一成功快照。
+更新，无效 Catalog 保留上一成功快照。工具程序集、参数 Attribute 和结构 Schema
+基线均不保存描述副本；启动时没有可用 JSON Catalog，则仅以稳定工具名作为临时工具
+描述、完全省略参数描述，并输出显式 Warning，禁止静默恢复到代码内文案。
 
 `agent_messages.zh-CN.json` 与 `ui.zh-CN.json` 使用稳定文本键。它们与工具 Catalog
 共享同一 `contentVersion`，在 ToolSet 提交前全部完成严格验证，再由
-`ClientTextCatalogs` 一次发布；错误码、协议错误和日志事件名仍固定在代码中。
+`ClientTextCatalogs` 一次发布；调用点不保存自然语言 fallback，Catalog 未激活时只
+返回稳定文本键。错误码、协议错误和日志事件名仍固定在代码中。
 本地 H5 staging 将三份 JSON 与 release manifest、metadata 和工具 DLL 一起写入
 `StreamingAssets/HotUpdate`；A2 再把同一逻辑地址迁移到 Addressables。
 

@@ -322,7 +322,6 @@ public class NpcEntity : MonoBehaviour, IGameObjectAgentEntity, IGameplayWorldTa
         FinishActiveMovement(AgentToolResult.Success(
             ClientTextCatalogs.Message(
                 "tool.move.arrived",
-                "NPC 已到达 {0} 附近。",
                 arrivedTargetId),
             JToken.FromObject(new
             {

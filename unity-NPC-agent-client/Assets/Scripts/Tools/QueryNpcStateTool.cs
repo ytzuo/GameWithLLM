@@ -18,10 +18,6 @@ public sealed class QueryNpcStateTool : NpcTool<QueryNpcStateArgs>
 {
     public override string Name => "game_npc_get_state";
 
-    public override string Description =>
-        "查询当前对话 NPC 的实时运行状态、世界坐标和移动信息。" +
-        "用于确认 NPC 当前是否空闲、是否位于 NavMesh、正在前往哪个目标以及剩余距离。";
-
     protected override AgentToolResult ExecuteCore(
         AgentToolContext context,
         NpcEntity npc,
@@ -31,7 +27,6 @@ public sealed class QueryNpcStateTool : NpcTool<QueryNpcStateArgs>
             npc.CreateRuntimeStateData(),
             ClientTextCatalogs.Message(
                 "tool.state.loaded",
-                "已获取 NPC '{0}' 的当前状态。",
                 npc.npcId));
     }
 }

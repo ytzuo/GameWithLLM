@@ -20,12 +20,10 @@ public sealed class QuerySceneTargetsArgs : ToolArgsBase
         ItemAllowedValues = new string[] { "npc", "player", "landmark" })]
     public string[] categories;
 
-    [ToolParameter(
-        Minimum = 0,
-        Description = "最大直线距离；0 或省略表示不限制")]
+    [ToolParameter(Minimum = 0)]
     public float maxDistance;
 
-    [ToolParameter(Description = "是否只返回具有完整 NavMesh 路径的目标")]
+    [ToolParameter]
     public bool reachableOnly;
 
     public override bool Validate(out string errorMessage)
@@ -40,10 +38,6 @@ public sealed class QuerySceneTargetsArgs : ToolArgsBase
 public sealed class QuerySceneTargetsTool : NpcTool<QuerySceneTargetsArgs>
 {
     public override string Name => "game_scene_get_targets";
-
-    public override string Description =>
-        "查询当前场景中的其他 NPC、玩家和地标，返回稳定 targetId、类别、距离和 NavMesh 可达性。" +
-        "game_npc_move 必须使用本工具返回的 targetId。";
 
     protected override AgentToolResult ExecuteCore(
         AgentToolContext context,
@@ -66,12 +60,9 @@ public sealed class QuerySceneTargetsTool : NpcTool<QuerySceneTargetsArgs>
             .ToList();
 
         string message = targets.Count == 0
-            ? ClientTextCatalogs.Message(
-                "tool.move.no_targets",
-                "当前筛选条件下没有可用移动目标。")
+            ? ClientTextCatalogs.Message("tool.move.no_targets")
             : ClientTextCatalogs.Message(
                 "tool.move.targets_found",
-                "当前可用移动目标有：{0}。移动时请使用返回结果中的 targetId。",
                 string.Join("、", targets.Select(target => target.DisplayName)));
 
         return Success(JToken.FromObject(new { count = targets.Count, targets }), message);

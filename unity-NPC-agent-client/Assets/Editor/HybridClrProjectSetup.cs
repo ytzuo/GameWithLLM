@@ -244,7 +244,7 @@ public static class HybridClrProjectSetup
         var releaseTools = new List<IAgentTool>();
         releaseTools.AddRange(AgentToolDiscovery.DiscoverBuiltinTools());
         releaseTools.AddRange(AgentToolDiscovery.DiscoverFromAssembly(smokeAssembly));
-        const string releaseId = "h5-local-1.0.0";
+        const string releaseId = "h5-local-1.2.0";
         var activeTools = releaseTools.Select(tool =>
         {
             bool hot = string.Equals(
@@ -256,7 +256,7 @@ public static class HybridClrProjectSetup
                 name = tool.Descriptor.Name,
                 toolIdentity = tool.Descriptor.Name,
                 source = hot ? "hot-update" : "builtin",
-                implementationVersion = hot ? "2.0.0" : "1.0.0",
+                implementationVersion = hot ? "4.0.0" : "1.0.0",
                 contractVersion = "1.0.0",
                 packageId = hot ? HybridClrBootstrap.SmokePackageId : null,
                 packageVersion = hot ? HybridClrBootstrap.SmokePackageVersion : null,
@@ -276,7 +276,7 @@ public static class HybridClrProjectSetup
         string manifest = JsonConvert.SerializeObject(new
         {
             releaseId,
-            toolSetVersion = "2.0.0",
+            toolSetVersion = "4.0.0",
             catalogVersion = "2026.09.001",
             minPlayerVersion = Application.version,
             maxPlayerVersion = Application.version,

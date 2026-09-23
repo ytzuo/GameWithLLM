@@ -3,24 +3,24 @@
     "name": "game_hotfix_smoke_package_info",
     "toolIdentity": "game_hotfix_smoke_package_info",
     "source": "hot-update",
-    "implementationVersion": "2.0.0",
+    "implementationVersion": "4.0.0",
     "contractVersion": "1.0.0",
     "schemaHash": "99334726611ccf58a148b0814696bfa6fe08c1b2d027e946beccf5a74331c9aa",
-    "assemblyHash": "ea3553a8c52fb31cbfb9e73969a179e1f7829245d19fc50de922ca1c003e2d7a",
+    "assemblyHash": "c75877453d4a2d5e62cdc6d51dfc91e6f3b1555c135f664b79e26717f20061e9",
     "firstReleaseId": "h4-local-1.0.0",
-    "lastReleaseId": "h5-local-1.0.0",
+    "lastReleaseId": "h5-local-1.2.0",
     "retiredInToolSetVersion": null
   },
   {
     "name": "game_hotfix_smoke_query",
     "toolIdentity": "game_hotfix_smoke_query",
     "source": "hot-update",
-    "implementationVersion": "2.0.0",
+    "implementationVersion": "4.0.0",
     "contractVersion": "1.0.0",
     "schemaHash": "294af3fe6962f94c90794f4e04646c2551b2604deb4ce909ad30e9bd7f2c32f9",
-    "assemblyHash": "ea3553a8c52fb31cbfb9e73969a179e1f7829245d19fc50de922ca1c003e2d7a",
+    "assemblyHash": "c75877453d4a2d5e62cdc6d51dfc91e6f3b1555c135f664b79e26717f20061e9",
     "firstReleaseId": "h4-local-1.0.0",
-    "lastReleaseId": "h5-local-1.0.0",
+    "lastReleaseId": "h5-local-1.2.0",
     "retiredInToolSetVersion": null
   },
   {
@@ -32,7 +32,7 @@
     "schemaHash": "6d2690be661cc055b029e27bd4b36ae3f6b863951b58b575f116eede4bf5daaa",
     "assemblyHash": null,
     "firstReleaseId": "h4-local-1.0.0",
-    "lastReleaseId": "h5-local-1.0.0",
+    "lastReleaseId": "h5-local-1.2.0",
     "retiredInToolSetVersion": null
   },
   {
@@ -44,7 +44,7 @@
     "schemaHash": "99334726611ccf58a148b0814696bfa6fe08c1b2d027e946beccf5a74331c9aa",
     "assemblyHash": null,
     "firstReleaseId": "h4-local-1.0.0",
-    "lastReleaseId": "h5-local-1.0.0",
+    "lastReleaseId": "h5-local-1.2.0",
     "retiredInToolSetVersion": null
   },
   {
@@ -56,7 +56,7 @@
     "schemaHash": "814a646e80e6884d8bd362dea6055f17b87717db803fe6c6c58b214adccff2a9",
     "assemblyHash": null,
     "firstReleaseId": "h4-local-1.0.0",
-    "lastReleaseId": "h5-local-1.0.0",
+    "lastReleaseId": "h5-local-1.2.0",
     "retiredInToolSetVersion": null
   },
   {
@@ -68,7 +68,7 @@
     "schemaHash": "99334726611ccf58a148b0814696bfa6fe08c1b2d027e946beccf5a74331c9aa",
     "assemblyHash": null,
     "firstReleaseId": "h4-local-1.0.0",
-    "lastReleaseId": "h5-local-1.0.0",
+    "lastReleaseId": "h5-local-1.2.0",
     "retiredInToolSetVersion": null
   },
   {
@@ -80,7 +80,7 @@
     "schemaHash": "79c70f0df25e761e47240744a80b556ee80b70c422f4e5e806f1771fe68e3468",
     "assemblyHash": null,
     "firstReleaseId": "h4-local-1.0.0",
-    "lastReleaseId": "h5-local-1.0.0",
+    "lastReleaseId": "h5-local-1.2.0",
     "retiredInToolSetVersion": null
   },
   {
@@ -92,7 +92,7 @@
     "schemaHash": "79c70f0df25e761e47240744a80b556ee80b70c422f4e5e806f1771fe68e3468",
     "assemblyHash": null,
     "firstReleaseId": "h4-local-1.0.0",
-    "lastReleaseId": "h5-local-1.0.0",
+    "lastReleaseId": "h5-local-1.2.0",
     "retiredInToolSetVersion": null
   },
   {
@@ -104,7 +104,7 @@
     "schemaHash": "99334726611ccf58a148b0814696bfa6fe08c1b2d027e946beccf5a74331c9aa",
     "assemblyHash": null,
     "firstReleaseId": "h4-local-1.0.0",
-    "lastReleaseId": "h5-local-1.0.0",
+    "lastReleaseId": "h5-local-1.2.0",
     "retiredInToolSetVersion": null
   },
   {
@@ -116,7 +116,7 @@
     "schemaHash": "dd0310f8b7f5b855674ad5cd069166d9211641417fbf5d16331f67adb1364d04",
     "assemblyHash": null,
     "firstReleaseId": "h4-local-1.0.0",
-    "lastReleaseId": "h5-local-1.0.0",
+    "lastReleaseId": "h5-local-1.2.0",
     "retiredInToolSetVersion": null
   },
   {
@@ -128,7 +128,7 @@
     "schemaHash": "0428d9b2210319b7b15c12c140ba653983141bfbead31cc05cc8c41c4e5a450c",
     "assemblyHash": null,
     "firstReleaseId": "h4-local-1.0.0",
-    "lastReleaseId": "h5-local-1.0.0",
+    "lastReleaseId": "h5-local-1.2.0",
     "retiredInToolSetVersion": null
   }
 ]

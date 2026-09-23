@@ -59,8 +59,8 @@ public sealed class HybridClrSmokeTestRunner : MonoBehaviour
                 throw new InvalidOperationException("Smoke tool descriptor or schema is missing.");
             }
             ToolSetSnapshot snapshot = registry.ActiveSnapshot;
-            if (snapshot == null || snapshot.ReleaseId != "h5-local-1.0.0" ||
-                snapshot.ToolSetVersion != "2.0.0" ||
+            if (snapshot == null || snapshot.ReleaseId != "h5-local-1.2.0" ||
+                snapshot.ToolSetVersion != "4.0.0" ||
                 registry.ActiveCatalog.ContentVersion != "2026.09.001")
                 throw new InvalidOperationException(
                     $"Unexpected active ToolSet: {snapshot?.ReleaseId}/{snapshot?.ToolSetVersion}.");

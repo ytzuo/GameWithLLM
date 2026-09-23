@@ -56,7 +56,7 @@ public class ToolsRegistry : Singleton<ToolsRegistry>
         Volatile.Write(ref _activeSnapshot, snapshot);
         Volatile.Write(
             ref _activeCatalog,
-            ToolMetadataCatalog.CreateCompatibilityCatalog(snapshot, baseline.CatalogVersion));
+            ToolMetadataCatalog.CreateIdentifierFallbackCatalog(snapshot, baseline.CatalogVersion));
     }
 
     // 所有反射发现、Descriptor、Schema、版本和历史校验都在活动锁外完成。
@@ -64,7 +64,7 @@ public class ToolsRegistry : Singleton<ToolsRegistry>
     {
         ToolSetSnapshot current = ActiveSnapshot;
         ToolSetSnapshot prepared = ToolSetValidator.Prepare(candidate, current);
-        ToolMetadataCatalog catalog = ToolMetadataCatalog.CreateCompatibilityCatalog(
+        ToolMetadataCatalog catalog = ToolMetadataCatalog.CreateIdentifierFallbackCatalog(
             prepared,
             candidate.CatalogVersion);
         return new PreparedToolSet(
@@ -175,8 +175,7 @@ public class ToolsRegistry : Singleton<ToolsRegistry>
                 "entityId",
                 new JObject
                 {
-                    ["type"] = "string",
-                    ["description"] = "执行该行为的游戏实体 ID"
+                    ["type"] = "string"
                 }));
             var required = schema["required"] as JArray ?? new JArray();
             schema["required"] = required;
@@ -242,10 +241,10 @@ public class ToolsRegistry : Singleton<ToolsRegistry>
             if (snapshot?.IsRetired(toolName) == true)
                 return AgentToolResult.Failure(
                     "TOOL_RETIRED",
-                    ClientTextCatalogs.Message("tool.error.retired", "工具 '{0}' 已停用。", toolName));
+                    ClientTextCatalogs.Message("tool.error.retired", toolName));
             return AgentToolResult.Failure(
                 "UNKNOWN_TOOL",
-                ClientTextCatalogs.Message("tool.error.unknown", "未注册工具 '{0}'。", toolName));
+                ClientTextCatalogs.Message("tool.error.unknown", toolName));
         }
 
         try
@@ -256,7 +255,6 @@ public class ToolsRegistry : Singleton<ToolsRegistry>
                     "TOOL_UNAVAILABLE",
                     ClientTextCatalogs.Message(
                         "tool.error.unavailable",
-                        "工具 '{0}' 当前不适用于实体 '{1}'。",
                         toolName,
                         context?.Entity?.EntityId));
             }
@@ -273,7 +271,6 @@ public class ToolsRegistry : Singleton<ToolsRegistry>
                 "TOOL_EXECUTION_FAILED",
                 ClientTextCatalogs.Message(
                     "tool.error.execution_failed",
-                    "工具 '{0}' 执行失败：{1}",
                     toolName,
                     ex.Message));
         }

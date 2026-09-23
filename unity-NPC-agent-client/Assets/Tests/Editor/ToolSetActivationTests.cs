@@ -222,6 +222,19 @@ public sealed class ToolSetActivationTests
     }
 
     [Test]
+    public void MissingCatalog_UsesIdentifiersWithoutEmbeddedParameterDescriptions()
+    {
+        Assert.That(_registry.ActiveCatalog.IsIdentifierFallback, Is.True);
+        foreach (AgentToolDescriptor descriptor in _registry.GetRuntimeTools())
+        {
+            Assert.That(descriptor.Description, Is.EqualTo(descriptor.Name));
+            var schema = JObject.Parse(descriptor.InputSchemaJson);
+            foreach (JProperty property in (schema["properties"] as JObject ?? new JObject()).Properties())
+                Assert.That(property.Value["description"], Is.Null, descriptor.Name + "." + property.Name);
+        }
+    }
+
+    [Test]
     public void InvalidCatalog_DoesNotMutateActiveCatalog()
     {
         string before = _registry.ActiveCatalog.Fingerprint;

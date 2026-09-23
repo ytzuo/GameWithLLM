@@ -177,6 +177,12 @@ public class AgentHostClient : Singleton<AgentHostClient>
                     $"the last complete Registry snapshot remains active: {ex}");
             }
         }
+        if (_tools.ActiveCatalog.IsIdentifierFallback)
+        {
+            Debug.LogWarning(
+                "[Hot Update] tool_metadata JSON was not loaded; tool identifiers are being used " +
+                "as temporary descriptions and parameter descriptions are omitted.");
+        }
         _dispatcher.EntityChanged += OnRuntimeChanged;
         _dispatcher.EntityCapabilitiesChanged += OnCapabilitiesChanged;
         _tools.ToolsChanged += OnToolsChanged;

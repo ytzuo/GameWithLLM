@@ -12,7 +12,6 @@ using Newtonsoft.Json.Linq;
 public sealed class ToolParameterAttribute : Attribute
 {
     public bool Required { get; set; }
-    public string Description { get; set; }
     public double Minimum { get; set; } = double.NaN;
     public double Maximum { get; set; } = double.NaN;
     public int MinLength { get; set; } = -1;

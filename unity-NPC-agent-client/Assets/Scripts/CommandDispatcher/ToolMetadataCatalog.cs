@@ -51,6 +51,7 @@ public sealed class ToolMetadataCatalog
     public string ContentVersion { get; }
     public string Locale { get; }
     public string Fingerprint { get; }
+    public bool IsIdentifierFallback { get; }
     public IReadOnlyDictionary<string, ToolMetadata> Tools => _tools;
 
     private ToolMetadataCatalog(
@@ -58,7 +59,8 @@ public sealed class ToolMetadataCatalog
         string contentVersion,
         string locale,
         IDictionary<string, ToolMetadata> tools,
-        string fingerprint)
+        string fingerprint,
+        bool isIdentifierFallback = false)
     {
         SchemaVersion = schemaVersion;
         ContentVersion = contentVersion;
@@ -66,6 +68,7 @@ public sealed class ToolMetadataCatalog
         _tools = new ReadOnlyDictionary<string, ToolMetadata>(
             new Dictionary<string, ToolMetadata>(tools, StringComparer.Ordinal));
         Fingerprint = fingerprint;
+        IsIdentifierFallback = isIdentifierFallback;
     }
 
     public static ToolMetadataCatalog ParseAndValidate(
@@ -167,8 +170,8 @@ public sealed class ToolMetadataCatalog
             ComputeSha256(canonical));
     }
 
-    // 仅供无发布文件的 AOT 降级和旧调用方使用；正常发布必须调用 ParseAndValidate。
-    internal static ToolMetadataCatalog CreateCompatibilityCatalog(
+    // 无发布 JSON 时只用稳定标识符占位，不从工具程序集复制任何描述文案。
+    internal static ToolMetadataCatalog CreateIdentifierFallbackCatalog(
         ToolSetSnapshot toolSet,
         string contentVersion)
     {
@@ -181,9 +184,7 @@ public sealed class ToolMetadataCatalog
                 parameters[property.Name] = new JObject { ["omitDescription"] = true };
             tools[pair.Key] = new JObject
             {
-                ["description"] = string.IsNullOrWhiteSpace(pair.Value.Description)
-                    ? pair.Key
-                    : pair.Value.Description,
+                ["description"] = pair.Key,
                 ["parameters"] = parameters
             };
         }
@@ -194,7 +195,17 @@ public sealed class ToolMetadataCatalog
             ["locale"] = "zh-CN",
             ["tools"] = tools
         };
-        return ParseAndValidate(root.ToString(Formatting.None), toolSet, contentVersion);
+        ToolMetadataCatalog parsed = ParseAndValidate(
+            root.ToString(Formatting.None),
+            toolSet,
+            contentVersion);
+        return new ToolMetadataCatalog(
+            parsed.SchemaVersion,
+            parsed.ContentVersion,
+            parsed.Locale,
+            parsed.Tools.ToDictionary(pair => pair.Key, pair => pair.Value, StringComparer.Ordinal),
+            parsed.Fingerprint,
+            true);
     }
 
     public AgentToolDescriptor Apply(AgentToolDescriptor structuralDescriptor)
