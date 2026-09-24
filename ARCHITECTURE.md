@@ -375,9 +375,11 @@ Windows Player 使用 IL2CPP x86_64，HybridCLR 只承载版本化的 NPC 工具
   只能以同一逻辑身份和更高版本重新启用，不得改作无关语义。
 - 参数仍以 JSON 对象跨越 Runtime/MCP 边界。
 
-当前 A2 启动顺序为：Addressables 内容 bootstrap 读取完整 release manifest，只为
-候选快照引用的包下载并加载 AOT 补充元数据和经 SHA-256 校验的 DLL；内置程序集和选中的
-热更新程序集只产生发现候选，不直接修改 Registry。`ToolsRegistry.PrepareToolSet`
+当前 A2 + H6 启动顺序为：Addressables 内容 bootstrap 读取完整 release manifest，只为
+候选快照引用的包下载 AOT 补充元数据和经 SHA-256 校验的 DLL；三份 JSON 与全部二进制
+先完成拷贝和校验，再由 `HybridClrToolPackageLoader` 按 metadata、DLL、工具发现的顺序
+构建包候选。内置程序集和选中的热更新程序集只产生发现候选，不直接修改 Registry。
+`ToolsRegistry.PrepareToolSet`
 在锁外完成名称、来源、包身份、Descriptor、Schema、版本单调性、删除/重新启用和
 历史台账校验，`ActivateToolSet` 在锁内一次交换不可变活动快照和包索引。Runtime
 Gateway 与 A2A 在激活成功后才创建，因此不会发布或执行半套新旧工具。
@@ -408,9 +410,11 @@ A2 将三份 JSON、release manifest、metadata 和工具 DLL 分别交付到
 地址、长度、SHA-256、内容版本和 Player 版本整体验证，再执行 HybridCLR 加载；
 Player 不再包含 `StreamingAssets/HotUpdate` 双来源。
 
-加载失败由 `AgentHostClient` 记录并降级为只运行 AOT BuiltinTools，不改变
-Go/Unity 权威边界。PDB 只进入 Development/QA 产物；正式构建的 staging hook
-会将其排除。
+加载失败由 `AgentHostClient` 记录稳定错误码并降级为只运行 AOT BuiltinTools，不改变
+Go/Unity 权威边界。已加载工具包按 packageId、packageVersion 和程序集 hash 幂等缓存；
+失败项不进入缓存，以允许重试。只有 H4 完整快照原子激活后才确认最后成功内容。
+PDB 只进入 Development/QA 的可选加载路径；Production 不把 PDB 地址加入必需下载集，
+正式构建的 staging hook 也会将其排除。
 
 ### 6.2 Addressables 内容边界
 

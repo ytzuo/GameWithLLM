@@ -98,7 +98,8 @@ public class AgentHostClient : Singleton<AgentHostClient>
                         if (result.CandidateError != null)
                             Debug.LogWarning(
                                 "[Content] Remote hot-update candidate was rejected; " +
-                                "runtime will use builtin tools and stable text keys.");
+                                $"runtime will use builtin tools and stable text keys " +
+                                $"(code={result.CandidateErrorCode}).");
                         break;
                     }
 
@@ -178,6 +179,7 @@ public class AgentHostClient : Singleton<AgentHostClient>
                 ToolSetActivationResult result = _tools.ActivateToolSet(prepared);
                 ClientTextCatalogs.Activate(agentMessages, ui);
                 ToolSetActivationStore.Save(_tools.ActiveSnapshot, _tools.ActiveCatalog);
+                _contentBootstrap?.ConfirmActivation();
                 Debug.Log(
                     $"[Hot Update] Release '{result.ReleaseId}' ToolSet '{result.ToolSetVersion}' " +
                     $"{(result.Idempotent ? "was already active" : "activated atomically")} " +
@@ -187,7 +189,8 @@ public class AgentHostClient : Singleton<AgentHostClient>
             {
                 Debug.LogError(
                     $"[Hot Update] Release '{loadedRelease.ReleaseId}' was rejected; " +
-                    $"the last complete Registry snapshot remains active: {ex}");
+                    $"the last complete Registry snapshot remains active " +
+                    $"(code=HOT_UPDATE_TOOLSET_REJECTED): {ex}");
             }
         }
         if (_tools.ActiveCatalog.IsIdentifierFallback)

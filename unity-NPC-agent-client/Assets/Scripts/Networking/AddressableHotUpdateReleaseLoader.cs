@@ -2,11 +2,9 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using System.Reflection;
 using System.Security.Cryptography;
 using System.Threading;
 using System.Threading.Tasks;
-using HybridCLR;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using UnityEngine;
@@ -74,10 +72,15 @@ public sealed class AddressableHotUpdateReleaseLoader : IHotUpdateReleaseLoader
     private const string AgentMessagesId = "agent_messages.zh-CN";
     private const string UiId = "ui.zh-CN";
     private readonly IContentAssetProvider _provider;
+    private readonly HybridClrToolPackageLoader _toolPackageLoader;
 
-    public AddressableHotUpdateReleaseLoader(IContentAssetProvider provider)
+    public AddressableHotUpdateReleaseLoader(
+        IContentAssetProvider provider,
+        HybridClrToolPackageLoader toolPackageLoader = null)
     {
         _provider = provider ?? throw new ArgumentNullException(nameof(provider));
+        _toolPackageLoader = toolPackageLoader ?? new HybridClrToolPackageLoader(
+            new AddressableHotUpdateArtifactSource(provider));
     }
 
     public async Task<HotUpdateReleaseManifest> LoadManifestAsync(
@@ -130,7 +133,8 @@ public sealed class AddressableHotUpdateReleaseLoader : IHotUpdateReleaseLoader
     public IReadOnlyList<string> GetRequiredAddresses(HotUpdateReleaseManifest manifest)
     {
         ValidateManifest(manifest);
-        return EnumerateArtifacts(manifest)
+        return manifest.catalogs.Cast<HotUpdateArtifactDeclaration>()
+            .Concat(_toolPackageLoader.GetRequiredArtifacts(manifest))
             .Select(item => item.address)
             .Distinct(StringComparer.Ordinal)
             .ToArray();
@@ -142,7 +146,7 @@ public sealed class AddressableHotUpdateReleaseLoader : IHotUpdateReleaseLoader
     {
         ValidateCompatibility(manifest);
         var bytesByAddress = new Dictionary<string, byte[]>(StringComparer.Ordinal);
-        foreach (HotUpdateArtifactDeclaration artifact in EnumerateArtifacts(manifest))
+        foreach (HotUpdateArtifactDeclaration artifact in manifest.catalogs)
         {
             using ContentAssetLease<TextAsset> lease =
                 await _provider.LoadAssetAsync<TextAsset>(artifact.address, cancellationToken);
@@ -160,56 +164,9 @@ public sealed class AddressableHotUpdateReleaseLoader : IHotUpdateReleaseLoader
         ClientTextCatalog.Parse(agentMessages, manifest.contentVersion);
         ClientTextCatalog.Parse(ui, manifest.contentVersion);
 
-        foreach (HotUpdateArtifactDeclaration metadata in manifest.aotMetadata)
-        {
-#if !UNITY_EDITOR && ENABLE_IL2CPP
-            LoadImageErrorCode result = RuntimeApi.LoadMetadataForAOTAssembly(
-                bytesByAddress[metadata.address],
-                HomologousImageMode.SuperSet);
-            if (result != LoadImageErrorCode.OK &&
-                result != LoadImageErrorCode.HOMOLOGOUS_ASSEMBLY_HAS_LOADED)
-                throw new InvalidOperationException(
-                    $"Failed to load AOT metadata '{metadata.fileName}': {result}.");
-#endif
-        }
-
-        var packs = new List<LoadedToolPack>();
-        var selected = new HashSet<string>(manifest.activeTools
-            .Where(tool => string.Equals(tool.source, "hot-update", StringComparison.Ordinal))
-            .Select(tool => tool.packageId + "\n" + tool.packageVersion), StringComparer.Ordinal);
-        foreach (HotUpdateToolPackageDeclaration package in manifest.toolPackages)
-        {
-            string key = package.packageId + "\n" + package.packageVersion;
-            if (!selected.Contains(key))
-                continue;
-            byte[] assemblyBytes = bytesByAddress[package.assembly.address];
-            Assembly assembly;
-#if UNITY_EDITOR
-            assembly = AppDomain.CurrentDomain.GetAssemblies().SingleOrDefault(candidate =>
-                string.Equals(candidate.GetName().Name, package.assemblyName, StringComparison.Ordinal));
-            if (assembly == null)
-                throw new InvalidOperationException(
-                    $"Editor tool assembly '{package.assemblyName}' is not loaded.");
-#else
-            byte[] symbols = package.debugSymbols != null &&
-                             !string.IsNullOrWhiteSpace(package.debugSymbols.address)
-                ? bytesByAddress[package.debugSymbols.address]
-                : null;
-            assembly = symbols == null
-                ? Assembly.Load(assemblyBytes)
-                : Assembly.Load(assemblyBytes, symbols);
-#endif
-            if (!string.Equals(assembly.GetName().Name, package.assemblyName, StringComparison.Ordinal))
-                throw new InvalidDataException(
-                    $"Loaded assembly '{assembly.GetName().Name}' does not match '{package.assemblyName}'.");
-            packs.Add(new LoadedToolPack(
-                package.packageId,
-                package.packageVersion,
-                package.assembly.sha256,
-                assembly));
-        }
-        if (packs.Count != selected.Count)
-            throw new InvalidDataException("The release does not provide every selected hot-update package.");
+        IReadOnlyList<LoadedToolPack> packs = await _toolPackageLoader.LoadAsync(
+            manifest,
+            cancellationToken);
 
         return new LoadedToolSetRelease(
             manifest.releaseId,

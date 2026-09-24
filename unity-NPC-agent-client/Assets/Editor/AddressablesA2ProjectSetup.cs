@@ -224,7 +224,9 @@ public static class AddressablesA2ProjectSetup
             scenes = new[] { "Assets/Scenes/SampleScene.unity" },
             locationPathName = output,
             target = BuildTarget.StandaloneWindows64,
-            options = BuildOptions.Development
+            // H6 validates the real IL2CPP/HybridCLR path. Do not reuse native objects
+            // produced by another MSVC toolset from a previous incremental smoke build.
+            options = BuildOptions.Development | BuildOptions.CleanBuildCache
         });
         if (report.summary.result != BuildResult.Succeeded)
             throw new InvalidOperationException("A2 Windows Player build failed: " + report.summary.result);

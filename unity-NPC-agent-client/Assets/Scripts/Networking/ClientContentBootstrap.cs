@@ -48,6 +48,9 @@ public sealed class ClientContentBootstrapResult
     public long DownloadBytes { get; }
     public LoadedToolSetRelease LoadedRelease { get; }
     public Exception CandidateError { get; }
+    public string CandidateErrorCode =>
+        (CandidateError as HotUpdateLoadException)?.ErrorCode ??
+        (CandidateError == null ? null : "HOT_UPDATE_CANDIDATE_REJECTED");
     public Exception Error { get; }
 
     public static ClientContentBootstrapResult Success(
@@ -93,6 +96,7 @@ public sealed class ClientContentBootstrap
     private readonly IContentAssetProvider _provider;
     private readonly IContentBootstrapStore _store;
     private readonly ClientContentBootstrapOptions _options;
+    private bool _activationConfirmationPending;
 
     public ClientContentBootstrap(
         IContentAssetProvider provider,
@@ -110,9 +114,20 @@ public sealed class ClientContentBootstrap
     public event Action<ClientContentBootstrapState, string> StateChanged;
     public event Action<ContentDownloadProgress> DownloadProgressChanged;
 
+    // A2/H6 only becomes the last-known-good content after the H4 Registry accepts and
+    // atomically activates the complete ToolSet. A1 without a release loader confirms inline.
+    public void ConfirmActivation()
+    {
+        if (!_activationConfirmationPending)
+            return;
+        _store.MarkSuccessfulContent();
+        _activationConfirmationPending = false;
+    }
+
     public async Task<ClientContentBootstrapResult> RunAttemptAsync(
         CancellationToken cancellationToken)
     {
+        _activationConfirmationPending = false;
         bool usedCachedCatalog = false;
         long downloadBytes = 0;
         HotUpdateReleaseManifest manifest = null;
@@ -154,6 +169,8 @@ public sealed class ClientContentBootstrap
                 try
                 {
                     manifest = await _options.ReleaseLoader.LoadManifestAsync(cancellationToken);
+                    if (manifest == null)
+                        throw new InvalidOperationException("Hot-update release loader returned a null manifest.");
                 }
                 catch (OperationCanceledException) { throw; }
                 catch (Exception ex) { candidateError = ex; }
@@ -235,11 +252,18 @@ public sealed class ClientContentBootstrap
             if (candidateError != null)
                 Debug.LogError(
                     $"[Content] A2 release '{manifest?.releaseId ?? "unknown"}' was rejected; " +
-                    $"using builtin tools and default text keys: {candidateError.GetBaseException().Message}");
+                    $"using builtin tools and default text keys " +
+                    $"(code={(candidateError as HotUpdateLoadException)?.ErrorCode ?? "HOT_UPDATE_CANDIDATE_REJECTED"}): " +
+                    $"{candidateError.GetBaseException().Message}");
 
             SetState(ClientContentBootstrapState.Activation, "正在激活内容版本");
             if (candidateError == null)
-                _store.MarkSuccessfulContent();
+            {
+                if (_options.ReleaseLoader == null)
+                    _store.MarkSuccessfulContent();
+                else if (loadedRelease != null)
+                    _activationConfirmationPending = true;
+            }
 
             SetState(ClientContentBootstrapState.EnableRuntimeGameUi, "内容就绪");
             return ClientContentBootstrapResult.Success(

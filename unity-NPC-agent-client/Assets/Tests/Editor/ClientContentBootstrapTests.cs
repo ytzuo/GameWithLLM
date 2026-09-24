@@ -105,7 +105,8 @@ public sealed class ClientContentBootstrapTests
             });
         LogAssert.Expect(
             LogType.Error,
-            "[Content] A2 release 'unknown' was rejected; using builtin tools and default text keys: corrupt manifest");
+            "[Content] A2 release 'unknown' was rejected; using builtin tools and default text keys " +
+            "(code=HOT_UPDATE_CANDIDATE_REJECTED): corrupt manifest");
 
         ClientContentBootstrapResult result =
             await bootstrap.RunAttemptAsync(CancellationToken.None);
@@ -113,8 +114,33 @@ public sealed class ClientContentBootstrapTests
         Assert.That(result.Succeeded, Is.True);
         Assert.That(result.LoadedRelease, Is.Null);
         Assert.That(result.CandidateError, Is.TypeOf<System.IO.InvalidDataException>());
+        Assert.That(result.CandidateErrorCode, Is.EqualTo("HOT_UPDATE_CANDIDATE_REJECTED"));
         Assert.That(store.MarkCount, Is.Zero);
         Assert.That(bootstrap.State, Is.EqualTo(ClientContentBootstrapState.EnableRuntimeGameUi));
+    }
+
+    [Test]
+    public async Task ValidA2Candidate_IsMarkedSuccessfulOnlyAfterRegistryActivationConfirmation()
+    {
+        var provider = new FakeProvider();
+        var store = new FakeStore();
+        var bootstrap = new ClientContentBootstrap(
+            provider,
+            store,
+            new ClientContentBootstrapOptions
+            {
+                ReleaseLoader = new SuccessfulReleaseLoader()
+            });
+
+        ClientContentBootstrapResult result =
+            await bootstrap.RunAttemptAsync(CancellationToken.None);
+
+        Assert.That(result.Succeeded, Is.True);
+        Assert.That(result.LoadedRelease, Is.Not.Null);
+        Assert.That(store.MarkCount, Is.Zero);
+        bootstrap.ConfirmActivation();
+        bootstrap.ConfirmActivation();
+        Assert.That(store.MarkCount, Is.EqualTo(1));
     }
 
     private sealed class FakeStore : IContentBootstrapStore
@@ -208,5 +234,37 @@ public sealed class ClientContentBootstrapTests
         public Task<LoadedToolSetRelease> LoadCandidateAsync(
             HotUpdateReleaseManifest manifest,
             CancellationToken cancellationToken) => throw new NotSupportedException();
+    }
+
+    private sealed class SuccessfulReleaseLoader : IHotUpdateReleaseLoader
+    {
+        private readonly HotUpdateReleaseManifest _manifest = new HotUpdateReleaseManifest
+        {
+            releaseId = "test-release"
+        };
+
+        public Task<HotUpdateReleaseManifest> LoadManifestAsync(CancellationToken cancellationToken) =>
+            Task.FromResult(_manifest);
+
+        public void ValidateCompatibility(HotUpdateReleaseManifest manifest)
+        {
+        }
+
+        public IReadOnlyList<string> GetRequiredAddresses(HotUpdateReleaseManifest manifest) =>
+            Array.Empty<string>();
+
+        public Task<LoadedToolSetRelease> LoadCandidateAsync(
+            HotUpdateReleaseManifest manifest,
+            CancellationToken cancellationToken) => Task.FromResult(new LoadedToolSetRelease(
+                manifest.releaseId,
+                "1.0.0",
+                "1.0.0",
+                Array.Empty<ToolReleaseDeclaration>(),
+                Array.Empty<RetiredToolDeclaration>(),
+                Array.Empty<ToolHistoryDeclaration>(),
+                Array.Empty<LoadedToolPack>(),
+                "{}",
+                "{}",
+                "{}"));
     }
 }

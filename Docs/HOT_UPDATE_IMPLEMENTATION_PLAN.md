@@ -1,6 +1,6 @@
 # 客户端热更新实施计划
 
-> 状态：H0-H5、A0-A2 已完成；H6-H7、A3 及后续阶段待实施
+> 状态：H0-H6、A0-A2 已完成；H7、A3 及后续阶段待实施
 > 创建日期：2026-09-21  
 > 适用项目：`unity-NPC-agent-client`（Unity `6000.3.19f1`，Windows）  
 > 实施范围：第一部分 HybridCLR；第二部分 Addressables
@@ -532,6 +532,11 @@ GameMCPServer/config/system_prompt.zh-CN.json
 的旧 Catalog。
 
 ## H6：接入 Addressables 工具包交付
+
+> 完成记录（2026-09-25）：A2 清单/JSON 验证与 HybridCLR 副作用已拆分；
+> `HybridClrToolPackageLoader` 负责按地址校验和加载 metadata、工具 DLL、可选 PDB，
+> 显式发现工具并缓存已加载包。候选只有经 H4 原子激活后才写入最后成功标记。
+> 验证结果和稳定错误码见 `Docs/HYBRIDCLR_H6_BASELINE.md`。
 
 ### 目标
 

@@ -15,17 +15,20 @@ public sealed class LoadedToolPack
     public string PackageVersion { get; }
     public string AssemblyHash { get; }
     public Assembly Assembly { get; }
+    public IReadOnlyList<IAgentTool> DiscoveredTools { get; }
 
     public LoadedToolPack(
         string packageId,
         string packageVersion,
         string assemblyHash,
-        Assembly assembly)
+        Assembly assembly,
+        IReadOnlyList<IAgentTool> discoveredTools = null)
     {
         PackageId = packageId;
         PackageVersion = packageVersion;
         AssemblyHash = assemblyHash;
         Assembly = assembly;
+        DiscoveredTools = discoveredTools ?? AgentToolDiscovery.DiscoverFromAssembly(assembly);
     }
 }
 
@@ -73,7 +76,7 @@ public sealed class LoadedToolSetRelease
             AddResolvedTool(byAssemblyAndName, tool);
         foreach (LoadedToolPack package in ToolPacks)
         {
-            foreach (IAgentTool tool in AgentToolDiscovery.DiscoverFromAssembly(package.Assembly))
+            foreach (IAgentTool tool in package.DiscoveredTools)
                 AddResolvedTool(byAssemblyAndName, tool);
         }
 
