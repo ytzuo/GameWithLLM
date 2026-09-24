@@ -14,7 +14,13 @@ MonoBehaviour:
   m_EditorClassIdentifier: Unity.Addressables.Editor::UnityEditor.AddressableAssets.Settings.AddressableAssetGroup
   m_GroupName: Remote_ToolPacks
   m_GUID: 33468fd1287f63b47a8dc6a97c709219
-  m_SerializeEntries: []
+  m_SerializeEntries:
+  - m_GUID: a649d3d723d6c834eb54650f1e8ce9d7
+    m_Address: hotfix/tools/smoke-test/1.3.0/assembly
+    m_ReadOnly: 0
+    m_SerializedLabels:
+    - content.hotfix-tools
+    FlaggedDuringContentUpdateRestriction: 0
   m_ReadOnly: 0
   m_Settings: {fileID: 11400000, guid: ce52958fe87f4da4e8b1723359b35a16, type: 2}
   m_SchemaSet:

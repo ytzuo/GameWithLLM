@@ -15,11 +15,35 @@ MonoBehaviour:
   m_GroupName: Remote_ClientConfig
   m_GUID: cab37bf1c674c9f4ea2c9e20f7f3553d
   m_SerializeEntries:
+  - m_GUID: 48672bad26ab52d49b3151f8126fd603
+    m_Address: hotfix/release/manifest
+    m_ReadOnly: 0
+    m_SerializedLabels:
+    - content.release-manifest
+    FlaggedDuringContentUpdateRestriction: 0
   - m_GUID: b88db5e10fbe492b858c807b5bf808c5
     m_Address: config/bootstrap/a1-probe
     m_ReadOnly: 0
     m_SerializedLabels:
     - content.a1-required
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: c997175828c44e4eb48de5550465145d
+    m_Address: config/tool-metadata/zh-CN
+    m_ReadOnly: 0
+    m_SerializedLabels:
+    - content.client-config
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: d68d1557a5dc4fd886c04474272a65e5
+    m_Address: config/ui/zh-CN
+    m_ReadOnly: 0
+    m_SerializedLabels:
+    - content.client-config
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: ffac3eb40e254d3892fa8ac3daecfbe7
+    m_Address: config/agent-messages/zh-CN
+    m_ReadOnly: 0
+    m_SerializedLabels:
+    - content.client-config
     FlaggedDuringContentUpdateRestriction: 0
   m_ReadOnly: 0
   m_Settings: {fileID: 11400000, guid: ce52958fe87f4da4e8b1723359b35a16, type: 2}

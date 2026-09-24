@@ -3,6 +3,8 @@ using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 using NUnit.Framework;
+using UnityEngine;
+using UnityEngine.TestTools;
 
 public sealed class ClientContentBootstrapTests
 {
@@ -89,6 +91,32 @@ public sealed class ClientContentBootstrapTests
             await bootstrap.RunAttemptAsync(cancellation.Token));
     }
 
+    [Test]
+    public async Task InvalidA2CandidateFallsBackToBuiltinWithoutMarkingReleaseSuccessful()
+    {
+        var provider = new FakeProvider();
+        var store = new FakeStore();
+        var bootstrap = new ClientContentBootstrap(
+            provider,
+            store,
+            new ClientContentBootstrapOptions
+            {
+                ReleaseLoader = new FailingReleaseLoader()
+            });
+        LogAssert.Expect(
+            LogType.Error,
+            "[Content] A2 release 'unknown' was rejected; using builtin tools and default text keys: corrupt manifest");
+
+        ClientContentBootstrapResult result =
+            await bootstrap.RunAttemptAsync(CancellationToken.None);
+
+        Assert.That(result.Succeeded, Is.True);
+        Assert.That(result.LoadedRelease, Is.Null);
+        Assert.That(result.CandidateError, Is.TypeOf<System.IO.InvalidDataException>());
+        Assert.That(store.MarkCount, Is.Zero);
+        Assert.That(bootstrap.State, Is.EqualTo(ClientContentBootstrapState.EnableRuntimeGameUi));
+    }
+
     private sealed class FakeStore : IContentBootstrapStore
     {
         public bool HasLastSuccessfulContent { get; set; }
@@ -154,9 +182,31 @@ public sealed class ClientContentBootstrapTests
             return Task.CompletedTask;
         }
 
+        public Task<ContentAssetLease<T>> LoadAssetAsync<T>(
+            object key,
+            CancellationToken cancellationToken) where T : UnityEngine.Object =>
+            throw new NotSupportedException();
+
         public void Dispose()
         {
             IsInitialized = false;
         }
+    }
+
+    private sealed class FailingReleaseLoader : IHotUpdateReleaseLoader
+    {
+        public Task<HotUpdateReleaseManifest> LoadManifestAsync(CancellationToken cancellationToken) =>
+            Task.FromException<HotUpdateReleaseManifest>(
+                new System.IO.InvalidDataException("corrupt manifest"));
+
+        public void ValidateCompatibility(HotUpdateReleaseManifest manifest) =>
+            throw new NotSupportedException();
+
+        public IReadOnlyList<string> GetRequiredAddresses(HotUpdateReleaseManifest manifest) =>
+            throw new NotSupportedException();
+
+        public Task<LoadedToolSetRelease> LoadCandidateAsync(
+            HotUpdateReleaseManifest manifest,
+            CancellationToken cancellationToken) => throw new NotSupportedException();
     }
 }

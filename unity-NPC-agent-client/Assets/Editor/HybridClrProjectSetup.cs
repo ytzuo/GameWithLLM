@@ -382,6 +382,18 @@ public sealed class HybridClrLocalArtifactsBuildProcessor : IPreprocessBuildWith
         if (HybridClrProjectSetup.IsGenerating ||
             report.summary.platform != BuildTarget.StandaloneWindows64)
             return;
+        string a2Manifest = Path.Combine(
+            Application.dataPath,
+            "Content",
+            "HotUpdate",
+            "release-manifest.json");
+        if (File.Exists(a2Manifest))
+        {
+            // A2 已把交付物迁入 Addressables；不要再次把同一份 DLL/metadata
+            // 写入 StreamingAssets 形成双来源。
+            AddressablesA2ProjectSetup.Verify();
+            return;
+        }
         HybridClrProjectSetup.StageLocalArtifacts(
             (report.summary.options & BuildOptions.Development) != 0);
     }

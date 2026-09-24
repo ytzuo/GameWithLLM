@@ -22,6 +22,9 @@ public interface IContentAssetProvider : IDisposable
         IReadOnlyList<string> keys,
         IProgress<ContentDownloadProgress> progress,
         CancellationToken cancellationToken);
+    Task<ContentAssetLease<T>> LoadAssetAsync<T>(
+        object key,
+        CancellationToken cancellationToken) where T : UnityEngine.Object;
 }
 
 public readonly struct ContentDownloadProgress

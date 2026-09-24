@@ -22,6 +22,7 @@ public enum ClientContentBootstrapState
 public sealed class ClientContentBootstrapOptions
 {
     public IReadOnlyList<string> RequiredDownloadLabels { get; set; } = Array.Empty<string>();
+    public IHotUpdateReleaseLoader ReleaseLoader { get; set; }
 }
 
 public sealed class ClientContentBootstrapResult
@@ -30,24 +31,40 @@ public sealed class ClientContentBootstrapResult
         bool succeeded,
         bool usedCachedCatalog,
         long downloadBytes,
+        LoadedToolSetRelease loadedRelease,
+        Exception candidateError,
         Exception error)
     {
         Succeeded = succeeded;
         UsedCachedCatalog = usedCachedCatalog;
         DownloadBytes = downloadBytes;
+        LoadedRelease = loadedRelease;
+        CandidateError = candidateError;
         Error = error;
     }
 
     public bool Succeeded { get; }
     public bool UsedCachedCatalog { get; }
     public long DownloadBytes { get; }
+    public LoadedToolSetRelease LoadedRelease { get; }
+    public Exception CandidateError { get; }
     public Exception Error { get; }
 
-    public static ClientContentBootstrapResult Success(bool usedCachedCatalog, long downloadBytes) =>
-        new ClientContentBootstrapResult(true, usedCachedCatalog, downloadBytes, null);
+    public static ClientContentBootstrapResult Success(
+        bool usedCachedCatalog,
+        long downloadBytes,
+        LoadedToolSetRelease loadedRelease = null,
+        Exception candidateError = null) =>
+        new ClientContentBootstrapResult(
+            true,
+            usedCachedCatalog,
+            downloadBytes,
+            loadedRelease,
+            candidateError,
+            null);
 
     public static ClientContentBootstrapResult Failure(Exception error) =>
-        new ClientContentBootstrapResult(false, false, 0, error);
+        new ClientContentBootstrapResult(false, false, 0, null, null, error);
 }
 
 public interface IContentBootstrapStore
@@ -98,6 +115,9 @@ public sealed class ClientContentBootstrap
     {
         bool usedCachedCatalog = false;
         long downloadBytes = 0;
+        HotUpdateReleaseManifest manifest = null;
+        LoadedToolSetRelease loadedRelease = null;
+        Exception candidateError = null;
         try
         {
             SetState(ClientContentBootstrapState.LocalReady, "本地启动界面已就绪");
@@ -129,11 +149,25 @@ public sealed class ClientContentBootstrap
             }
 
             SetState(ClientContentBootstrapState.ReleaseManifestLoad, "正在读取发布清单");
-            await Task.Yield(); // A2 将在这里读取不可变远端 release manifest。
-            cancellationToken.ThrowIfCancellationRequested();
+            if (_options.ReleaseLoader != null)
+            {
+                try
+                {
+                    manifest = await _options.ReleaseLoader.LoadManifestAsync(cancellationToken);
+                }
+                catch (OperationCanceledException) { throw; }
+                catch (Exception ex) { candidateError = ex; }
+            }
+            else
+                await Task.Yield();
 
             SetState(ClientContentBootstrapState.CompatibilityValidation, "正在验证客户端兼容性");
             ValidatePlayerCompatibility();
+            if (manifest != null && candidateError == null)
+            {
+                try { _options.ReleaseLoader.ValidateCompatibility(manifest); }
+                catch (Exception ex) { candidateError = ex; }
+            }
 
             SetState(ClientContentBootstrapState.RequiredDownload, "正在计算所需下载");
             downloadBytes = await _provider.GetDownloadSizeAsync(
@@ -152,16 +186,67 @@ public sealed class ClientContentBootstrap
             {
                 DownloadProgressChanged?.Invoke(new ContentDownloadProgress(0, 0, 1));
             }
+            if (manifest != null && candidateError == null)
+            {
+                try
+                {
+                    IReadOnlyList<string> artifactAddresses =
+                        _options.ReleaseLoader.GetRequiredAddresses(manifest);
+                    long artifactBytes = await _provider.GetDownloadSizeAsync(
+                        artifactAddresses,
+                        cancellationToken);
+                    downloadBytes += artifactBytes;
+                    if (artifactBytes > 0)
+                    {
+                        var progress = new Progress<ContentDownloadProgress>(
+                            value => DownloadProgressChanged?.Invoke(value));
+                        await _provider.DownloadDependenciesAsync(
+                            artifactAddresses,
+                            progress,
+                            cancellationToken);
+                    }
+                }
+                catch (OperationCanceledException) { throw; }
+                catch (Exception ex) { candidateError = ex; }
+            }
 
             SetState(ClientContentBootstrapState.CandidateValidation, "正在验证候选内容");
             if (!_provider.IsInitialized)
                 throw new InvalidOperationException("内容系统在候选验证前失去初始化状态。");
+            if (manifest != null && candidateError == null)
+            {
+                try
+                {
+                    loadedRelease = await _options.ReleaseLoader.LoadCandidateAsync(
+                        manifest,
+                        cancellationToken);
+                }
+                catch (OperationCanceledException)
+                {
+                    throw;
+                }
+                catch (Exception ex)
+                {
+                    // A2 候选是可选业务内容。损坏候选不能开放半套工具，但也不能让
+                    // 首次安装黑屏；随后以 Player 内置工具和稳定文本键启动。
+                    candidateError = ex;
+                }
+            }
+            if (candidateError != null)
+                Debug.LogError(
+                    $"[Content] A2 release '{manifest?.releaseId ?? "unknown"}' was rejected; " +
+                    $"using builtin tools and default text keys: {candidateError.GetBaseException().Message}");
 
             SetState(ClientContentBootstrapState.Activation, "正在激活内容版本");
-            _store.MarkSuccessfulContent();
+            if (candidateError == null)
+                _store.MarkSuccessfulContent();
 
             SetState(ClientContentBootstrapState.EnableRuntimeGameUi, "内容就绪");
-            return ClientContentBootstrapResult.Success(usedCachedCatalog, downloadBytes);
+            return ClientContentBootstrapResult.Success(
+                usedCachedCatalog,
+                downloadBytes,
+                loadedRelease,
+                candidateError);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {

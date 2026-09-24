@@ -48,6 +48,7 @@ public class AgentHostClient : Singleton<AgentHostClient>
     private PlayerMock[] _gatedPlayers = Array.Empty<PlayerMock>();
     private UIManager _gatedUi;
     private float _nextCapabilityCheckAt;
+    private LoadedToolSetRelease _contentRelease;
 
     public bool IsContentReady => _contentReady;
     public ClientContentBootstrapState ContentBootstrapState =>
@@ -75,7 +76,11 @@ public class AgentHostClient : Singleton<AgentHostClient>
                     new PlayerPrefsContentBootstrapStore(),
                     new ClientContentBootstrapOptions
                     {
-                        RequiredDownloadLabels = new[] { "content.a1-required" }
+                        RequiredDownloadLabels = new[]
+                        {
+                            "content.a1-required"
+                        },
+                        ReleaseLoader = new AddressableHotUpdateReleaseLoader(_contentProvider)
                     });
                 _contentOverlay = GetComponent<ContentBootstrapOverlay>() ??
                                   gameObject.AddComponent<ContentBootstrapOverlay>();
@@ -89,6 +94,11 @@ public class AgentHostClient : Singleton<AgentHostClient>
                     {
                         if (result.UsedCachedCatalog)
                             Debug.LogWarning("[Content] Started with the last successful cached catalog.");
+                        _contentRelease = result.LoadedRelease;
+                        if (result.CandidateError != null)
+                            Debug.LogWarning(
+                                "[Content] Remote hot-update candidate was rejected; " +
+                                "runtime will use builtin tools and stable text keys.");
                         break;
                     }
 
@@ -122,14 +132,17 @@ public class AgentHostClient : Singleton<AgentHostClient>
         if (_runtimeInitialized)
             return;
 
-        LoadedToolSetRelease loadedRelease = null;
-        try
+        LoadedToolSetRelease loadedRelease = _contentRelease;
+        if (!enableContentBootstrap)
         {
-            loadedRelease = HybridClrBootstrap.LoadLocalRelease(enableHybridClrBootstrap);
-        }
-        catch (Exception ex)
-        {
-            Debug.LogError($"[Hot Update] HybridCLR bootstrap failed; continuing with AOT tools only: {ex}");
+            try
+            {
+                loadedRelease = HybridClrBootstrap.LoadLocalRelease(enableHybridClrBootstrap);
+            }
+            catch (Exception ex)
+            {
+                Debug.LogError($"[Hot Update] HybridCLR bootstrap failed; continuing with AOT tools only: {ex}");
+            }
         }
 
         DotEnvConfig config = DotEnvConfig.Load();

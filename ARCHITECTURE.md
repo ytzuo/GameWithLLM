@@ -375,8 +375,8 @@ Windows Player 使用 IL2CPP x86_64，HybridCLR 只承载版本化的 NPC 工具
   只能以同一逻辑身份和更高版本重新启用，不得改作无关语义。
 - 参数仍以 JSON 对象跨越 Runtime/MCP 边界。
 
-当前 H4/H5 本地启动顺序为：内容 bootstrap 完成后，读取完整 release manifest，只为
-候选快照引用的包加载 AOT 补充元数据和经 SHA-256 校验的 DLL；内置程序集和选中的
+当前 A2 启动顺序为：Addressables 内容 bootstrap 读取完整 release manifest，只为
+候选快照引用的包下载并加载 AOT 补充元数据和经 SHA-256 校验的 DLL；内置程序集和选中的
 热更新程序集只产生发现候选，不直接修改 Registry。`ToolsRegistry.PrepareToolSet`
 在锁外完成名称、来源、包身份、Descriptor、Schema、版本单调性、删除/重新启用和
 历史台账校验，`ActivateToolSet` 在锁内一次交换不可变活动快照和包索引。Runtime
@@ -403,8 +403,10 @@ ToolSet/Catalog，纯文案更新则只原子交换 Catalog；成功切换只触
 共享同一 `contentVersion`，在 ToolSet 提交前全部完成严格验证，再由
 `ClientTextCatalogs` 一次发布；调用点不保存自然语言 fallback，Catalog 未激活时只
 返回稳定文本键。错误码、协议错误和日志事件名仍固定在代码中。
-本地 H5 staging 将三份 JSON 与 release manifest、metadata 和工具 DLL 一起写入
-`StreamingAssets/HotUpdate`；A2 再把同一逻辑地址迁移到 Addressables。
+A2 将三份 JSON、release manifest、metadata 和工具 DLL 分别交付到
+`Remote_ClientConfig`、`Remote_HotfixMetadata` 和 `Remote_ToolPacks`。候选先按
+地址、长度、SHA-256、内容版本和 Player 版本整体验证，再执行 HybridCLR 加载；
+Player 不再包含 `StreamingAssets/HotUpdate` 双来源。
 
 加载失败由 `AgentHostClient` 记录并降级为只运行 AOT BuiltinTools，不改变
 Go/Unity 权威边界。PDB 只进入 Development/QA 产物；正式构建的 staging hook
@@ -415,8 +417,8 @@ Go/Unity 权威边界。PDB 只进入 Development/QA 产物；正式构建的 st
 Addressables A0 已冻结资产所有权、稳定逻辑地址和生命周期；完整逐项台账位于
 `Docs/ADDRESSABLES_A0_INVENTORY.md` 和
 `Docs/Baselines/addressables-a0-inventory.json`。A1 已建立 Bootstrap、Remote
-Catalog、Profile 和空的目标 Group，但尚未迁移业务资产；台账中的 `Remote_*`
-仍表示 A2-A6 的唯一目标 Group，不表示现有 UI、Item 或 H3 文件已经远端化。
+Catalog 和 Profile；A2 已迁移客户端 JSON 与 HybridCLR 交付物。其余 `Remote_*`
+仍表示 A3-A6 的唯一目标 Group，不表示现有 UI、Item 或角色资源已经远端化。
 
 - `SampleScene`、NavMeshData 和第一阶段场景固有材质属于
   `Local_SampleScene`；最小下载/错误 UI 和默认内容属于 `Local_Bootstrap`。
@@ -487,7 +489,7 @@ release 的完整 ToolSet 也在内容激活之后、网络输入开放之前原
 | `Assets/Scripts/Networking/ContentBootstrapOverlay.cs` | 不依赖远端内容的本地错误、进度与重试 UI |
 | `Assets/HotUpdate/SmokeTest` | H3 建立、由 H4 release 选择的本地多工具 Smoke Tool Pack |
 | `Assets/Content/Catalogs` | H5 工具元数据、Agent 消息和 UI 文本 JSON 源文件 |
-| `Assets/StreamingAssets/HotUpdate` | 本地 AOT metadata、带 SHA-256 包身份的 DLL、Development PDB 和清单 |
+| `Assets/Content/HotUpdate` | A2 Addressables 源交付物：AOT metadata、版本化工具 DLL/PDB 和 release manifest |
 | `Assets/Editor/HybridClrProjectSetup.cs` | HybridCLR 配置、生成、带包身份的 staging 和 Player 构建 |
 | `Assets/Editor/AddressablesA0InventoryValidator.cs` | A0 资产所有权、地址和场景硬引用基线校验 |
 | `Assets/Editor/AddressablesA1ProjectSetup.cs` | A1 Profile、Group、Remote Catalog 配置、校验和多 Profile 构建 |

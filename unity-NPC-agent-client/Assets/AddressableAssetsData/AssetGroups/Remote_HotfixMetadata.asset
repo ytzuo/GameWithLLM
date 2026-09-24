@@ -14,7 +14,49 @@ MonoBehaviour:
   m_EditorClassIdentifier: Unity.Addressables.Editor::UnityEditor.AddressableAssets.Settings.AddressableAssetGroup
   m_GroupName: Remote_HotfixMetadata
   m_GUID: fd66779a9a00fa344a05a1cf7e010dc2
-  m_SerializeEntries: []
+  m_SerializeEntries:
+  - m_GUID: 1f74e6284cc2bd149b13ac16fbd834c9
+    m_Address: hotfix/aot/windows-x64-0.1.0/mscorlib
+    m_ReadOnly: 0
+    m_SerializedLabels:
+    - content.hotfix-metadata
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 387daef65714d3649bcf3766ecbf5d98
+    m_Address: hotfix/aot/windows-x64-0.1.0/GameWithLLM.Client.ToolFramework
+    m_ReadOnly: 0
+    m_SerializedLabels:
+    - content.hotfix-metadata
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 60bd5d51461d9364b9b602cde5f4ac2c
+    m_Address: hotfix/aot/windows-x64-0.1.0/GameWithLLM.AgentRuntime
+    m_ReadOnly: 0
+    m_SerializedLabels:
+    - content.hotfix-metadata
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 63d7644ff90aa194992171ee811c41d7
+    m_Address: hotfix/aot/windows-x64-0.1.0/GameWithLLM.Client.Gameplay
+    m_ReadOnly: 0
+    m_SerializedLabels:
+    - content.hotfix-metadata
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 8b91002cdc0ff8a498dd5e04dac205b1
+    m_Address: hotfix/aot/windows-x64-0.1.0/System.Core
+    m_ReadOnly: 0
+    m_SerializedLabels:
+    - content.hotfix-metadata
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 8c7d012075db1834f85da945d0b289b3
+    m_Address: hotfix/aot/windows-x64-0.1.0/System
+    m_ReadOnly: 0
+    m_SerializedLabels:
+    - content.hotfix-metadata
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 920d76114ef3cf844b5190079492021e
+    m_Address: hotfix/aot/windows-x64-0.1.0/Newtonsoft.Json
+    m_ReadOnly: 0
+    m_SerializedLabels:
+    - content.hotfix-metadata
+    FlaggedDuringContentUpdateRestriction: 0
   m_ReadOnly: 0
   m_Settings: {fileID: 11400000, guid: ce52958fe87f4da4e8b1723359b35a16, type: 2}
   m_SchemaSet:
