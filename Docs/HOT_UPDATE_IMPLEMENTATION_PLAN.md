@@ -1,6 +1,6 @@
 # 客户端热更新实施计划
 
-> 状态：H0-H7、A0-A5 已完成；A6 及后续阶段待实施
+> 状态：H0-H7、A0-A6 已完成；A7 及后续阶段待实施
 > 创建日期：2026-09-21  
 > 适用项目：`unity-NPC-agent-client`（Unity `6000.3.19f1`，Windows）  
 > 实施范围：第一部分 HybridCLR；第二部分 Addressables
@@ -901,6 +901,10 @@ USS、图标和模板可独立更新。
 - 更新一个角色专属贴图不会下载其他角色 Bundle。
 
 ## A6：迁移场景及场景物件
+
+> 完成基线：见 `Docs/ADDRESSABLES_A6_BASELINE.md`。当前 Player 从本地
+> `BootstrapScene` 启动，由唯一场景协调器加载 `scene/warehouse/main`，并在切换前
+> 停稳 Agent/工具/存档临界区、原子更新实体 Manifest；失败时保留本地 Bootstrap。
 
 ### 目标
 

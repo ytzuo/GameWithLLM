@@ -31,6 +31,16 @@ public interface IContentAssetProvider : IDisposable
         CancellationToken cancellationToken);
 }
 
+public interface IContentSceneProvider
+{
+    Task<ContentSceneLease> LoadSceneAsync(
+        object key,
+        LoadSceneMode loadMode,
+        bool activateOnLoad,
+        CancellationToken cancellationToken);
+    Task UnloadSceneAsync(ContentSceneLease lease, CancellationToken cancellationToken);
+}
+
 public readonly struct ContentDownloadProgress
 {
     public ContentDownloadProgress(long downloadedBytes, long totalBytes, float percent)
@@ -47,7 +57,7 @@ public readonly struct ContentDownloadProgress
 
 // Addressables 的唯一运行时入口。每个业务加载都返回一个必须释放的 lease，
 // provider 退出时还会兜底释放仍存活的 lease。
-public sealed class ContentAssetProvider : IContentAssetProvider
+public sealed class ContentAssetProvider : IContentAssetProvider, IContentSceneProvider
 {
     private readonly object _leaseLock = new object();
     private readonly HashSet<IContentLease> _leases = new HashSet<IContentLease>();
@@ -260,8 +270,18 @@ public sealed class ContentAssetProvider : IContentAssetProvider
         if (lease == null || !lease.TryTakeHandle(out AsyncOperationHandle<SceneInstance> handle))
             return;
         RemoveLease(lease);
-        AsyncOperationHandle<SceneInstance> unload = Addressables.UnloadSceneAsync(handle, true);
-        await AwaitAsync(unload, cancellationToken);
+        // 禁用返回 handle 的自动释放，否则完成帧读取 Status 会命中 invalid handle。
+        // 原 Scene handle 由 UnloadSceneAsync 消费；这里只显式释放卸载操作 handle。
+        AsyncOperationHandle<SceneInstance> unload = Addressables.UnloadSceneAsync(handle, false);
+        try
+        {
+            await AwaitAsync(unload, cancellationToken);
+        }
+        finally
+        {
+            if (unload.IsValid())
+                Addressables.Release(unload);
+        }
     }
 
     public void Dispose()

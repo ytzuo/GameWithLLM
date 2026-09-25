@@ -4,8 +4,10 @@
   "entries": [
     {
       "id": "local-bootstrap-ui",
-      "sourcePaths": [],
-      "sourceState": "reserved",
+      "sourcePaths": [
+        "Assets/Scenes/BootstrapScene.unity"
+      ],
+      "sourceState": "existing",
       "location": "Local",
       "ownerGroup": "Local_Bootstrap",
       "addresses": ["ui/bootstrap/download", "ui/bootstrap/error"],
@@ -316,19 +318,21 @@
     },
     {
       "id": "future-remote-scenes",
-      "sourcePaths": [],
-      "sourceState": "reserved",
+      "sourcePaths": [
+        "Assets/Content/Scenes"
+      ],
+      "sourceState": "existing",
       "location": "Remote",
       "ownerGroup": "Remote_Scenes",
       "address": "scene/warehouse/main",
       "labels": ["content.scenes"],
       "businessIds": ["warehouse"],
-      "dependencies": ["scene-owned assets only"],
+      "dependencies": ["scene-owned objects, materials, lighting and NavMeshData"],
       "loadPoint": "A6 scene coordinator",
       "releaseOwner": "scene coordinator",
       "releasePoint": "UnloadSceneAsync completion",
       "activationPoint": "next scene entry",
-      "sceneReferenceDisposition": "reserved address; must not be assigned to local SampleScene"
+      "sceneReferenceDisposition": "A6 completed; address points only to WarehouseRemote and SampleScene remains local"
     }
   ]
 }

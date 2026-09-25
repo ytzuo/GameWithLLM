@@ -8,7 +8,7 @@ using GameWithLLM.AgentRuntime;
 using UnityEngine;
 
 // 场景级门面：编排 A2A、Runtime Bridge、主线程工具执行和存档协调。
-public class AgentHostClient : Singleton<AgentHostClient>
+public class AgentHostClient : Singleton<AgentHostClient>, ISceneTransitionParticipant
 {
     [Header("Hot update")]
     [SerializeField] private bool enableHybridClrBootstrap = true;
@@ -53,6 +53,11 @@ public class AgentHostClient : Singleton<AgentHostClient>
     private ItemContentCatalog _itemContentCatalog;
     private CharacterContentCatalog _characterContentCatalog;
     private CharacterVisualController[] _characterVisuals = Array.Empty<CharacterVisualController>();
+    private readonly ConcurrentDictionary<string, Task> _runtimeInvocations =
+        new ConcurrentDictionary<string, Task>(StringComparer.Ordinal);
+    private RemoteSceneCoordinator _sceneCoordinator;
+    private volatile bool _sceneTransitionBusy;
+    private bool _sceneTransitionOwnsSendLock;
 
     public bool IsContentReady => _contentReady;
     public ClientContentBootstrapState ContentBootstrapState =>
@@ -168,6 +173,25 @@ public class AgentHostClient : Singleton<AgentHostClient>
             }
 
             InitializeRuntimeServices();
+            _sceneCoordinator = GetComponent<RemoteSceneCoordinator>();
+            if (_sceneCoordinator != null)
+            {
+                _sceneCoordinator.Initialize(_contentProvider, this, _appCts.Token);
+                try
+                {
+                    await _sceneCoordinator.LoadInitialSceneAsync(_appCts.Token);
+                }
+                catch (OperationCanceledException) when (_appCts.IsCancellationRequested)
+                {
+                    throw;
+                }
+                catch (Exception ex)
+                {
+                    Debug.LogError(
+                        "[Content] Initial remote scene failed; Bootstrap Scene remains active: " +
+                        ex.GetBaseException().Message);
+                }
+            }
             _contentReady = true;
             GateGameplay(true);
             _contentOverlay?.Hide();
@@ -378,13 +402,15 @@ public class AgentHostClient : Singleton<AgentHostClient>
 
     public void OnPlayerInteractWithNpc(string npcId)
     {
-        if (_contentReady && !_saveBusy && !_restoreFailed && !string.IsNullOrWhiteSpace(npcId))
+        if (_contentReady && !_sceneTransitionBusy && !_saveBusy && !_restoreFailed &&
+            !string.IsNullOrWhiteSpace(npcId))
             _activeNpcId = npcId;
     }
 
     public void SubmitPlayerInput(string text)
     {
         if (!_contentReady) return;
+        if (_sceneTransitionBusy) { SystemMessage("场景切换中，请稍候。"); return; }
         if (_saveBusy) { SystemMessage("存档操作进行中，请稍候。"); return; }
         if (_restoreFailed) { SystemMessage("对话历史尚未恢复，请重试加载。"); return; }
         if (string.IsNullOrWhiteSpace(_activeNpcId))
@@ -572,7 +598,10 @@ public class AgentHostClient : Singleton<AgentHostClient>
             await foreach (RuntimeCommand command in
                            _runtimeTransport.ReadCommandsAsync(_appCts.Token))
             {
-                _ = ExecuteRuntimeCommandAsync(command);
+                string trackingId = Guid.NewGuid().ToString("N");
+                Task invocation = ExecuteRuntimeCommandAsync(command);
+                _runtimeInvocations[trackingId] = invocation;
+                _ = ObserveRuntimeInvocationAsync(trackingId, invocation);
             }
         }
         catch (OperationCanceledException) when (_appCts.IsCancellationRequested)
@@ -589,6 +618,16 @@ public class AgentHostClient : Singleton<AgentHostClient>
     {
         try
         {
+            if (_sceneTransitionBusy)
+            {
+                await _runtimeTransport.SendResultAsync(
+                    command.InvocationId,
+                    AgentToolResult.Failure(
+                        "SCENE_TRANSITION_IN_PROGRESS",
+                        "Scene transition is in progress; retry after the manifest update."),
+                    _appCts.Token);
+                return;
+            }
             AgentToolResult result = await _dispatcher.ExecuteAsync(
                 command,
                 (progress, message) =>
@@ -627,6 +666,139 @@ public class AgentHostClient : Singleton<AgentHostClient>
                     $"'{command.InvocationId}' failed: {sendError.Message}");
             }
         }
+    }
+
+    private async Task ObserveRuntimeInvocationAsync(string trackingId, Task invocation)
+    {
+        try { await invocation; }
+        finally { _runtimeInvocations.TryRemove(trackingId, out _); }
+    }
+
+    public async Task BeginSceneTransitionAsync(
+        UnityEngine.SceneManagement.Scene outgoingScene,
+        CancellationToken cancellationToken)
+    {
+        if (_sceneTransitionBusy)
+            throw new InvalidOperationException("A scene transition is already in progress.");
+        _sceneTransitionBusy = true;
+        GateGameplay(false);
+        try
+        {
+            // 对话、存档协调和模型 tool loop 共用此锁。拿到锁即表示这些临界区已完成，
+            // 并在切换结束前阻止新的临界区进入。
+            await _sendLock.WaitAsync(cancellationToken);
+            _sceneTransitionOwnsSendLock = true;
+
+            while (!_runtimeInvocations.IsEmpty)
+            {
+                Task[] active = _runtimeInvocations.Values.ToArray();
+                if (active.Length == 0)
+                    break;
+                try { await Task.WhenAll(active); }
+                catch (OperationCanceledException) { }
+            }
+
+            if (outgoingScene.IsValid() && outgoingScene.isLoaded)
+            {
+                foreach (NpcEntity npc in FindInScene<NpcEntity>(outgoingScene))
+                {
+                    _npcCapabilities.Remove(npc);
+                    _dispatcher.UnregisterEntity(npc.npcId, npc);
+                }
+                PublishManifest();
+            }
+        }
+        catch
+        {
+            EndSceneTransition();
+            throw;
+        }
+    }
+
+    public async Task CompleteSceneTransitionAsync(
+        UnityEngine.SceneManagement.Scene incomingScene,
+        string stableSceneId,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            await AttachSceneContentAsync(incomingScene, cancellationToken);
+            sceneId = stableSceneId;
+            _activeNpcId = null;
+            PublishManifest();
+        }
+        finally
+        {
+            EndSceneTransition();
+        }
+    }
+
+    public async Task RollbackSceneTransitionAsync(
+        UnityEngine.SceneManagement.Scene retainedScene,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            if (retainedScene.IsValid() && retainedScene.isLoaded)
+                await AttachSceneContentAsync(retainedScene, cancellationToken);
+            PublishManifest();
+        }
+        finally
+        {
+            EndSceneTransition();
+        }
+    }
+
+    private async Task AttachSceneContentAsync(
+        UnityEngine.SceneManagement.Scene scene,
+        CancellationToken cancellationToken)
+    {
+        if (!scene.IsValid() || !scene.isLoaded)
+            return;
+        PlayerMock[] players = FindInScene<PlayerMock>(scene).ToArray();
+        _gatedPlayers = _gatedPlayers
+            .Where(player => player != null)
+            .Concat(players)
+            .Distinct()
+            .ToArray();
+        foreach (PlayerMock player in players)
+        {
+            player.enabled = false;
+            player.ConfigureWorldTargetId(playerId);
+            if (_itemContentCatalog?.IsReady == true)
+                player.InitializeItemCatalog(_itemContentCatalog.Items);
+        }
+
+        CharacterVisualController[] visuals = FindInScene<CharacterVisualController>(scene).ToArray();
+        if (_characterContentCatalog?.IsReady == true)
+            await Task.WhenAll(visuals.Select(visual =>
+                visual.LoadAsync(_characterContentCatalog, cancellationToken)));
+        _characterVisuals = _characterVisuals
+            .Where(visual => visual != null)
+            .Concat(visuals)
+            .Distinct()
+            .ToArray();
+
+        foreach (NpcEntity npc in FindInScene<NpcEntity>(scene))
+            RegisterNpc(npc);
+        if (_contentReady)
+            GateGameplay(true);
+    }
+
+    private static IEnumerable<T> FindInScene<T>(UnityEngine.SceneManagement.Scene scene)
+        where T : Component =>
+        scene.GetRootGameObjects().SelectMany(root => root.GetComponentsInChildren<T>(true));
+
+    private void EndSceneTransition()
+    {
+        if (_sceneTransitionOwnsSendLock)
+        {
+            _sceneTransitionOwnsSendLock = false;
+            _sendLock.Release();
+        }
+        _sceneTransitionBusy = false;
+        if (_contentReady)
+            GateGameplay(true);
     }
 
     private async Task SendRuntimeProgressAsync(

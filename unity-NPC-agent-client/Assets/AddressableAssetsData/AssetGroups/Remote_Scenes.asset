@@ -14,7 +14,14 @@ MonoBehaviour:
   m_EditorClassIdentifier: Unity.Addressables.Editor::UnityEditor.AddressableAssets.Settings.AddressableAssetGroup
   m_GroupName: Remote_Scenes
   m_GUID: 81e7505f1ffcc7b438dd7639497f1622
-  m_SerializeEntries: []
+  m_SerializeEntries:
+  - m_GUID: a5e9891168a8b35449d262cbe43df5ac
+    m_Address: scene/warehouse/main
+    m_ReadOnly: 0
+    m_SerializedLabels:
+    - content.scenes
+    - content.scenes.warehouse
+    FlaggedDuringContentUpdateRestriction: 0
   m_ReadOnly: 0
   m_Settings: {fileID: 11400000, guid: ce52958fe87f4da4e8b1723359b35a16, type: 2}
   m_SchemaSet:

@@ -38,7 +38,7 @@ HybridCLR 文件仍沿用现有本地加载方式；表中的 `Remote_*` 表示�
 | `Remote_SpritesTextures` | Remote | ItemCatalog 的表现部分及已使用物品图标 |
 | `Remote_Materials` | Remote | 仅容纳经数据证明的跨角色共享渲染资源；A5 当前为空 |
 | `Remote_Characters` | Remote | A5 角色目录、视觉 Prefab、专属材质/纹理、Animator 和 Animation |
-| `Remote_Scenes` | Remote | A6 后迁移的附加场景；`SampleScene` 不在其中 |
+| `Remote_Scenes` | Remote | A6 已迁移的 Warehouse 附加场景；`SampleScene` 不在其中 |
 
 `Assets/AddressableAssetsData/AssetGroups/unifiedraytracing.asset` 是 Unity 包维护的
 本地 Group，不改名、不混入业务资产。`Default Local Group` 当前为空；A1 建组时
@@ -59,7 +59,7 @@ HybridCLR 文件仍沿用现有本地加载方式；表中的 `Remote_*` 表示�
 | HybridCLR | 7 个 AOT metadata、1 个 smoke DLL、1 个 Development PDB 和本地 manifest 位于 StreamingAssets | A2 分别迁到 metadata/tool groups；bootstrap/release candidate 持有 bytes handle，装载后释放下载 handle，代码只在下次启动激活 |
 | 客户端 JSON | 三个计划中的客户端文本 JSON 尚不存在 | 地址已预留；A2 创建本地默认和远端版本。Go `system_prompt.zh-CN.json` 不进入客户端 |
 | A1 delivery probe | 一个不含业务数据的极小 JSON | `Remote_ClientConfig` / `config/bootstrap/a1-probe`，仅用于验证真实下载与缓存链路 |
-| 远端场景 | 当前不存在 | `scene/warehouse/main` 地址保留给未来远端业务场景，不能指向 `SampleScene` |
+| 远端场景 | `WarehouseRemote` 已建立 | `scene/warehouse/main` 指向远端验证场景；本地 Bootstrap 常驻，`SampleScene` 保持本地 |
 
 ## 4. 已解释的临时场景硬引用
 

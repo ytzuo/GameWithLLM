@@ -435,7 +435,8 @@ Catalog 和 Profile；A2 已迁移客户端 JSON 与 HybridCLR 交付物；A3 �
 样式、PanelSettings、theme 和模板迁入 `Remote_UI`；A4 已将物品
 目录、文案和图标 Atlas 迁入 `Remote_SpritesTextures`；A5 已将 Alice、Ryan 和
 Player 的模型、专属材质/纹理及 Animator/Animation 迁入 `Remote_Characters`。
-`Remote_Scenes` 仍只表示 A6 的目标 Group。
+A6 已增加本地常驻 `BootstrapScene`，并将首个远端验证场景 Warehouse、场景物件和
+独立 NavMeshData 迁入 `Remote_Scenes`。
 
 - `SampleScene`、NavMeshData 和第一阶段场景固有材质属于
   `Local_SampleScene`；最小下载/错误 UI 和默认内容属于 `Local_Bootstrap`。
@@ -459,6 +460,12 @@ Player 的模型、专属材质/纹理及 Animator/Animation 迁入 `Remote_Char
   保留本地 fallback。每个角色的 Prefab、专属 Material/Texture、Animator
   Controller 和 AnimationClip 使用独立 Addressable entry 与角色 label，实例 lease
   在实体销毁时释放；已实例化模型不在运行中原地替换。
+- A6 的 `RemoteSceneCoordinator` 位于本地 Bootstrap/AOT 层，只通过
+  `IContentSceneProvider.LoadSceneAsync` / `UnloadSceneAsync` 管理唯一活动 Scene
+  lease。切场前 `AgentHostClient` 冻结新请求、取得对话/存档锁、等待在途工具完成、
+  注销旧实体并发布 Manifest；新场景完成 Item/角色目录绑定后才重新开放输入。
+  远端 Scene 禁止携带 Host、UIManager、Registry、Dispatcher 或第二条 Gateway；
+  下载、激活或校验失败时释放候选并恢复本地 Bootstrap 为 Active Scene。
 - `Assets/Art/Items` 中未被当前 ItemData 使用的源 PNG 不进入发布。加入目录前必须
   先分配稳定 itemId、Address 和唯一 owner Group。
 
