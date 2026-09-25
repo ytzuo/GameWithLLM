@@ -85,10 +85,16 @@ public static class HybridClrProjectSetup
     [MenuItem("GameWithLLM/Hot Update/Generate HybridCLR And Stage Local Artifacts")]
     public static void GenerateAndStage()
     {
+        GenerateAndStageForPipeline(true);
+    }
+
+    public static void GenerateAndStageForPipeline(bool includeDebugSymbols)
+    {
         Configure();
-        // H2 produces a local Development/QA player so its staged tool pack may
-        // include portable PDB symbols. Release builds omit them in the build hook.
-        EditorUserBuildSettings.development = true;
+        // H2 produces a local Development/QA player with portable PDB symbols.
+        // H7 invokes the same generator with includeDebugSymbols=false so the
+        // production candidate never stages or publishes symbols.
+        EditorUserBuildSettings.development = includeDebugSymbols;
         if (EditorUserBuildSettings.activeBuildTarget != BuildTarget.StandaloneWindows64 &&
             !EditorUserBuildSettings.SwitchActiveBuildTarget(
                 BuildTargetGroup.Standalone,
@@ -106,7 +112,7 @@ public static class HybridClrProjectSetup
         {
             IsGenerating = false;
         }
-        StageLocalArtifacts(EditorUserBuildSettings.development);
+        StageLocalArtifacts(includeDebugSymbols);
     }
 
     public static void GenerateAndStageFromCommandLine() => RunCommand(GenerateAndStage);
@@ -244,7 +250,7 @@ public static class HybridClrProjectSetup
         var releaseTools = new List<IAgentTool>();
         releaseTools.AddRange(AgentToolDiscovery.DiscoverBuiltinTools());
         releaseTools.AddRange(AgentToolDiscovery.DiscoverFromAssembly(smokeAssembly));
-        const string releaseId = "h5-local-1.2.0";
+        const string releaseId = "h7-production-1.3.0";
         var activeTools = releaseTools.Select(tool =>
         {
             bool hot = string.Equals(
@@ -256,7 +262,7 @@ public static class HybridClrProjectSetup
                 name = tool.Descriptor.Name,
                 toolIdentity = tool.Descriptor.Name,
                 source = hot ? "hot-update" : "builtin",
-                implementationVersion = hot ? "4.0.0" : "1.0.0",
+                implementationVersion = hot ? "5.0.0" : "1.0.0",
                 contractVersion = "1.0.0",
                 packageId = hot ? HybridClrBootstrap.SmokePackageId : null,
                 packageVersion = hot ? HybridClrBootstrap.SmokePackageVersion : null,
@@ -276,7 +282,7 @@ public static class HybridClrProjectSetup
         string manifest = JsonConvert.SerializeObject(new
         {
             releaseId,
-            toolSetVersion = "4.0.0",
+            toolSetVersion = "5.0.0",
             catalogVersion = "2026.09.001",
             minPlayerVersion = Application.version,
             maxPlayerVersion = Application.version,

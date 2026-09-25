@@ -14,7 +14,6 @@ public class AOTGenericReferences : UnityEngine.MonoBehaviour
 	// }} 
 
 	// {{ AOT generic types
-	// GameToolWrapper.<ExecuteAsync>d__2<object>
 	// GameToolWrapper<object>
 	// NpcTool.<>c__DisplayClass6_0<object>
 	// NpcTool<object>

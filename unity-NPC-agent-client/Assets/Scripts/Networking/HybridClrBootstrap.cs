@@ -125,7 +125,7 @@ public static class HybridClrBootstrap
     private const string AgentMessagesFileName = "agent_messages.zh-CN.json";
     private const string UiFileName = "ui.zh-CN.json";
     public const string SmokePackageId = "smoke-test";
-    public const string SmokePackageVersion = "1.3.0";
+    public const string SmokePackageVersion = "1.4.0";
     public const string SmokeAssemblyName = "GameWithLLM.Tools.Pack.SmokeTest";
 
     [Serializable]

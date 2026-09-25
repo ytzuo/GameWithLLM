@@ -32,7 +32,7 @@ public sealed class SmokeTestTool : NpcTool<SmokeTestArgs>
             JObject.FromObject(new
             {
                 packageId = "smoke-test",
-                packageVersion = "1.3.0",
+                packageVersion = "1.4.0",
                 npcId = npc.npcId,
                 echo = args.echo ?? string.Empty
             }),
@@ -66,7 +66,7 @@ public sealed class SmokePackageInfoTool : NpcTool<SmokePackageInfoArgs>
             JObject.FromObject(new
             {
                 packageId = "smoke-test",
-                packageVersion = "1.3.0",
+                packageVersion = "1.4.0",
                 toolCount = 2
             }),
             ClientTextCatalogs.Message("tool.smoke.info_returned"));

@@ -1,8 +1,8 @@
 {
   "schemaVersion": 1,
-  "releaseId": "h5-local-1.2.0",
+  "releaseId": "h7-production-1.3.0",
   "contentVersion": "2026.09.001",
-  "toolSetVersion": "4.0.0",
+  "toolSetVersion": "5.0.0",
   "catalogVersion": "2026.09.001",
   "playerBuildId": "windows-x64-0.1.0",
   "minPlayerVersion": "0.1.0",
@@ -34,38 +34,38 @@
     {
       "address": "hotfix/aot/windows-x64-0.1.0/mscorlib",
       "fileName": "mscorlib.dll.bytes",
-      "length": 2260480,
-      "sha256": "54e0148826efcb9ad4b3c198a625fc71609146584410965a214f30ea923fd4b1"
+      "length": 2246656,
+      "sha256": "d8a7b2aec336e51e91dff0f5d0fab1c3fa2e10c235e2dbf86db3eefbe397eb91"
     },
     {
       "address": "hotfix/aot/windows-x64-0.1.0/System",
       "fileName": "System.dll.bytes",
-      "length": 903680,
-      "sha256": "97a3a40b611e2624cadee59d1daf5521e92362d51279e7395d184f99244835de"
+      "length": 901632,
+      "sha256": "4cf2618dba29fdd9f4ad0d12f09da1e383d09beddc2e821dcf8c53592d1e037f"
     },
     {
       "address": "hotfix/aot/windows-x64-0.1.0/System.Core",
       "fileName": "System.Core.dll.bytes",
-      "length": 423936,
-      "sha256": "93384d74d901a97e709cbdbfd57da26457a0fb1bcddd22bb3d6fffcdffa1f216"
+      "length": 400384,
+      "sha256": "9da49243214cb0c1abcdf2eef0b9ea2cdad5893608e43b4054b3c7907f4d3922"
     },
     {
       "address": "hotfix/aot/windows-x64-0.1.0/GameWithLLM.AgentRuntime",
       "fileName": "GameWithLLM.AgentRuntime.dll.bytes",
-      "length": 11776,
-      "sha256": "2c07c16380abb77f73f1464a49e8aa7dea202ee13070f2d3a5e4bf23297dafc5"
+      "length": 11264,
+      "sha256": "4fdf2b6310b64f5a5e30933d2445338df3ca211f866a6be46dc0fd42b46ee4ac"
     },
     {
       "address": "hotfix/aot/windows-x64-0.1.0/GameWithLLM.Client.Gameplay",
       "fileName": "GameWithLLM.Client.Gameplay.dll.bytes",
-      "length": 49664,
-      "sha256": "6a41753cbd9b2b9b0b7e98edfc008228570bd70c100918524d509607f619a9a5"
+      "length": 46080,
+      "sha256": "af4a2a2a20ffa128402c42c73a9d06ee44671ec0ecb43a5fc12497d76a707b4b"
     },
     {
       "address": "hotfix/aot/windows-x64-0.1.0/GameWithLLM.Client.ToolFramework",
       "fileName": "GameWithLLM.Client.ToolFramework.dll.bytes",
-      "length": 71168,
-      "sha256": "9aa07a910eb984a27651492fb2aee763e796b15eac8ba8489c87d28c0319275f"
+      "length": 67584,
+      "sha256": "c8fd6e3a1ecb67ee922107976f8abbb48e1427485132ea7ba16bfade397c84cb"
     },
     {
       "address": "hotfix/aot/windows-x64-0.1.0/Newtonsoft.Json",
@@ -77,13 +77,13 @@
   "toolPackages": [
     {
       "packageId": "smoke-test",
-      "packageVersion": "1.3.0",
+      "packageVersion": "1.4.0",
       "assemblyName": "GameWithLLM.Tools.Pack.SmokeTest",
       "assembly": {
-        "address": "hotfix/tools/smoke-test/1.3.0/assembly",
+        "address": "hotfix/tools/smoke-test/1.4.0/assembly",
         "fileName": "GameWithLLM.Tools.Pack.SmokeTest.dll.bytes",
-        "length": 9216,
-        "sha256": "c75877453d4a2d5e62cdc6d51dfc91e6f3b1555c135f664b79e26717f20061e9"
+        "length": 8704,
+        "sha256": "ac0623bc425df2f36c1a4fd292579241747c1ffadfd470095c5d694b32e8cbd9"
       },
       "debugSymbols": null
     }
@@ -93,24 +93,24 @@
       "name": "game_hotfix_smoke_package_info",
       "toolIdentity": "game_hotfix_smoke_package_info",
       "source": "hot-update",
-      "implementationVersion": "4.0.0",
+      "implementationVersion": "5.0.0",
       "contractVersion": "1.0.0",
       "packageId": "smoke-test",
-      "packageVersion": "1.3.0",
+      "packageVersion": "1.4.0",
       "assemblyName": "GameWithLLM.Tools.Pack.SmokeTest",
-      "assemblyHash": "c75877453d4a2d5e62cdc6d51dfc91e6f3b1555c135f664b79e26717f20061e9",
+      "assemblyHash": "ac0623bc425df2f36c1a4fd292579241747c1ffadfd470095c5d694b32e8cbd9",
       "schemaHash": "99334726611ccf58a148b0814696bfa6fe08c1b2d027e946beccf5a74331c9aa"
     },
     {
       "name": "game_hotfix_smoke_query",
       "toolIdentity": "game_hotfix_smoke_query",
       "source": "hot-update",
-      "implementationVersion": "4.0.0",
+      "implementationVersion": "5.0.0",
       "contractVersion": "1.0.0",
       "packageId": "smoke-test",
-      "packageVersion": "1.3.0",
+      "packageVersion": "1.4.0",
       "assemblyName": "GameWithLLM.Tools.Pack.SmokeTest",
-      "assemblyHash": "c75877453d4a2d5e62cdc6d51dfc91e6f3b1555c135f664b79e26717f20061e9",
+      "assemblyHash": "ac0623bc425df2f36c1a4fd292579241747c1ffadfd470095c5d694b32e8cbd9",
       "schemaHash": "294af3fe6962f94c90794f4e04646c2551b2604deb4ce909ad30e9bd7f2c32f9"
     },
     {
@@ -228,24 +228,24 @@
       "name": "game_hotfix_smoke_package_info",
       "toolIdentity": "game_hotfix_smoke_package_info",
       "source": "hot-update",
-      "implementationVersion": "4.0.0",
+      "implementationVersion": "5.0.0",
       "contractVersion": "1.0.0",
       "schemaHash": "99334726611ccf58a148b0814696bfa6fe08c1b2d027e946beccf5a74331c9aa",
-      "assemblyHash": "c75877453d4a2d5e62cdc6d51dfc91e6f3b1555c135f664b79e26717f20061e9",
+      "assemblyHash": "ac0623bc425df2f36c1a4fd292579241747c1ffadfd470095c5d694b32e8cbd9",
       "firstReleaseId": "h4-local-1.0.0",
-      "lastReleaseId": "h5-local-1.2.0",
+      "lastReleaseId": "h7-production-1.3.0",
       "retiredInToolSetVersion": null
     },
     {
       "name": "game_hotfix_smoke_query",
       "toolIdentity": "game_hotfix_smoke_query",
       "source": "hot-update",
-      "implementationVersion": "4.0.0",
+      "implementationVersion": "5.0.0",
       "contractVersion": "1.0.0",
       "schemaHash": "294af3fe6962f94c90794f4e04646c2551b2604deb4ce909ad30e9bd7f2c32f9",
-      "assemblyHash": "c75877453d4a2d5e62cdc6d51dfc91e6f3b1555c135f664b79e26717f20061e9",
+      "assemblyHash": "ac0623bc425df2f36c1a4fd292579241747c1ffadfd470095c5d694b32e8cbd9",
       "firstReleaseId": "h4-local-1.0.0",
-      "lastReleaseId": "h5-local-1.2.0",
+      "lastReleaseId": "h7-production-1.3.0",
       "retiredInToolSetVersion": null
     },
     {
@@ -257,7 +257,7 @@
       "schemaHash": "6d2690be661cc055b029e27bd4b36ae3f6b863951b58b575f116eede4bf5daaa",
       "assemblyHash": null,
       "firstReleaseId": "h4-local-1.0.0",
-      "lastReleaseId": "h5-local-1.2.0",
+      "lastReleaseId": "h7-production-1.3.0",
       "retiredInToolSetVersion": null
     },
     {
@@ -269,7 +269,7 @@
       "schemaHash": "99334726611ccf58a148b0814696bfa6fe08c1b2d027e946beccf5a74331c9aa",
       "assemblyHash": null,
       "firstReleaseId": "h4-local-1.0.0",
-      "lastReleaseId": "h5-local-1.2.0",
+      "lastReleaseId": "h7-production-1.3.0",
       "retiredInToolSetVersion": null
     },
     {
@@ -281,7 +281,7 @@
       "schemaHash": "814a646e80e6884d8bd362dea6055f17b87717db803fe6c6c58b214adccff2a9",
       "assemblyHash": null,
       "firstReleaseId": "h4-local-1.0.0",
-      "lastReleaseId": "h5-local-1.2.0",
+      "lastReleaseId": "h7-production-1.3.0",
       "retiredInToolSetVersion": null
     },
     {
@@ -293,7 +293,7 @@
       "schemaHash": "99334726611ccf58a148b0814696bfa6fe08c1b2d027e946beccf5a74331c9aa",
       "assemblyHash": null,
       "firstReleaseId": "h4-local-1.0.0",
-      "lastReleaseId": "h5-local-1.2.0",
+      "lastReleaseId": "h7-production-1.3.0",
       "retiredInToolSetVersion": null
     },
     {
@@ -305,7 +305,7 @@
       "schemaHash": "79c70f0df25e761e47240744a80b556ee80b70c422f4e5e806f1771fe68e3468",
       "assemblyHash": null,
       "firstReleaseId": "h4-local-1.0.0",
-      "lastReleaseId": "h5-local-1.2.0",
+      "lastReleaseId": "h7-production-1.3.0",
       "retiredInToolSetVersion": null
     },
     {
@@ -317,7 +317,7 @@
       "schemaHash": "79c70f0df25e761e47240744a80b556ee80b70c422f4e5e806f1771fe68e3468",
       "assemblyHash": null,
       "firstReleaseId": "h4-local-1.0.0",
-      "lastReleaseId": "h5-local-1.2.0",
+      "lastReleaseId": "h7-production-1.3.0",
       "retiredInToolSetVersion": null
     },
     {
@@ -329,7 +329,7 @@
       "schemaHash": "99334726611ccf58a148b0814696bfa6fe08c1b2d027e946beccf5a74331c9aa",
       "assemblyHash": null,
       "firstReleaseId": "h4-local-1.0.0",
-      "lastReleaseId": "h5-local-1.2.0",
+      "lastReleaseId": "h7-production-1.3.0",
       "retiredInToolSetVersion": null
     },
     {
@@ -341,7 +341,7 @@
       "schemaHash": "dd0310f8b7f5b855674ad5cd069166d9211641417fbf5d16331f67adb1364d04",
       "assemblyHash": null,
       "firstReleaseId": "h4-local-1.0.0",
-      "lastReleaseId": "h5-local-1.2.0",
+      "lastReleaseId": "h7-production-1.3.0",
       "retiredInToolSetVersion": null
     },
     {
@@ -353,7 +353,7 @@
       "schemaHash": "0428d9b2210319b7b15c12c140ba653983141bfbead31cc05cc8c41c4e5a450c",
       "assemblyHash": null,
       "firstReleaseId": "h4-local-1.0.0",
-      "lastReleaseId": "h5-local-1.2.0",
+      "lastReleaseId": "h7-production-1.3.0",
       "retiredInToolSetVersion": null
     }
   ]

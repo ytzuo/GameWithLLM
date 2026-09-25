@@ -1,6 +1,6 @@
 # 客户端热更新实施计划
 
-> 状态：H0-H6、A0-A2 已完成；H7、A3 及后续阶段待实施
+> 状态：H0-H7、A0-A2 已完成；A3 及后续阶段待实施
 > 创建日期：2026-09-21  
 > 适用项目：`unity-NPC-agent-client`（Unity `6000.3.19f1`，Windows）  
 > 实施范围：第一部分 HybridCLR；第二部分 Addressables
@@ -565,6 +565,12 @@ GameMCPServer/config/system_prompt.zh-CN.json
 - 成功激活后只发送一次完整 `runtime.manifest.changed`。
 
 ## H7：HybridCLR CI/CD 与生产门禁
+
+> 完成记录（2026-09-25）：已增加锁定 Unity/HybridCLR/Windows IL2CPP 的两阶段
+> 候选流水线、实际 DLL 引用白名单、历史工具指纹与 JSON/Schema/metadata 门禁、
+> 数据驱动的真实 Player smoke、候选 hash 清单和独立原子 pointer 提升脚本。失败的
+> 生成、门禁、构建或 smoke 均无法产生可提升候选；详细约定见
+> `Docs/HYBRIDCLR_H7_BASELINE.md`。
 
 ### 目标
 

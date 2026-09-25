@@ -1,0 +1,46 @@
+name: HybridCLR H7 candidate
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "unity-NPC-agent-client/Assets/HotUpdate/**"
+      - "unity-NPC-agent-client/Assets/Content/HotUpdate/**"
+      - "unity-NPC-agent-client/Assets/Content/Catalogs/**"
+      - "unity-NPC-agent-client/Assets/Editor/HybridClr*.cs"
+      - "unity-NPC-agent-client/Assets/Scripts/**"
+      - "unity-NPC-agent-client/Packages/**"
+      - "Scripts/Build-H7Release.ps1"
+      - ".github/workflows/hybridclr-h7.yml"
+
+jobs:
+  candidate:
+    runs-on: [self-hosted, Windows, X64, unity-6000.3.19f1]
+    timeout-minutes: 90
+    env:
+      H7_RELEASE_ID: h7-production-1.3.0
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          lfs: true
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - name: Build, gate, and smoke candidate
+        shell: pwsh
+        run: >-
+          ./Scripts/Build-H7Release.ps1
+          -UnityExe '${{ vars.UNITY_6000_3_19F1_EXE }}'
+          -LicensingIpc '${{ vars.UNITY_LICENSING_IPC }}'
+      - name: Upload immutable candidate
+        uses: actions/upload-artifact@v4
+        with:
+          name: hybridclr-h7-${{ github.sha }}
+          if-no-files-found: error
+          retention-days: 30
+          path: |
+            Artifacts/H7/**
+            unity-NPC-agent-client/Builds/HybridClrH7Production/**
+            unity-NPC-agent-client/ServerData/production/StandaloneWindows64/**
+            unity-NPC-agent-client/Logs/h7-*.log

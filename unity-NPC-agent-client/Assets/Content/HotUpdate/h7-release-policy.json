@@ -1,0 +1,30 @@
+{
+  "schemaVersion": 1,
+  "unityVersion": "6000.3.19f1",
+  "hybridClrVersion": "8.14.1",
+  "allowedAssemblyReferences": [
+    "GameWithLLM.AgentRuntime",
+    "GameWithLLM.Client.Gameplay",
+    "GameWithLLM.Client.ToolFramework",
+    "Newtonsoft.Json"
+  ],
+  "allowedFrameworkReferencePrefixes": [
+    "mscorlib",
+    "netstandard",
+    "System",
+    "UnityEngine"
+  ],
+  "approvedTools": {
+    "game_hotfix_smoke_package_info": "377882e08b677fbaeffc9c4e99ea08bf9ffe5ee9efd5b51636a06b0e0147c95f",
+    "game_hotfix_smoke_query": "dd375f80b6f5bc588eba44919cb41a3beedce28e1e03ec7256bff32f6875b401",
+    "game_inventory_get_container": "2a48e815cdee077b1eec7248f544a1e31e248a37bc56a136553b418de72ef18d",
+    "game_inventory_get_item_definitions": "8fe1dc4a25acf864d32d2cb45e91986650ca2b7452c8d519e901d7d09455b4b6",
+    "game_inventory_get_nearby_containers": "4ebec0e9c7a113730c9a384b24a1b0cb22866700fdf9ca6e5354cc9d41f21b67",
+    "game_inventory_get_self": "7120c8a1ffbacc2582f832cc8e63d5e607db0d8b3c208474ad296bbbf0564b07",
+    "game_inventory_put_item": "ceb2b5e71ac2ad766fc24337413f2d15b5b7b9af4880d83ff949e5bfbd777405",
+    "game_inventory_take_item": "e25490d5cdb5ca41d277ae30a4b016e93f8fb7a6ca9ce172a5c798756c76e4e9",
+    "game_npc_get_state": "756fece9a03c0bfdae40e861fa7ef5c189891382683bf045c90a6c383e43844d",
+    "game_npc_move": "aa7a336f1887b7c394a92ec8f42907a8a42c51aaae0c745f611fc3f9f78bed41",
+    "game_scene_get_targets": "ce0352fbd64d74fdf8277b1958d604546540b327797775536caf78734c5fb615"
+  }
+}

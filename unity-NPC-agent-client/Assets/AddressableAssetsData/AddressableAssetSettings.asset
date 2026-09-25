@@ -115,7 +115,7 @@ MonoBehaviour:
       - m_Id: b5b40251658d7bf44b544da43cfdb4d7
         m_Value: http://127.0.0.1:8081/ServerData/local/[BuildTarget]/catalog
       - m_Id: db6586748ba79db45aa89ba4ed276723
-        m_Value: h5-local-1.2.0
+        m_Value: h7-production-1.3.0
       - m_Id: edb89a2171dd4d14db55e5a376b98816
         m_Value: '{UnityEngine.AddressableAssets.Addressables.RuntimePath}/[BuildTarget]'
     - m_InheritedParent: 
@@ -135,7 +135,7 @@ MonoBehaviour:
       - m_Id: b5b40251658d7bf44b544da43cfdb4d7
         m_Value: https://content-qa.gamewithllm.dev/[BuildTarget]/catalog
       - m_Id: db6586748ba79db45aa89ba4ed276723
-        m_Value: h5-local-1.2.0
+        m_Value: h7-production-1.3.0
       - m_Id: edb89a2171dd4d14db55e5a376b98816
         m_Value: '{UnityEngine.AddressableAssets.Addressables.RuntimePath}/[BuildTarget]'
     - m_InheritedParent: 
@@ -155,7 +155,7 @@ MonoBehaviour:
       - m_Id: b5b40251658d7bf44b544da43cfdb4d7
         m_Value: https://content.gamewithllm.dev/[BuildTarget]/catalog
       - m_Id: db6586748ba79db45aa89ba4ed276723
-        m_Value: h5-local-1.2.0
+        m_Value: h7-production-1.3.0
       - m_Id: edb89a2171dd4d14db55e5a376b98816
         m_Value: '{UnityEngine.AddressableAssets.Addressables.RuntimePath}/[BuildTarget]'
     m_ProfileEntryNames:

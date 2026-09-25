@@ -416,6 +416,16 @@ Go/Unity 权威边界。已加载工具包按 packageId、packageVersion 和程�
 PDB 只进入 Development/QA 的可选加载路径；Production 不把 PDB 地址加入必需下载集，
 正式构建的 staging hook 也会将其排除。
 
+H7 将该边界固化为两阶段发布流水线。候选阶段锁定 Unity `6000.3.19f1`、
+HybridCLR `8.14.1` 与 Windows x86_64 IL2CPP，重新生成 AOT/metadata/tool pack，读取
+实际 DLL 的 AssemblyRef 并按白名单拒绝越界依赖，再联合验证历史工具指纹、JSON
+Catalog、规范化 Schema 快照和 Player build id。真实 Player 从本地 Addressables
+端点启动，执行 `h7-smoke-plan.json` 中每个要求的调用，并确认所有 tombstone 不再
+出现在 Manifest、能力枚举或执行路由中。只有带 smoke 证据的候选才能构建 Production
+内容和产物 hash 清单；上传不可变文件后由独立脚本原子替换 `current.json`，失败阶段
+永不修改生产指针。H7 只负责 HybridCLR 候选门禁，完整 CDN 差量发布与保留窗口仍由
+A7 负责。
+
 ### 6.2 Addressables 内容边界
 
 Addressables A0 已冻结资产所有权、稳定逻辑地址和生命周期；完整逐项台账位于
