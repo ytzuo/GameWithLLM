@@ -213,6 +213,12 @@ public sealed class ClientContentBootstrapTests
             CancellationToken cancellationToken) where T : UnityEngine.Object =>
             throw new NotSupportedException();
 
+        public Task<ContentInstanceLease> InstantiateAsync(
+            object key,
+            Transform parent,
+            CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
         public void Dispose()
         {
             IsInitialized = false;

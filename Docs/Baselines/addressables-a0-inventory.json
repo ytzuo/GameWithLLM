@@ -127,7 +127,14 @@
     },
     {
       "id": "ui-templates",
-      "sourcePaths": ["Assets/Resources/UI"],
+      "sourcePaths": [
+        "Assets/Art/UI/Hud/GameplayHud.uxml",
+        "Assets/Art/UI/Hud/GameplayHud.uss",
+        "Assets/Art/UI/Templates/Chat/SystemMessage.uxml",
+        "Assets/Art/UI/Templates/Chat/PlayerMessage.uxml",
+        "Assets/Art/UI/Templates/Chat/OpponentMessage.uxml",
+        "Assets/Art/UI/Templates/Inventory/InventorySlot.uxml"
+      ],
       "sourceState": "existing",
       "location": "Remote",
       "ownerGroup": "Remote_UI",
@@ -163,7 +170,7 @@
       "sourceState": "existing",
       "location": "Remote",
       "ownerGroup": "Remote_SpritesTextures",
-      "addresses": ["item/rock/icon", "item/wood/icon", "item/axe/icon", "item/helmet/icon"],
+      "addresses": ["item/icons/core-atlas"],
       "labels": ["content.items", "content.item-icons"],
       "businessIds": ["rock", "wood", "axe", "helmet"],
       "dependencies": [],
@@ -192,8 +199,12 @@
     },
     {
       "id": "client-json",
-      "sourcePaths": [],
-      "sourceState": "reserved",
+      "sourcePaths": [
+        "Assets/Content/Catalogs/tool_metadata.zh-CN.json",
+        "Assets/Content/Catalogs/agent_messages.zh-CN.json",
+        "Assets/Content/Catalogs/ui.zh-CN.json"
+      ],
+      "sourceState": "existing",
       "location": "Remote",
       "ownerGroup": "Remote_ClientConfig",
       "addresses": ["config/tool-metadata/zh-CN", "config/agent-messages/zh-CN", "config/ui/zh-CN"],
@@ -209,13 +220,13 @@
     {
       "id": "aot-metadata",
       "sourcePaths": [
-        "Assets/StreamingAssets/HotUpdate/mscorlib.dll.bytes",
-        "Assets/StreamingAssets/HotUpdate/System.dll.bytes",
-        "Assets/StreamingAssets/HotUpdate/System.Core.dll.bytes",
-        "Assets/StreamingAssets/HotUpdate/GameWithLLM.AgentRuntime.dll.bytes",
-        "Assets/StreamingAssets/HotUpdate/GameWithLLM.Client.Gameplay.dll.bytes",
-        "Assets/StreamingAssets/HotUpdate/GameWithLLM.Client.ToolFramework.dll.bytes",
-        "Assets/StreamingAssets/HotUpdate/Newtonsoft.Json.dll.bytes"
+        "Assets/Content/HotUpdate/Metadata/mscorlib.dll.bytes",
+        "Assets/Content/HotUpdate/Metadata/System.dll.bytes",
+        "Assets/Content/HotUpdate/Metadata/System.Core.dll.bytes",
+        "Assets/Content/HotUpdate/Metadata/GameWithLLM.AgentRuntime.dll.bytes",
+        "Assets/Content/HotUpdate/Metadata/GameWithLLM.Client.Gameplay.dll.bytes",
+        "Assets/Content/HotUpdate/Metadata/GameWithLLM.Client.ToolFramework.dll.bytes",
+        "Assets/Content/HotUpdate/Metadata/Newtonsoft.Json.dll.bytes"
       ],
       "sourceState": "existing",
       "location": "Remote",
@@ -232,7 +243,7 @@
     },
     {
       "id": "smoke-tool-pack",
-      "sourcePaths": ["Assets/StreamingAssets/HotUpdate/GameWithLLM.Tools.Pack.SmokeTest.dll.bytes"],
+      "sourcePaths": ["Assets/Content/HotUpdate/ToolPacks/GameWithLLM.Tools.Pack.SmokeTest.dll.bytes"],
       "sourceState": "existing",
       "location": "Remote",
       "ownerGroup": "Remote_ToolPacks",
@@ -248,8 +259,8 @@
     },
     {
       "id": "smoke-tool-symbols",
-      "sourcePaths": ["Assets/StreamingAssets/HotUpdate/GameWithLLM.Tools.Pack.SmokeTest.pdb.bytes"],
-      "sourceState": "existing",
+      "sourcePaths": [],
+      "sourceState": "reserved",
       "location": "Remote",
       "ownerGroup": "Remote_ToolPacks",
       "address": "hotfix/tools/smoke-test/1.0.0/symbols",
@@ -264,7 +275,7 @@
     },
     {
       "id": "release-manifest",
-      "sourcePaths": ["Assets/StreamingAssets/HotUpdate/local-hot-update-manifest.json"],
+      "sourcePaths": ["Assets/Content/HotUpdate/release-manifest.json"],
       "sourceState": "existing",
       "location": "Remote",
       "ownerGroup": "Remote_ClientConfig",
@@ -279,20 +290,29 @@
       "sceneReferenceDisposition": "none"
     },
     {
-      "id": "future-character-visuals",
-      "sourcePaths": [],
-      "sourceState": "reserved",
+      "id": "character-visuals",
+      "sourcePaths": [
+        "Assets/Art/Characters",
+        "Assets/Content/Characters/character-catalog.json"
+      ],
+      "sourceState": "existing",
       "location": "Remote",
       "ownerGroup": "Remote_Characters",
       "addressPattern": "character/{character-id}/visual/{appearance-id}",
-      "labels": ["content.characters"],
-      "businessIds": [],
-      "dependencies": ["visual-owned materials, avatar and animations"],
+      "labels": [
+        "content.characters",
+        "content.character-catalog",
+        "content.characters.alice",
+        "content.characters.ryan",
+        "content.characters.player"
+      ],
+      "businessIds": ["alice/default", "ryan/default", "player/default"],
+      "dependencies": ["visual-owned materials, textures, Animator Controllers and animations"],
       "loadPoint": "A5 entity VisualRoot controller",
       "releaseOwner": "entity visual controller",
       "releasePoint": "visual instance destruction",
       "activationPoint": "next spawn, safe appearance change, or next startup",
-      "sceneReferenceDisposition": "no project model/prefab/Animator/Avatar/AnimationClip assets currently exist"
+      "sceneReferenceDisposition": "A5 completed; SampleScene retains only local fallback visuals and stable VisualRoot owners"
     },
     {
       "id": "future-remote-scenes",

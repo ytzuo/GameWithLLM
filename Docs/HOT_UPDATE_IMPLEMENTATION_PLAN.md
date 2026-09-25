@@ -1,6 +1,6 @@
 # 客户端热更新实施计划
 
-> 状态：H0-H7、A0-A4 已完成；A5 及后续阶段待实施
+> 状态：H0-H7、A0-A5 已完成；A6 及后续阶段待实施
 > 创建日期：2026-09-21  
 > 适用项目：`unity-NPC-agent-client`（Unity `6000.3.19f1`，Windows）  
 > 实施范围：第一部分 HybridCLR；第二部分 Addressables
@@ -862,6 +862,10 @@ USS、图标和模板可独立更新。
 - Inventory、发放、取出、放入和物品查询工具全部回归通过。
 
 ## A5：迁移材质、玩家/NPC 模型和动画
+
+> 完成基线：见 `Docs/ADDRESSABLES_A5_BASELINE.md`。当前 SampleScene 的三个
+> 权威实体已迁移为稳定 VisualRoot + 本地 fallback，远端表现按角色独立分包并由
+> `CharacterVisualController` 持有实例 lease。
 
 ### 目标
 

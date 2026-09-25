@@ -36,8 +36,8 @@ HybridCLR 文件仍沿用现有本地加载方式；表中的 `Remote_*` 表示�
 | `Remote_ToolPacks` | Remote | 不可变版本的工具 DLL；PDB 仅 Development/QA |
 | `Remote_UI` | Remote | 窗口、HUD、模板、USS 和 PanelSettings |
 | `Remote_SpritesTextures` | Remote | ItemCatalog 的表现部分及已使用物品图标 |
-| `Remote_Materials` | Remote | A5 后从远端视觉 Prefab 可达的材质；当前为空 |
-| `Remote_Characters` | Remote | A5 后的视觉 Prefab、Avatar 和 Animation；当前为空 |
+| `Remote_Materials` | Remote | 仅容纳经数据证明的跨角色共享渲染资源；A5 当前为空 |
+| `Remote_Characters` | Remote | A5 角色目录、视觉 Prefab、专属材质/纹理、Animator 和 Animation |
 | `Remote_Scenes` | Remote | A6 后迁移的附加场景；`SampleScene` 不在其中 |
 
 `Assets/AddressableAssetsData/AssetGroups/unifiedraytracing.asset` 是 Unity 包维护的
@@ -54,8 +54,8 @@ HybridCLR 文件仍沿用现有本地加载方式；表中的 `Remote_*` 表示�
 | UI | 6 个窗口/HUD 入口由场景序列化引用，消息和 slot 模板由 `Resources.Load` 获取 | A3 迁至 `Remote_UI`；`UiContentCatalog` 持有预加载 handle，窗口关闭或应用退出释放 |
 | ItemData/图标 | `ItemDataList` 被 `PlayerMock` 硬引用；4 个有效 itemId 各引用一个 Sprite | A4 迁移表现数据和 4 个图标；ItemCatalog 生命周期持有 handle，业务 `itemId` 不变 |
 | 其余 Item PNG | 53 个 PNG 没有进入 `ItemDataList` 或场景 | 未纳入热更新发布，继续作为本地未使用源资产；加入业务目录前必须先分配 itemId/address |
-| Material/Shader | 6 个项目材质被 `SampleScene` 硬引用；无项目自定义 Shader/SVC | 第一阶段随本地场景；A5 只迁移视觉 Prefab 自有材质，URP Shader 仍随 Player |
-| 角色/动画 | 没有独立模型、Prefab、Animator、Avatar 或 AnimationClip；角色是场景内对象 | A5 前保持本地；将来只迁移 `VisualRoot` 下的表现 Prefab，权威组件仍是 AOT |
+| Material/Shader | 场景物件和角色 fallback 继续使用本地材质；无项目自定义 Shader/SVC | A5 角色专属材质/纹理随各自视觉 Prefab 远端交付，URP Shader 仍随 Player |
+| 角色/动画 | Alice、Ryan、Player 各有远端 Prefab、专属渲染资源和 Generic Animator/Idle Clip | `VisualRoot` 按实体加载并持有实例；Entity、NavMesh、Inventory、Tool 和 fallback 仍是 AOT/Local |
 | HybridCLR | 7 个 AOT metadata、1 个 smoke DLL、1 个 Development PDB 和本地 manifest 位于 StreamingAssets | A2 分别迁到 metadata/tool groups；bootstrap/release candidate 持有 bytes handle，装载后释放下载 handle，代码只在下次启动激活 |
 | 客户端 JSON | 三个计划中的客户端文本 JSON 尚不存在 | 地址已预留；A2 创建本地默认和远端版本。Go `system_prompt.zh-CN.json` 不进入客户端 |
 | A1 delivery probe | 一个不含业务数据的极小 JSON | `Remote_ClientConfig` / `config/bootstrap/a1-probe`，仅用于验证真实下载与缓存链路 |
@@ -68,6 +68,9 @@ HybridCLR 文件仍沿用现有本地加载方式；表中的 `Remote_*` 表示�
 
 - `PanelSettings`、窗口 UXML：A3 由 `UiContentCatalog` 和预加载缓存替代场景引用。
 - `ItemDataList` 及其 4 个 Sprite：A4 由 ItemCatalog 加载流程替代场景引用。
+
+A3-A5 迁移均已完成；`SampleScene` 不再硬引用这些阶段的远端资产，只保留本地
+fallback 和权威组件。
 
 在对应迁移完成前，这些资产必须继续随 Player 本地交付。A0 校验器会拒绝新增的、
 未在台账写明处置阶段的远端候选场景硬引用。

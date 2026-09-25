@@ -25,6 +25,10 @@ public interface IContentAssetProvider : IDisposable
     Task<ContentAssetLease<T>> LoadAssetAsync<T>(
         object key,
         CancellationToken cancellationToken) where T : UnityEngine.Object;
+    Task<ContentInstanceLease> InstantiateAsync(
+        object key,
+        Transform parent,
+        CancellationToken cancellationToken);
 }
 
 public readonly struct ContentDownloadProgress

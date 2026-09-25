@@ -15,7 +15,7 @@ MonoBehaviour:
   m_DefaultGroup: 0c470a7d57f143d4b87a0f808a17c17a
   m_currentHash:
     serializedVersion: 2
-    Hash: 955082e882cf7b9255b3cdeac0ca10de
+    Hash: 00000000000000000000000000000000
   m_OptimizeCatalogSize: 0
   m_BuildRemoteCatalog: 1
   m_CatalogRequestsTimeout: 15
@@ -200,6 +200,10 @@ MonoBehaviour:
     - content.scenes
     - content.a1-required
     - content.ui-required
+    - content.character-catalog
+    - content.characters.alice
+    - content.characters.ryan
+    - content.characters.player
   m_SchemaTemplates: []
   m_GroupTemplateObjects:
   - {fileID: 11400000, guid: 725d91e4dcb1f7c4c8ab372abd595c67, type: 2}

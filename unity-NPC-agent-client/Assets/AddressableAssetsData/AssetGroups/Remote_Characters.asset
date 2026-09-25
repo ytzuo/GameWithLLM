@@ -14,7 +14,118 @@ MonoBehaviour:
   m_EditorClassIdentifier: Unity.Addressables.Editor::UnityEditor.AddressableAssets.Settings.AddressableAssetGroup
   m_GroupName: Remote_Characters
   m_GUID: caf13ddae8c5c164dad75b62d8b44db1
-  m_SerializeEntries: []
+  m_SerializeEntries:
+  - m_GUID: 20a61d70a79eaea4fb8d5d3822d3ba0f
+    m_Address: character/player/material/default-body
+    m_ReadOnly: 0
+    m_SerializedLabels:
+    - content.characters
+    - content.characters.player
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 297ae5714847efd4f9e1df60808cc813
+    m_Address: character/player/animator/default
+    m_ReadOnly: 0
+    m_SerializedLabels:
+    - content.characters
+    - content.characters.player
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 397b7111212611b42b4c0636f196c570
+    m_Address: character/alice/animator/default
+    m_ReadOnly: 0
+    m_SerializedLabels:
+    - content.characters
+    - content.characters.alice
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 4a3e8bf6f6eee0a4bb07766706ece908
+    m_Address: character/player/visual/default
+    m_ReadOnly: 0
+    m_SerializedLabels:
+    - content.characters
+    - content.characters.player
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 5337538bf36faa449b6dc7b9148359af
+    m_Address: character/alice/material/default-body
+    m_ReadOnly: 0
+    m_SerializedLabels:
+    - content.characters
+    - content.characters.alice
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 732b089eb3cbe3b4a9650a11b0a02033
+    m_Address: character/alice/texture/default-body
+    m_ReadOnly: 0
+    m_SerializedLabels:
+    - content.characters
+    - content.characters.alice
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 769cf05b02006054eb71924489a74fbb
+    m_Address: character/ryan/animation/idle
+    m_ReadOnly: 0
+    m_SerializedLabels:
+    - content.characters
+    - content.characters.ryan
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 836cb94d6e4181a4c8837d0caee36617
+    m_Address: character/ryan/animator/default
+    m_ReadOnly: 0
+    m_SerializedLabels:
+    - content.characters
+    - content.characters.ryan
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 8c3058df5b425b345944060c499f99bf
+    m_Address: character/ryan/texture/default-body
+    m_ReadOnly: 0
+    m_SerializedLabels:
+    - content.characters
+    - content.characters.ryan
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 8ccae690e778ab443ae1021921bd15d8
+    m_Address: character/alice/animation/idle
+    m_ReadOnly: 0
+    m_SerializedLabels:
+    - content.characters
+    - content.characters.alice
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: ccf66a9affaeb524c8e37c4960732497
+    m_Address: character/alice/visual/default
+    m_ReadOnly: 0
+    m_SerializedLabels:
+    - content.characters
+    - content.characters.alice
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: cfa24d1c5ca643946944fce2239bd33b
+    m_Address: character/catalog/default
+    m_ReadOnly: 0
+    m_SerializedLabels:
+    - content.character-catalog
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: cfe51c1a0d82115438d8cc14767297df
+    m_Address: character/ryan/material/default-body
+    m_ReadOnly: 0
+    m_SerializedLabels:
+    - content.characters
+    - content.characters.ryan
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: dc1e73e44a91dbd4ea1db70cdb020e8e
+    m_Address: character/player/texture/default-body
+    m_ReadOnly: 0
+    m_SerializedLabels:
+    - content.characters
+    - content.characters.player
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: f5c370a8fd015bb4c86c8a376e966985
+    m_Address: character/ryan/visual/default
+    m_ReadOnly: 0
+    m_SerializedLabels:
+    - content.characters
+    - content.characters.ryan
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: ff4482c1839b1b849885e54c7d135640
+    m_Address: character/player/animation/idle
+    m_ReadOnly: 0
+    m_SerializedLabels:
+    - content.characters
+    - content.characters.player
+    FlaggedDuringContentUpdateRestriction: 0
   m_ReadOnly: 0
   m_Settings: {fileID: 11400000, guid: ce52958fe87f4da4e8b1723359b35a16, type: 2}
   m_SchemaSet:

@@ -51,6 +51,8 @@ public class AgentHostClient : Singleton<AgentHostClient>
     private LoadedToolSetRelease _contentRelease;
     private UiContentCatalog _uiContentCatalog;
     private ItemContentCatalog _itemContentCatalog;
+    private CharacterContentCatalog _characterContentCatalog;
+    private CharacterVisualController[] _characterVisuals = Array.Empty<CharacterVisualController>();
 
     public bool IsContentReady => _contentReady;
     public ClientContentBootstrapState ContentBootstrapState =>
@@ -137,6 +139,33 @@ public class AgentHostClient : Singleton<AgentHostClient>
                          FindObjectsSortMode.None))
                 player.InitializeItemCatalog(_itemContentCatalog.Items);
             Debug.Log("[Content] Item catalog and icons preloaded and contracts validated.");
+
+            // A5 角色表现是可降级内容：目录或单个模型失败时保留本地 fallback，
+            // 不阻断权威实体、Runtime Manifest 和工具服务初始化。
+            _characterVisuals = FindObjectsByType<CharacterVisualController>(
+                FindObjectsInactive.Include,
+                FindObjectsSortMode.None);
+            try
+            {
+                _characterContentCatalog = new CharacterContentCatalog(_contentProvider);
+                await _characterContentCatalog.PreloadAsync(_appCts.Token);
+                await Task.WhenAll(_characterVisuals.Select(visual =>
+                    visual.LoadAsync(_characterContentCatalog, _appCts.Token)));
+                Debug.Log(
+                    $"[Content] Character Catalog validated and {_characterVisuals.Length} entity visuals resolved.");
+            }
+            catch (OperationCanceledException) when (_appCts.IsCancellationRequested)
+            {
+                throw;
+            }
+            catch (Exception ex)
+            {
+                _characterContentCatalog?.Dispose();
+                _characterContentCatalog = null;
+                Debug.LogWarning(
+                    "[Content] Character Catalog failed; all entities keep local fallback visuals " +
+                    $"and runtime initialization continues: {ex.GetBaseException().Message}");
+            }
 
             InitializeRuntimeServices();
             _contentReady = true;
@@ -671,6 +700,12 @@ public class AgentHostClient : Singleton<AgentHostClient>
         (_runtimeTransport as IDisposable)?.Dispose();
         _a2a?.Dispose();
         _saveCoordinator?.Dispose();
+        foreach (CharacterVisualController visual in _characterVisuals)
+        {
+            if (visual != null)
+                visual.ReleaseVisual();
+        }
+        _characterContentCatalog?.Dispose();
         _itemContentCatalog?.Dispose();
         _uiContentCatalog?.Dispose();
         _contentProvider?.Dispose();

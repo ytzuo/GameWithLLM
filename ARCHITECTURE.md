@@ -433,8 +433,9 @@ Addressables A0 已冻结资产所有权、稳定逻辑地址和生命周期；�
 `Docs/Baselines/addressables-a0-inventory.json`。A1 已建立 Bootstrap、Remote
 Catalog 和 Profile；A2 已迁移客户端 JSON 与 HybridCLR 交付物；A3 已将 UI 布局、
 样式、PanelSettings、theme 和模板迁入 `Remote_UI`；A4 已将物品
-目录、文案和图标 Atlas 迁入 `Remote_SpritesTextures`。其余 `Remote_*` 仍表示
-A5-A6 的唯一目标 Group，不表示现有角色资源已经远端化。
+目录、文案和图标 Atlas 迁入 `Remote_SpritesTextures`；A5 已将 Alice、Ryan 和
+Player 的模型、专属材质/纹理及 Animator/Animation 迁入 `Remote_Characters`。
+`Remote_Scenes` 仍只表示 A6 的目标 Group。
 
 - `SampleScene`、NavMeshData 和第一阶段场景固有材质属于
   `Local_SampleScene`；最小下载/错误 UI 和默认内容属于 `Local_Bootstrap`。
@@ -452,6 +453,12 @@ A5-A6 的唯一目标 Group，不表示现有角色资源已经远端化。
 - A4 的业务定义只保存稳定 `itemId` 和 `MaxStackSize`；名称、描述、
   图标 Atlas 与可选 `WorldVisualAddress` 属于表现契约。当前没有已发布的物品世界
   Prefab，因此启动与打开 Inventory 不会下载世界模型。
+- A5 的权威 NPC/Player 根对象继续持有 Entity、NavMesh、Inventory、工具与存档
+  组件；其直接子对象 `VisualRoot` 由 `CharacterVisualController` 管理。角色目录只
+  保存稳定 `characterId/appearanceId` 与逻辑地址，模型按实体按需实例化，失败时
+  保留本地 fallback。每个角色的 Prefab、专属 Material/Texture、Animator
+  Controller 和 AnimationClip 使用独立 Addressable entry 与角色 label，实例 lease
+  在实体销毁时释放；已实例化模型不在运行中原地替换。
 - `Assets/Art/Items` 中未被当前 ItemData 使用的源 PNG 不进入发布。加入目录前必须
   先分配稳定 itemId、Address 和唯一 owner Group。
 
