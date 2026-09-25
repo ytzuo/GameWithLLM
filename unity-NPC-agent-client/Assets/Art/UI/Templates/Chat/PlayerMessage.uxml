@@ -1,5 +1,5 @@
 <ui:UXML xmlns:ui="UnityEngine.UIElements" xmlns:uie="UnityEditor.UIElements" editor-extension-mode="False">
-    <Style src="../../../Art/UI/ChatStyle.uss" />
+    <Style src="../../ChatStyle.uss" />
 
     <!-- 玩家消息模板：头像在右，气泡在左（row-reverse） -->
     <ui:VisualElement class="message-row message-player">

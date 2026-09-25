@@ -1,5 +1,5 @@
 <ui:UXML xmlns:ui="UnityEngine.UIElements" xmlns:uie="UnityEditor.UIElements" editor-extension-mode="False">
-    <Style src="../../../Art/UI/ChatStyle.uss" />
+    <Style src="../../ChatStyle.uss" />
 
     <!-- 系统消息模板：居中样式 -->
     <ui:VisualElement class="message-system">

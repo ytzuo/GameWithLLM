@@ -431,8 +431,9 @@ A7 负责。
 Addressables A0 已冻结资产所有权、稳定逻辑地址和生命周期；完整逐项台账位于
 `Docs/ADDRESSABLES_A0_INVENTORY.md` 和
 `Docs/Baselines/addressables-a0-inventory.json`。A1 已建立 Bootstrap、Remote
-Catalog 和 Profile；A2 已迁移客户端 JSON 与 HybridCLR 交付物。其余 `Remote_*`
-仍表示 A3-A6 的唯一目标 Group，不表示现有 UI、Item 或角色资源已经远端化。
+Catalog 和 Profile；A2 已迁移客户端 JSON 与 HybridCLR 交付物；A3 已将 UI 布局、
+样式、PanelSettings、theme 和模板迁入 `Remote_UI`。其余 `Remote_*` 仍表示
+A4-A6 的唯一目标 Group，不表示现有 Item 或角色资源已经远端化。
 
 - `SampleScene`、NavMeshData 和第一阶段场景固有材质属于
   `Local_SampleScene`；最小下载/错误 UI 和默认内容属于 `Local_Bootstrap`。
@@ -442,8 +443,8 @@ Catalog 和 Profile；A2 已迁移客户端 JSON 与 HybridCLR 交付物。其�
   Address 和业务 ID 不得删除后复用；版本化工具二进制地址包含不可复用版本。
 - 每次运行时加载都必须由 bootstrap、catalog、窗口、实体视觉或场景协调器之一
   持有 handle，并在对应生命周期结束时释放。
-- 当前 `SampleScene` 对 UI 和 ItemData 的硬引用是 A3/A4 前的已登记迁移债务；
-  在移除这些引用前，对应资产不得实际放入远端 Group。
+- `SampleScene` 的 UI 硬引用已在 A3 删除；当前对 ItemData 的硬引用仍是 A4 前的
+  已登记迁移债务，在移除这些引用前对应资产不得实际放入远端 Group。
 - `Assets/Art/Items` 中未被当前 ItemData 使用的源 PNG 不进入发布。加入目录前必须
   先分配稳定 itemId、Address 和唯一 owner Group。
 
@@ -463,6 +464,15 @@ release 的完整 ToolSet 也在内容激活之后、网络输入开放之前原
 `ContentAssetProvider` 是 Addressables 唯一运行时入口。资源、实例和场景加载分别
 返回显式 lease，调用方负责释放，Provider 在应用退出时兜底；禁止业务代码获取后
 丢弃裸 handle。A1 的详细基线见 `Docs/ADDRESSABLES_A1_BASELINE.md`。
+
+A3 的 `UiContentCatalog` 使用 `content.ui-required` 在启动下载阶段取得
+`Remote_UI`，随后预加载稳定 `ui/...` 地址并校验所有代码依赖的 `Q<T>(name)`。
+Catalog 持有共享资产 lease 到应用退出，窗口仅同步克隆并在关闭时移除 VisualTree
+实例；`UIDocument.panelSettings` 也只在 Catalog 就绪后赋值。UI 资源更新不修改已
+打开窗口，当前只在下次启动获取新 Catalog 后生效。运行时赋值 PanelSettings 会
+触发 UIDocument 延迟重建根节点，因此 HUD 只在根节点稳定后挂载，并在根节点再次
+变化时重新挂载。详细地址与契约见
+`Docs/ADDRESSABLES_A3_BASELINE.md`。
 
 ## 7. 代码地图
 

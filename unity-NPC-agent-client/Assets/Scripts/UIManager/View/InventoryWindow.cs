@@ -50,7 +50,7 @@ public class InventoryWindow : BaseWindow
         _grid = RootElement.Q<VisualElement>("inv-grid-1");
         _panelTitle = RootElement.Q<Label>("inv-panel-title");
 
-        _slotTemplate = Resources.Load<VisualTreeAsset>("UI/Inventory/InventorySlot");
+        _slotTemplate = ContentCatalog.GetVisualTree(UiContentIds.InventorySlotTemplate);
 
         if (_grid == null)
             Debug.LogError("InventoryWindow: inv-grid-1 未在 UXML 中找到。");

@@ -37,7 +37,7 @@ public class InventoryInteractWindow : BaseWindow
         _targetLabel = RootElement.Q<Label>("inv-section-label-2");
         _playerLabel = RootElement.Q<Label>("inv-section-label-1");
 
-        _slotTemplate = Resources.Load<VisualTreeAsset>("UI/Inventory/InventorySlot");
+        _slotTemplate = ContentCatalog.GetVisualTree(UiContentIds.InventorySlotTemplate);
 
         if (_targetGrid == null)
             Debug.LogError("InventoryInteractWindow: inv-grid-2 未在 UXML 中找到。");

@@ -585,7 +585,7 @@ MonoBehaviour:
   m_Script: {fileID: 19102, guid: 0000000000000000e000000000000000, type: 0}
   m_Name: 
   m_EditorClassIdentifier: UnityEngine.dll::UnityEngine.UIElements.UIDocument
-  m_PanelSettings: {fileID: 11400000, guid: 5e291de545fb85044a77858315e2714b, type: 2}
+  m_PanelSettings: {fileID: 0}
   m_ParentUI: {fileID: 0}
   sourceAsset: {fileID: 0}
   m_SortingOrder: 0
@@ -623,19 +623,6 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 917aa36f984c06647bc025149ee6108a, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::UIManager
-  serializedUiConfigs:
-  - WindowName: ChatWindow
-    uxmlAsset: {fileID: 9197481963319205126, guid: 75a50981d1250fa4097aa6e0555ca3ff, type: 3}
-  - WindowName: InventoryListWindow
-    uxmlAsset: {fileID: 9197481963319205126, guid: e1c15da8f79f8194397a91fa6b0913c6, type: 3}
-  - WindowName: InventoryInteractWindow
-    uxmlAsset: {fileID: 9197481963319205126, guid: 8a6003b8ff97441084d4857f7617ecb5, type: 3}
-  - WindowName: InventoryWindow
-    uxmlAsset: {fileID: 9197481963319205126, guid: 5a071f35b8c8ecb46b8ffdc7e611fda2, type: 3}
-  - WindowName: ItemDispenserWindow
-    uxmlAsset: {fileID: 9197481963319205126, guid: 0b95635808ffd644bb406cb01565ed81, type: 3}
-  - WindowName: SaveGameWindow
-    uxmlAsset: {fileID: 9197481963319205126, guid: 4cdd6e1d8f954d32a49e45cc65987e94, type: 3}
 --- !u!1 &614615628
 GameObject:
   m_ObjectHideFlags: 0

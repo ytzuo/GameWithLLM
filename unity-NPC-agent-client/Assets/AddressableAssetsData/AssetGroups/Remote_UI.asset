@@ -14,7 +14,115 @@ MonoBehaviour:
   m_EditorClassIdentifier: Unity.Addressables.Editor::UnityEditor.AddressableAssets.Settings.AddressableAssetGroup
   m_GroupName: Remote_UI
   m_GUID: 676ffb6e7351de94a90cb15a6e8e9451
-  m_SerializeEntries: []
+  m_SerializeEntries:
+  - m_GUID: 0771d2d524697f447b7fbbf5c500c276
+    m_Address: ui/template/chat/opponent-message
+    m_ReadOnly: 0
+    m_SerializedLabels:
+    - content.ui-required
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 08712ffda0bd7a447926e1fc125a3a90
+    m_Address: ui/style/chat
+    m_ReadOnly: 0
+    m_SerializedLabels:
+    - content.ui-required
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 0b95635808ffd644bb406cb01565ed81
+    m_Address: ui/window/item-dispenser
+    m_ReadOnly: 0
+    m_SerializedLabels:
+    - content.ui-required
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 38b021633d514f179d1bf8535bb4e4c0
+    m_Address: ui/style/save-game
+    m_ReadOnly: 0
+    m_SerializedLabels:
+    - content.ui-required
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 4cdd6e1d8f954d32a49e45cc65987e94
+    m_Address: ui/window/save-game
+    m_ReadOnly: 0
+    m_SerializedLabels:
+    - content.ui-required
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 54768a95d64d39e4dbd05f29048db06b
+    m_Address: ui/template/inventory/slot
+    m_ReadOnly: 0
+    m_SerializedLabels:
+    - content.ui-required
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 5a071f35b8c8ecb46b8ffdc7e611fda2
+    m_Address: ui/window/inventory
+    m_ReadOnly: 0
+    m_SerializedLabels:
+    - content.ui-required
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 5e291de545fb85044a77858315e2714b
+    m_Address: ui/panel/default
+    m_ReadOnly: 0
+    m_SerializedLabels:
+    - content.ui-required
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 6b756ef607e36b849876cd9f85060f15
+    m_Address: ui/template/chat/player-message
+    m_ReadOnly: 0
+    m_SerializedLabels:
+    - content.ui-required
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 75a50981d1250fa4097aa6e0555ca3ff
+    m_Address: ui/window/chat
+    m_ReadOnly: 0
+    m_SerializedLabels:
+    - content.ui-required
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 81823c1c286530445abd0309f05f423a
+    m_Address: ui/template/chat/system-message
+    m_ReadOnly: 0
+    m_SerializedLabels:
+    - content.ui-required
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 878038c30d6eaad45bd456576a17d16a
+    m_Address: ui/style/inventory
+    m_ReadOnly: 0
+    m_SerializedLabels:
+    - content.ui-required
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 886c184d77f72fb48b2a9ac1bdd588ca
+    m_Address: ui/theme/default-runtime
+    m_ReadOnly: 0
+    m_SerializedLabels:
+    - content.ui-required
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 8a6003b8ff97441084d4857f7617ecb5
+    m_Address: ui/window/inventory-interact
+    m_ReadOnly: 0
+    m_SerializedLabels:
+    - content.ui-required
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 8edf55052b2b4664ad3655e0e4d661ec
+    m_Address: ui/style/item-dispenser
+    m_ReadOnly: 0
+    m_SerializedLabels:
+    - content.ui-required
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: e1c15da8f79f8194397a91fa6b0913c6
+    m_Address: ui/window/inventory-list
+    m_ReadOnly: 0
+    m_SerializedLabels:
+    - content.ui-required
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: e5fcbe7450104bde94411a4283a9418b
+    m_Address: ui/hud/gameplay
+    m_ReadOnly: 0
+    m_SerializedLabels:
+    - content.ui-required
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: f268a44b80a1463dbcd26fec37db022e
+    m_Address: ui/style/gameplay-hud
+    m_ReadOnly: 0
+    m_SerializedLabels:
+    - content.ui-required
+    FlaggedDuringContentUpdateRestriction: 0
   m_ReadOnly: 0
   m_Settings: {fileID: 11400000, guid: ce52958fe87f4da4e8b1723359b35a16, type: 2}
   m_SchemaSet:

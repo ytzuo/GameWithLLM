@@ -1,5 +1,4 @@
 ﻿using System;
-using System.Reflection;
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.UIElements;
@@ -7,22 +6,26 @@ using UnityEngine.UIElements;
 [RequireComponent(typeof(UIDocument))]
 public class UIManager : MonoBehaviour
 {
-    private const string GameplayHudResourcePath = "UI/Hud/GameplayHud";
-
     public static UIManager Instance { get; private set; }
     private UIDocument _uiDocument;
     private VisualElement _gameplayHud;
-    private bool _contentReady = true;
+    private VisualTreeAsset _gameplayHudAsset;
+    private VisualElement _observedDocumentRoot;
+    private int _stableDocumentRootFrames;
+    private bool _hasLoggedHudAttached;
+    private UiContentCatalog _contentCatalog;
+    private bool _contentReady;
 
-    [Serializable]
-    public struct UIConfig
-    {
-        public string WindowName;
-        public VisualTreeAsset uxmlAsset;
-    }
-    [SerializeField] private List<UIConfig> serializedUiConfigs;
-    // Initialize so we never hit a NullReferenceException when adding entries
-    private Dictionary<string,VisualTreeAsset> _uiConfigs = new Dictionary<string, VisualTreeAsset>();
+    private static readonly IReadOnlyDictionary<Type, string> WindowAddresses =
+        new Dictionary<Type, string>
+        {
+            [typeof(ChatWindow)] = UiContentIds.ChatWindow,
+            [typeof(InventoryListWindow)] = UiContentIds.InventoryListWindow,
+            [typeof(InventoryInteractWindow)] = UiContentIds.InventoryInteractWindow,
+            [typeof(InventoryWindow)] = UiContentIds.InventoryWindow,
+            [typeof(ItemDispenserWindow)] = UiContentIds.ItemDispenserWindow,
+            [typeof(SaveGameWindow)] = UiContentIds.SaveGameWindow
+        };
     
     // 集中管理所有被实例化的窗口
     private List<BaseWindow> _managedWindows = new List<BaseWindow>();
@@ -31,27 +34,60 @@ public class UIManager : MonoBehaviour
     /// 暴露 UIDocument 的根节点，供外部复用已存在的窗口
     /// </summary>
     public VisualElement RootVisualElement => _uiDocument.rootVisualElement;
+    public bool IsGameplayHudAttachedAndVisible =>
+        _gameplayHud != null &&
+        ReferenceEquals(_gameplayHud.parent, _uiDocument?.rootVisualElement) &&
+        _gameplayHud.resolvedStyle.display != DisplayStyle.None;
 
     private void Awake()
     {
         Instance = this;
         _uiDocument = GetComponent<UIDocument>();
-        CreateGameplayHud();
+    }
+
+    public void InitializeContent(UiContentCatalog catalog)
+    {
+        if (catalog == null || !catalog.IsReady)
+            throw new InvalidOperationException("UI content catalog is not ready.");
+        if (_contentCatalog != null && !ReferenceEquals(_contentCatalog, catalog))
+            throw new InvalidOperationException("UI content cannot be replaced while the scene is active.");
+
+        _contentCatalog = catalog;
+        _uiDocument.panelSettings = catalog.PanelSettings;
+        // 设置 PanelSettings 后，UIDocument 会在后续帧重建 rootVisualElement。
+        // HUD 若立刻挂载到旧 root，会只显示一帧便随旧 root 脱离。
+        _gameplayHudAsset = catalog.GetVisualTree(UiContentIds.GameplayHud);
+        _gameplayHud?.RemoveFromHierarchy();
+        _gameplayHud = null;
+        _observedDocumentRoot = null;
+        _stableDocumentRootFrames = 0;
         ApplyContentVisibility();
     }
-    private void Start()
+
+    private void LateUpdate()
     {
-        // Guard against the serialized list being null (e.g., not set in inspector)
-        if (serializedUiConfigs == null) return;
+        if (_gameplayHudAsset == null || _uiDocument == null)
+            return;
 
-        foreach (var uiConfig in serializedUiConfigs)
+        VisualElement currentRoot = _uiDocument.rootVisualElement;
+        if (currentRoot == null)
+            return;
+
+        // Panel 重建时，新 root 也必须继续服从内容启动门控。
+        currentRoot.style.display = _contentReady ? DisplayStyle.Flex : DisplayStyle.None;
+
+        if (!ReferenceEquals(_observedDocumentRoot, currentRoot))
         {
-            // Skip invalid or empty names
-            if (string.IsNullOrEmpty(uiConfig.WindowName)) continue;
-
-            // Use indexer to allow overwriting duplicates instead of throwing
-            _uiConfigs[uiConfig.WindowName] = uiConfig.uxmlAsset;
+            _observedDocumentRoot = currentRoot;
+            _stableDocumentRootFrames = 0;
+            return;
         }
+
+        if (_stableDocumentRootFrames++ == 0)
+            return;
+
+        if (_gameplayHud == null || !ReferenceEquals(_gameplayHud.parent, currentRoot))
+            AttachGameplayHud(currentRoot);
     }
 
     /// <summary>
@@ -65,11 +101,13 @@ public class UIManager : MonoBehaviour
 
         // 1. 实例化纯 C# 类
         T window = new T();
-        VisualTreeAsset uxmlAsset = _uiConfigs[typeof(T).Name];
-        // 2. 加载 Resources 下的 UXML
-        if (uxmlAsset == null) throw new Exception($"UI config {typeof(T).Name} doesn't exist");
+        if (_contentCatalog == null || !_contentCatalog.IsReady)
+            throw new InvalidOperationException("UI content catalog is not ready.");
+        if (!WindowAddresses.TryGetValue(typeof(T), out string address))
+            throw new KeyNotFoundException($"UI address for {typeof(T).Name} is not registered.");
+        VisualTreeAsset uxmlAsset = _contentCatalog.GetVisualTree(address);
         
-        window.Load(uxmlAsset);
+        window.Load(uxmlAsset, _contentCatalog);
 
         // 3. 先纳入管理并监听状态，再挂载到 UIDocument。
         // 这样窗口打开事件触发时，HUD 可见性统计已经包含当前窗口。
@@ -133,23 +171,23 @@ public class UIManager : MonoBehaviour
         window.Open(_uiDocument.rootVisualElement);
     }
 
-    private void CreateGameplayHud()
+    private void AttachGameplayHud(VisualElement documentRoot)
     {
-        VisualTreeAsset hudAsset =
-            Resources.Load<VisualTreeAsset>(GameplayHudResourcePath);
-        if (hudAsset == null)
+        _gameplayHud?.RemoveFromHierarchy();
+        if (_gameplayHud == null)
         {
-            Debug.LogWarning(
-                $"UIManager: 无法加载常驻 HUD：Resources/{GameplayHudResourcePath}.uxml");
-            return;
+            _gameplayHud = _gameplayHudAsset.CloneTree();
+            _gameplayHud.name = "gameplay-hud";
+            DisablePickingRecursively(_gameplayHud);
         }
-
-        _gameplayHud = hudAsset.CloneTree();
-        _gameplayHud.name = "gameplay-hud";
-        DisablePickingRecursively(_gameplayHud);
-        _uiDocument.rootVisualElement.Add(_gameplayHud);
+        documentRoot.Add(_gameplayHud);
         _gameplayHud.BringToFront();
         UpdateGameplayHudVisibility();
+        if (!_hasLoggedHudAttached)
+        {
+            _hasLoggedHudAttached = true;
+            Debug.Log("[Content] Gameplay HUD attached to the stable UIDocument root.");
+        }
     }
 
     private void OnWindowOpenStateChanged(BaseWindow window, bool isOpen)

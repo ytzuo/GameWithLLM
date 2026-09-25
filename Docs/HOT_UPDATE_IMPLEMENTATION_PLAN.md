@@ -1,6 +1,6 @@
 # 客户端热更新实施计划
 
-> 状态：H0-H7、A0-A2 已完成；A3 及后续阶段待实施
+> 状态：H0-H7、A0-A3 已完成；A4 及后续阶段待实施
 > 创建日期：2026-09-21  
 > 适用项目：`unity-NPC-agent-client`（Unity `6000.3.19f1`，Windows）  
 > 实施范围：第一部分 HybridCLR；第二部分 Addressables
@@ -780,6 +780,10 @@ Catalog 或 release index 使用稳定入口；Bundle 使用不可变、可长�
   本地默认 BuiltinTools 和默认文本。
 
 ## A3：迁移 UI 布局、样式和图标
+
+> 完成记录（2026-09-25）：生产 UI 已迁至 `Remote_UI`，启动期由
+> `UiContentCatalog` 预加载并验证命名元素契约，场景/Resources 双来源已删除；
+> 地址、所有权和验证结果见 `Docs/ADDRESSABLES_A3_BASELINE.md`。
 
 ### 目标
 

@@ -2,6 +2,8 @@
 
 > 状态：A0 完成（2026-09-22）  
 > 机器可校验台账：`Docs/Baselines/addressables-a0-inventory.json`
+> 后续状态：A3 已于 2026-09-25 完成 UI 迁移；当前 UI 基线见
+> `Docs/ADDRESSABLES_A3_BASELINE.md`。下文“当前”描述均保留为 A0 盘点时点事实。
 
 本文是 `Docs/HOT_UPDATE_IMPLEMENTATION_PLAN.md` A0 的交付物。它只冻结迁移目标和
 所有权，不提前执行 A1-A6 的资源迁移。当前 `SampleScene`、UI、ItemData 和 H3

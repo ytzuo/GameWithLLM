@@ -49,6 +49,7 @@ public class AgentHostClient : Singleton<AgentHostClient>
     private UIManager _gatedUi;
     private float _nextCapabilityCheckAt;
     private LoadedToolSetRelease _contentRelease;
+    private UiContentCatalog _uiContentCatalog;
 
     public bool IsContentReady => _contentReady;
     public ClientContentBootstrapState ContentBootstrapState =>
@@ -78,7 +79,8 @@ public class AgentHostClient : Singleton<AgentHostClient>
                     {
                         RequiredDownloadLabels = new[]
                         {
-                            "content.a1-required"
+                            "content.a1-required",
+                            "content.ui-required"
                         },
                         ReleaseLoader = new AddressableHotUpdateReleaseLoader(_contentProvider)
                     });
@@ -112,6 +114,19 @@ public class AgentHostClient : Singleton<AgentHostClient>
             }
 
             _appCts.Token.ThrowIfCancellationRequested();
+            if (_contentProvider == null)
+            {
+                _contentProvider = new ContentAssetProvider();
+                await _contentProvider.InitializeAsync(_appCts.Token);
+            }
+            _uiContentCatalog = new UiContentCatalog(_contentProvider);
+            await _uiContentCatalog.PreloadAsync(_appCts.Token);
+            _gatedUi ??= FindFirstObjectByType<UIManager>(FindObjectsInactive.Include);
+            if (_gatedUi == null)
+                throw new InvalidOperationException("UIManager is missing from the active scene.");
+            _gatedUi.InitializeContent(_uiContentCatalog);
+            Debug.Log("[Content] UI catalog preloaded and contracts validated.");
+
             InitializeRuntimeServices();
             _contentReady = true;
             GateGameplay(true);
@@ -645,6 +660,7 @@ public class AgentHostClient : Singleton<AgentHostClient>
         (_runtimeTransport as IDisposable)?.Dispose();
         _a2a?.Dispose();
         _saveCoordinator?.Dispose();
+        _uiContentCatalog?.Dispose();
         _contentProvider?.Dispose();
         _sendLock.Dispose();
         _appCts.Dispose();
