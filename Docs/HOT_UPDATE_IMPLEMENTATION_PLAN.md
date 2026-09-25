@@ -1,6 +1,6 @@
 # 客户端热更新实施计划
 
-> 状态：H0-H7、A0-A3 已完成；A4 及后续阶段待实施
+> 状态：H0-H7、A0-A4 已完成；A5 及后续阶段待实施
 > 创建日期：2026-09-21  
 > 适用项目：`unity-NPC-agent-client`（Unity `6000.3.19f1`，Windows）  
 > 实施范围：第一部分 HybridCLR；第二部分 Addressables
@@ -822,6 +822,11 @@ USS、图标和模板可独立更新。
 回 `Resources` 形成双来源。
 
 ## A4：迁移 Sprite、Texture、物品目录和物品视觉
+
+> 完成记录（2026-09-26）：已将 4 个已发布 itemId 的业务定义与文案、
+> SpriteAtlas 映射分离，由 `ItemContentCatalog` 在内容 Bootstrap 期间预加载并
+> 持有 lease。`SampleScene` 不再硬引用 ItemData/Sprite；旧存档 itemId 基线、
+> Packed Play Mode、Windows IL2CPP Player 构建与启动烟测均已通过。
 
 ### 目标
 

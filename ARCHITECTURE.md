@@ -432,8 +432,9 @@ Addressables A0 已冻结资产所有权、稳定逻辑地址和生命周期；�
 `Docs/ADDRESSABLES_A0_INVENTORY.md` 和
 `Docs/Baselines/addressables-a0-inventory.json`。A1 已建立 Bootstrap、Remote
 Catalog 和 Profile；A2 已迁移客户端 JSON 与 HybridCLR 交付物；A3 已将 UI 布局、
-样式、PanelSettings、theme 和模板迁入 `Remote_UI`。其余 `Remote_*` 仍表示
-A4-A6 的唯一目标 Group，不表示现有 Item 或角色资源已经远端化。
+样式、PanelSettings、theme 和模板迁入 `Remote_UI`；A4 已将物品
+目录、文案和图标 Atlas 迁入 `Remote_SpritesTextures`。其余 `Remote_*` 仍表示
+A5-A6 的唯一目标 Group，不表示现有角色资源已经远端化。
 
 - `SampleScene`、NavMeshData 和第一阶段场景固有材质属于
   `Local_SampleScene`；最小下载/错误 UI 和默认内容属于 `Local_Bootstrap`。
@@ -443,8 +444,14 @@ A4-A6 的唯一目标 Group，不表示现有 Item 或角色资源已经远端�
   Address 和业务 ID 不得删除后复用；版本化工具二进制地址包含不可复用版本。
 - 每次运行时加载都必须由 bootstrap、catalog、窗口、实体视觉或场景协调器之一
   持有 handle，并在对应生命周期结束时释放。
-- `SampleScene` 的 UI 硬引用已在 A3 删除；当前对 ItemData 的硬引用仍是 A4 前的
-  已登记迁移债务，在移除这些引用前对应资产不得实际放入远端 Group。
+- `SampleScene` 对 UI、ItemData 和物品 Sprite 的硬引用已分别在 A3/A4 删除。
+- `ItemContentCatalog` 在开放 Inventory、发放器、存档和 Runtime 工具前预加载
+  `item/catalog/default`、`item/catalog/text/zh-CN` 和
+  `item/icons/core-atlas`，校验已发布 itemId、堆叠规则、文本键和图标映射，
+  并持有全部 Addressables lease 到应用退出。Inventory 只同步读取已就绪缓存。
+- A4 的业务定义只保存稳定 `itemId` 和 `MaxStackSize`；名称、描述、
+  图标 Atlas 与可选 `WorldVisualAddress` 属于表现契约。当前没有已发布的物品世界
+  Prefab，因此启动与打开 Inventory 不会下载世界模型。
 - `Assets/Art/Items` 中未被当前 ItemData 使用的源 PNG 不进入发布。加入目录前必须
   先分配稳定 itemId、Address 和唯一 owner Group。
 

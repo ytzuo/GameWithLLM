@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Globalization;
 using UnityEditor;
 using UnityEditor.AddressableAssets;
@@ -31,6 +32,7 @@ public static class AddressablesA3PackedPlaySmoke
         try
         {
             AddressablesA3ProjectSetup.Verify();
+            AddressablesA4ProjectSetup.Verify();
             AddressableAssetSettings settings = AddressableAssetSettingsDefaultObject.Settings ??
                                                 throw new InvalidOperationException("Addressables settings are missing.");
             SessionState.SetInt(OriginalBuilderKey, settings.ActivePlayerDataBuilderIndex);
@@ -107,15 +109,25 @@ public static class AddressablesA3PackedPlaySmoke
             Time.frameCount >= confirmationFrame)
         {
             UIManager uiManager = UIManager.Instance;
-            if (uiManager != null && uiManager.IsGameplayHudAttachedAndVisible)
+            AgentHostClient host = AgentHostClient.Instance;
+            string itemFailure = null;
+            if (uiManager != null && uiManager.IsGameplayHudAttachedAndVisible &&
+                host != null && host.IsContentReady &&
+                IsItemContentReady(out itemFailure))
             {
                 SessionState.SetBool(SuccessKey, true);
             }
-            else
+            else if (host != null && host.IsContentReady)
             {
                 SessionState.SetString(
                     FailureKey,
-                    "Gameplay HUD detached or became hidden after its initial frame.");
+                    string.IsNullOrEmpty(itemFailure)
+                        ? "Gameplay HUD or A4 item content is not ready after bootstrap."
+                        : itemFailure);
+            }
+            else
+            {
+                return;
             }
             BeginFinish();
             return;
@@ -133,6 +145,29 @@ public static class AddressablesA3PackedPlaySmoke
                 "Timed out waiting for the packed-play UI catalog activation marker.");
             BeginFinish();
         }
+    }
+
+    private static bool IsItemContentReady(out string failure)
+    {
+        failure = string.Empty;
+        ItemDataList catalog = InventoryViewModel.Instance.ItemCatalog;
+        if (catalog?.items == null || catalog.items.Count != 4)
+        {
+            failure = "A4 item Catalog was not injected into InventoryViewModel.";
+            return false;
+        }
+        var ids = new HashSet<string>(StringComparer.Ordinal);
+        foreach (ItemData item in catalog.items)
+        {
+            if (item == null || !ids.Add(item.ItemId) || item.Icon == null ||
+                string.IsNullOrWhiteSpace(item.ItemName) || item.ItemName == item.DisplayNameKey ||
+                string.IsNullOrWhiteSpace(item.Description) || item.Description == item.DescriptionKey)
+            {
+                failure = $"A4 item '{item?.ItemId ?? "<null>"}' presentation is incomplete.";
+                return false;
+            }
+        }
+        return ids.SetEquals(new[] { "rock", "wood", "axe", "helmet" });
     }
 
     private static void BeginFinish()

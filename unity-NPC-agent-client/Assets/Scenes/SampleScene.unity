@@ -1139,7 +1139,6 @@ MonoBehaviour:
   npcEntities:
   - {fileID: 614615634}
   - {fileID: 404743343}
-  itemDataList: {fileID: 11400000, guid: ca82c80f535b2c24f9300d66adec8a18, type: 2}
 --- !u!114 &1621335203
 MonoBehaviour:
   m_ObjectHideFlags: 0

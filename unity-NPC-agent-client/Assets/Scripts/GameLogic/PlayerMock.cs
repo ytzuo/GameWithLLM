@@ -55,7 +55,7 @@ public class PlayerMock : MonoBehaviour, IGameplayWorldTarget
     private InputAction _openInventoryAction; // E key
 
     // ── Item Dispenser ──
-    public ItemDataList itemDataList; // set in Inspector
+    private ItemDataList _itemDataList;
     private ItemDispenserWindow _dispenserWindow;
     private InputAction _dispenserAction; // E key
 
@@ -100,9 +100,7 @@ public class PlayerMock : MonoBehaviour, IGameplayWorldTarget
         if (npcEntities == null)
             npcEntities = new List<NpcEntity>();
 
-        InventoryViewModel.Instance.SetItemCatalog(itemDataList);
         InventoryViewModel.Instance.PlayerInventory = GetComponent<InventoryComponent>();
-        _saveGameService = new SaveGameService(this, itemDataList);
     }
 
     private void OnEnable()
@@ -131,7 +129,7 @@ public class PlayerMock : MonoBehaviour, IGameplayWorldTarget
 
     private void OnDestroy()
     {
-        InventoryViewModel.Instance.ClearItemCatalog(itemDataList);
+        InventoryViewModel.Instance.ClearItemCatalog(_itemDataList);
 
         if (_interactAction != null)
         {
@@ -530,7 +528,7 @@ public class PlayerMock : MonoBehaviour, IGameplayWorldTarget
     {
         if (_dispenserWindow != null && _dispenserWindow.IsOpen) return;
 
-        if (itemDataList == null)
+        if (_itemDataList == null)
         {
             Debug.LogWarning("PlayerMock: itemDataList 未设置，无法打开物品发放器");
             return;
@@ -539,8 +537,15 @@ public class PlayerMock : MonoBehaviour, IGameplayWorldTarget
         if (!_isUiMode) SwitchToUiMode();
 
         _dispenserWindow = UIManager.Instance.OpenNewWindow<ItemDispenserWindow>();
-        _dispenserWindow.ItemDataList = itemDataList;
+        _dispenserWindow.ItemDataList = _itemDataList;
         _dispenserWindow.Closed += OnDispenserWindowClosed;
+    }
+
+    internal void InitializeItemCatalog(ItemDataList catalog)
+    {
+        _itemDataList = catalog ?? throw new ArgumentNullException(nameof(catalog));
+        InventoryViewModel.Instance.SetItemCatalog(_itemDataList);
+        _saveGameService = new SaveGameService(this, _itemDataList);
     }
 
     private void OnDispenserWindowClosed()

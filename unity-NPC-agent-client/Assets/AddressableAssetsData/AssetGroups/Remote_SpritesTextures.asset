@@ -14,7 +14,25 @@ MonoBehaviour:
   m_EditorClassIdentifier: Unity.Addressables.Editor::UnityEditor.AddressableAssets.Settings.AddressableAssetGroup
   m_GroupName: Remote_SpritesTextures
   m_GUID: 205707f0ee07da642996132b893fb6b4
-  m_SerializeEntries: []
+  m_SerializeEntries:
+  - m_GUID: 977a638e7f9cfba468dacf204b40ff64
+    m_Address: item/icons/core-atlas
+    m_ReadOnly: 0
+    m_SerializedLabels:
+    - content.item-icons
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: a3e6c0133c8f4810bde1682e6447492b
+    m_Address: item/catalog/text/zh-CN
+    m_ReadOnly: 0
+    m_SerializedLabels:
+    - content.items
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: ca82c80f535b2c24f9300d66adec8a18
+    m_Address: item/catalog/default
+    m_ReadOnly: 0
+    m_SerializedLabels:
+    - content.items
+    FlaggedDuringContentUpdateRestriction: 0
   m_ReadOnly: 0
   m_Settings: {fileID: 11400000, guid: ce52958fe87f4da4e8b1723359b35a16, type: 2}
   m_SchemaSet:

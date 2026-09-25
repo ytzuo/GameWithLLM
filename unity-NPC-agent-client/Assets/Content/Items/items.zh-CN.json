@@ -1,0 +1,15 @@
+{
+  "schemaVersion": 1,
+  "contentVersion": "2026.09.001",
+  "locale": "zh-CN",
+  "texts": {
+    "item.rock.name": "石头",
+    "item.rock.description": "一块普通的石头。",
+    "item.wood.name": "木材",
+    "item.wood.description": "可用于制作的木材。",
+    "item.axe.name": "斧头",
+    "item.axe.description": "攻击速度 0.9。",
+    "item.helmet.name": "头盔",
+    "item.helmet.description": "保护头部和眼部。"
+  }
+}
