@@ -1,0 +1,70 @@
+{
+  "schemaVersion": 1,
+  "capturedAt": "2026-09-26",
+  "sourceCommit": "f1a6cbe1a828639cab2be08ea49e5720c3f6fa92",
+  "worktreeWasClean": true,
+  "toolchain": {
+    "unity": "6000.3.19f1",
+    "hybridClr": "8.14.1",
+    "target": "StandaloneWindows64",
+    "scriptingBackend": "IL2CPP"
+  },
+  "evidence": [
+    {
+      "kind": "editmode",
+      "path": "Artifacts/a6-editmode-results.xml",
+      "result": "passed",
+      "tests": 33,
+      "sha256": "2f7b9980e3ac30e76778fc9e7f4594c54b96fa509f5851d98eb5e702515fb068"
+    },
+    {
+      "kind": "packed-play",
+      "path": "unity-NPC-agent-client/Logs/a3-hud-packed-play.log",
+      "result": "passed",
+      "marker": "Addressables A3 Packed Play Mode smoke passed",
+      "sha256": "70111543c0c475c35289abb66a092e58ffa3653b7c39895b81f9fd51b9990301"
+    },
+    {
+      "kind": "player-smoke",
+      "path": "Artifacts/H7/h7-production-1.3.0/h7-player-smoke.passed.json",
+      "result": "passed",
+      "marker": "H7_PLAYER_SMOKE_SUCCESS",
+      "sha256": "45640797d18e1d32603776087227b50c5f126b780b40e00bb15563fa037ffd48"
+    },
+    {
+      "kind": "candidate",
+      "path": "Artifacts/H7/h7-production-1.3.0/candidate-manifest.json",
+      "releaseId": "h7-production-1.3.0",
+      "sha256": "cdbe7dc9d73b30ab801f12ce163515450e582e03e7a7173fbb3f328d1f0e7d1e"
+    },
+    {
+      "kind": "content-state",
+      "path": "unity-NPC-agent-client/Assets/AddressableAssetsData/Windows/addressables_content_state.bin",
+      "sha256": "a85f82f0d12472f8fae8a72a16fd995879bb7615629f7268f1708c4450497338"
+    },
+    {
+      "kind": "release-transaction",
+      "path": "Scripts/Test-A7Promotion.ps1",
+      "result": "passed",
+      "scenarios": [
+        "publish",
+        "interrupted-retry",
+        "tamper-rejection",
+        "pointer-preservation",
+        "v2",
+        "rollback"
+      ]
+    },
+    {
+      "kind": "full-candidate-gate",
+      "path": "Artifacts/c0-a7-full-candidate.log",
+      "result": "rejected",
+      "reason": "H4 history ledger rejected a regenerated DLL hash under the unchanged package version.",
+      "sha256": "12eaac558b45a921868f03f3d5d73a071545e03518d020c1039e17dcc3c7731c"
+    }
+  ],
+  "notes": [
+    "Historical A/H identifiers are intentionally retained in frozen evidence paths.",
+    "No A7 production candidate existed at the freeze point. A reconstruction attempt was rejected before content build because immutable tool history requires a new package version for the regenerated DLL; no production pointer changed."
+  ]
+}

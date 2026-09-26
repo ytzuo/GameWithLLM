@@ -1,6 +1,6 @@
 # 热更新开发收束计划
 
-> 状态：待实施  
+> 状态：实施中（C0-C2 已完成）
 > 创建日期：2026-09-26  
 > 适用项目：`unity-NPC-agent-client`  
 > 前置条件：HybridCLR H0-H7、Addressables A0-A7 已完成  
@@ -452,6 +452,13 @@ Docs/HOT_UPDATE_CONSOLIDATION_PLAN.md
 
 ### C0：冻结与基线
 
+> 完成记录（2026-09-26）：工作树在 `f1a6cbe1a828639cab2be08ea49e5720c3f6fa92`
+> 冻结；H7 候选、Player smoke、Packed Play、33/33 EditMode、Addressables content
+> state 与发布事务结果已记录在
+> `Docs/Baselines/hot-update-consolidation-c0.json`。协议和稳定外部标识未改变。
+> 冻结点没有 A7 Production 候选；重建尝试因未提升 packageVersion 的新 DLL hash 被
+> H4 不可变历史台账正确拒绝，未伪造 smoke 证据且未改写生产指针。
+
 1. 提交或暂存当前 A7 修改。
 2. 归档 H7/A7 候选、content state 和 smoke 证据。
 3. 记录当前 Editor、EditMode、Packed Play、Player smoke 和发布事务结果。
@@ -459,11 +466,19 @@ Docs/HOT_UPDATE_CONSOLIDATION_PLAN.md
 
 ### C1：公共构建基础设施
 
+> 完成记录（2026-09-26）：已建立 `Assets/Editor/HotUpdate/Core`，统一命令行退出、
+> Addressables Profile scope、Windows Player 构建、SHA-256 和候选文件清单；H7/A7
+> 已切换到公共实现，旧入口暂保留到 C3/C4 满足删除条件。
+
 1. 抽取 `HotUpdateEditorCommand`、Profile scope、Player builder、Hash 和文件清单工具。
 2. H7/A7 改用公共实现。
 3. 保持现有行为不变，通过原有测试后再继续。
 
 ### C2：模块化验证
+
+> 完成记录（2026-09-26）：已建立显式规则列表、`Fast`/`Candidate`/`Release`/`Module`
+> Profile 和统一 JSON 报告。A0-A6/H7 验证由模块规则编排，A7 只调用 Candidate
+> Profile；每条规则返回独立 Module/RuleId/失败信息，并在验证后恢复 Editor Scene setup。
 
 1. 建立 `ContentValidationRunner` 和结构化报告。
 2. 按模块迁移 A0-A6/H7 `Verify()` 内容。
@@ -581,4 +596,3 @@ gameWithLlmAddressablesA2Smoke
 6. 历史标识只存在于 History、旧 Release 和归档证据中。
 7. 全部 Unity、Player、升级和回滚验收通过。
 8. `ARCHITECTURE.md` 已同步且不存在文档/代码冲突。
-

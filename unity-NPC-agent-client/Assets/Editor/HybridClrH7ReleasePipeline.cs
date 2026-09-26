@@ -2,7 +2,6 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using System.Security.Cryptography;
 using GameWithLLM.AgentRuntime;
 using HybridCLR.Editor.Settings;
 using Mono.Cecil;
@@ -30,7 +29,8 @@ public static class HybridClrH7ReleasePipeline
     {
         HybridClrProjectSetup.GenerateAndStageForPipeline(false);
         AddressablesA2ProjectSetup.StageAndConfigure();
-        VerifyProductionGate();
+        JObject manifest = VerifyProductionGate();
+        WriteSchemaSnapshot(manifest);
         BuildAddressables("LocalDevelopment");
         BuildPlayer("HybridClrH7Smoke", BuildOptions.Development | BuildOptions.CleanBuildCache,
             "LocalDevelopment");
@@ -41,6 +41,7 @@ public static class HybridClrH7ReleasePipeline
     public static void FinalizeProductionCandidate()
     {
         JObject manifest = VerifyProductionGate();
+        WriteSchemaSnapshot(manifest);
         VerifySmokeEvidence(manifest);
         BuildAddressables("Production");
         string playerPath = BuildPlayer("HybridClrH7Production", BuildOptions.CleanBuildCache, "Production");
@@ -51,6 +52,13 @@ public static class HybridClrH7ReleasePipeline
     [MenuItem("GameWithLLM/Hot Update/H7/Verify Production Gate")]
     public static JObject VerifyProductionGate()
     {
+        JObject manifest = ValidateProductionGate();
+        Debug.Log($"[Hot Update] H7_PRODUCTION_GATE_SUCCESS: release '{(string)manifest["releaseId"]}'.");
+        return manifest;
+    }
+
+    public static JObject ValidateProductionGate()
+    {
         VerifyPinnedToolchain();
         AddressablesA2ProjectSetup.Verify();
         JObject policy = ReadObject(PolicyPath);
@@ -60,8 +68,6 @@ public static class HybridClrH7ReleasePipeline
         VerifyAssemblyReferences(policy, manifest);
         VerifyToolSetAndCatalog(manifest);
         VerifySmokeCoverage(manifest, smokePlan, policy);
-        WriteSchemaSnapshot(manifest);
-        Debug.Log($"[Hot Update] H7_PRODUCTION_GATE_SUCCESS: release '{(string)manifest["releaseId"]}'.");
         return manifest;
     }
 
@@ -246,54 +252,21 @@ public static class HybridClrH7ReleasePipeline
     {
         AddressableAssetSettings settings = AddressableAssetSettingsDefaultObject.Settings ??
                                             throw new InvalidOperationException("Addressables settings are missing.");
-        string profileId = settings.profileSettings.GetProfileId(profileName);
-        if (string.IsNullOrWhiteSpace(profileId))
-            throw new InvalidOperationException($"Addressables profile '{profileName}' is missing.");
-        string original = settings.activeProfileId;
-        try
+        using (new AddressablesProfileScope(settings, profileName))
         {
-            settings.activeProfileId = profileId;
             AddressableAssetSettings.BuildPlayerContent(out AddressablesPlayerBuildResult result);
             if (!string.IsNullOrWhiteSpace(result.Error))
                 throw new BuildFailedException($"H7 Addressables '{profileName}' build failed: {result.Error}");
-        }
-        finally
-        {
-            settings.activeProfileId = original;
-            AssetDatabase.SaveAssets();
         }
     }
 
     private static string BuildPlayer(string directoryName, BuildOptions options, string profileName)
     {
         string output = Path.GetFullPath(Path.Combine(Application.dataPath, "..", "Builds", directoryName, "GameWithLLM.exe"));
-        Directory.CreateDirectory(Path.GetDirectoryName(output) ?? throw new InvalidOperationException("Build path is invalid."));
         AddressableAssetSettings settings = AddressableAssetSettingsDefaultObject.Settings ??
                                             throw new InvalidOperationException("Addressables settings are missing.");
-        string original = settings.activeProfileId;
-        string profileId = settings.profileSettings.GetProfileId(profileName);
-        if (string.IsNullOrWhiteSpace(profileId))
-            throw new InvalidOperationException($"Addressables profile '{profileName}' is missing.");
-        BuildReport report;
-        try
-        {
-            settings.activeProfileId = profileId;
-            report = BuildPipeline.BuildPlayer(new BuildPlayerOptions
-            {
-                scenes = new[] { "Assets/Scenes/SampleScene.unity" },
-                locationPathName = output,
-                target = BuildTarget.StandaloneWindows64,
-                options = options
-            });
-        }
-        finally
-        {
-            settings.activeProfileId = original;
-            AssetDatabase.SaveAssets();
-        }
-        if (report.summary.result != BuildResult.Succeeded)
-            throw new BuildFailedException($"H7 Windows IL2CPP Player build failed: {report.summary.result}.");
-        return output;
+        return WindowsPlayerBuilder.Build(settings, profileName, output,
+            new[] { "Assets/Scenes/SampleScene.unity" }, options);
     }
 
     private static void WriteArtifactManifest(JObject release, string playerPath)
@@ -307,15 +280,6 @@ public static class HybridClrH7ReleasePipeline
             Path.GetDirectoryName(playerPath),
             Path.Combine(Application.dataPath, "..", "ServerData", "production", "StandaloneWindows64")
         };
-        var files = roots.Where(Directory.Exists).SelectMany(directory =>
-                Directory.GetFiles(directory, "*", SearchOption.AllDirectories))
-            .OrderBy(path => path, StringComparer.Ordinal)
-            .Select(path => new JObject
-            {
-                ["path"] = Path.GetRelativePath(root, path).Replace('\\', '/'),
-                ["length"] = new FileInfo(path).Length,
-                ["sha256"] = Sha256(File.ReadAllBytes(path))
-            });
         var attestation = new JObject
         {
             ["schemaVersion"] = 1,
@@ -327,7 +291,7 @@ public static class HybridClrH7ReleasePipeline
             ["commit"] = Environment.GetEnvironmentVariable("GITHUB_SHA") ??
                            Environment.GetEnvironmentVariable("CI_COMMIT_SHA") ?? "local",
             ["smokeEvidence"] = "h7-player-smoke.passed.json",
-            ["files"] = new JArray(files)
+            ["files"] = ArtifactFileManifest.Create(root, roots)
         };
         File.WriteAllText(Path.Combine(outputDirectory, "candidate-manifest.json"),
             attestation.ToString(Formatting.Indented) + Environment.NewLine);
@@ -341,7 +305,7 @@ public static class HybridClrH7ReleasePipeline
         JObject evidence = ReadObject(path);
         if (!string.Equals((string)evidence["releaseId"], (string)release["releaseId"], StringComparison.Ordinal) ||
             !string.Equals((string)evidence["toolSetVersion"], (string)release["toolSetVersion"], StringComparison.Ordinal) ||
-            !string.Equals((string)evidence["manifestSha256"], Sha256(File.ReadAllBytes(ManifestPath)),
+            !string.Equals((string)evidence["manifestSha256"], ArtifactHash.Sha256File(ManifestPath),
                 StringComparison.OrdinalIgnoreCase) ||
             !string.Equals((string)evidence["successMarker"], "H7_PLAYER_SMOKE_SUCCESS", StringComparison.Ordinal))
             throw new BuildFailedException("H7 Player smoke evidence is missing, stale, or invalid.");
@@ -359,21 +323,12 @@ public static class HybridClrH7ReleasePipeline
         return result;
     }
 
-    private static string RepositoryRoot() => Directory.GetParent(
-        Directory.GetParent(Application.dataPath)?.FullName ?? Application.dataPath)?.FullName
-        ?? throw new InvalidOperationException("Repository root is unavailable.");
+    private static string RepositoryRoot() => new ContentBuildContext().RepositoryRoot;
 
-    private static string Sha256(string value) => Sha256(System.Text.Encoding.UTF8.GetBytes(value));
-
-    private static string Sha256(byte[] bytes)
-    {
-        using SHA256 sha = SHA256.Create();
-        return BitConverter.ToString(sha.ComputeHash(bytes)).Replace("-", string.Empty).ToLowerInvariant();
-    }
+    private static string Sha256(string value) => ArtifactHash.Sha256(value);
 
     private static void RunCommand(Action action)
     {
-        try { action(); EditorApplication.Exit(0); }
-        catch (Exception ex) { Debug.LogException(ex); EditorApplication.Exit(1); }
+        HotUpdateEditorCommand.Run(action);
     }
 }

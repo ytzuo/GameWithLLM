@@ -2,7 +2,6 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using System.Security.Cryptography;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using UnityEditor;
@@ -28,14 +27,13 @@ public static class AddressablesA7ReleasePipeline
     [MenuItem("GameWithLLM/Hot Update/A7/Verify Production Gate")]
     public static void VerifyProductionGate()
     {
-        AddressablesA1ProjectSetup.Verify();
-        AddressablesA2ProjectSetup.Verify();
-        AddressablesA3ProjectSetup.Verify();
-        AddressablesA4ProjectSetup.Verify();
-        AddressablesA5ProjectSetup.Verify();
-        AddressablesA6ProjectSetup.Verify();
-        HybridClrH7ReleasePipeline.VerifyProductionGate();
+        ContentValidationReport report = ContentValidationRunner.Run(ContentValidationProfile.Candidate);
+        ContentValidationRunner.ThrowIfFailed(report);
+        Debug.Log("[Content] A7_PRODUCTION_GATE_SUCCESS: release inputs and compatibility are valid.");
+    }
 
+    public static void ValidateReleaseInputs()
+    {
         AddressableAssetSettings settings = Settings();
         VerifyProfile(settings);
         VerifyEntries(settings);
@@ -44,7 +42,6 @@ public static class AddressablesA7ReleasePipeline
         VerifyMissingScripts(settings);
         VerifyAotIdentity();
         ReadPolicy();
-        Debug.Log("[Content] A7_PRODUCTION_GATE_SUCCESS: release inputs and compatibility are valid.");
     }
 
     [MenuItem("GameWithLLM/Hot Update/A7/Build Full Release Candidate")]
@@ -221,7 +218,7 @@ public static class AddressablesA7ReleasePipeline
             !string.Equals((string)baseline["unityVersion"], Application.unityVersion, StringComparison.Ordinal) ||
             !string.Equals((string)baseline["addressablesVersion"], "2.9.1", StringComparison.Ordinal) ||
             !string.Equals((string)baseline["playerBuildId"], (string)release["playerBuildId"], StringComparison.Ordinal) ||
-            !string.Equals((string)baseline["contentStateSha256"], Sha256(File.ReadAllBytes(contentStatePath)),
+            !string.Equals((string)baseline["contentStateSha256"], ArtifactHash.Sha256File(contentStatePath),
                 StringComparison.OrdinalIgnoreCase))
             throw new BuildFailedException("A7 content state does not match the Unity/Addressables/Player baseline.");
         if (string.Equals((string)baseline["releaseId"], (string)release["releaseId"], StringComparison.Ordinal))
@@ -250,19 +247,10 @@ public static class AddressablesA7ReleasePipeline
     private static string BuildProductionPlayer()
     {
         string output = Path.GetFullPath(Path.Combine(Application.dataPath, "..", "Builds", "AddressablesA7Production", "GameWithLLM.exe"));
-        Directory.CreateDirectory(Path.GetDirectoryName(output) ?? throw new InvalidOperationException("Player path is invalid."));
         AddressableAssetSettings settings = Settings();
-        BuildReport report = null;
-        WithProductionProfile(settings, () => report = BuildPipeline.BuildPlayer(new BuildPlayerOptions
-        {
-            scenes = EditorBuildSettings.scenes.Where(item => item.enabled).Select(item => item.path).ToArray(),
-            locationPathName = output,
-            target = BuildTarget.StandaloneWindows64,
-            options = BuildOptions.CleanBuildCache
-        }));
-        if (report.summary.result != BuildResult.Succeeded)
-            throw new BuildFailedException("A7 Windows Player build failed: " + report.summary.result);
-        return output;
+        return WindowsPlayerBuilder.Build(settings, ProfileName, output,
+            EditorBuildSettings.scenes.Where(item => item.enabled).Select(item => item.path),
+            BuildOptions.CleanBuildCache);
     }
 
     private static void WriteCandidate(string kind, string baseline, string player)
@@ -286,9 +274,6 @@ public static class AddressablesA7ReleasePipeline
         File.Copy(state, archivedState, true);
         var roots = new List<string> { releaseDirectory, catalogDirectory };
         if (!string.IsNullOrWhiteSpace(player)) roots.Add(Path.GetDirectoryName(player));
-        var files = roots.Where(Directory.Exists).SelectMany(path => Directory.GetFiles(path, "*", SearchOption.AllDirectories))
-            .Concat(new[] { archivedState }).Distinct(StringComparer.OrdinalIgnoreCase).OrderBy(path => path, StringComparer.Ordinal)
-            .Select(path => FileRecord(root, path)).ToArray();
         string[] candidateContent = roots.Take(2).SelectMany(path => Directory.GetFiles(path, "*", SearchOption.AllDirectories)).ToArray();
         long remoteBytes = candidateContent.Sum(path => new FileInfo(path).Length);
         string[] bundles = Directory.GetFiles(releaseDirectory, "*.bundle", SearchOption.AllDirectories);
@@ -316,14 +301,14 @@ public static class AddressablesA7ReleasePipeline
             ["unityVersion"] = Application.unityVersion,
             ["addressablesVersion"] = "2.9.1",
             ["commit"] = Environment.GetEnvironmentVariable("GITHUB_SHA") ?? "local",
-            ["baselineContentStateSha256"] = string.IsNullOrWhiteSpace(baseline) ? null : Sha256(File.ReadAllBytes(baseline)),
-            ["contentStateSha256"] = Sha256(File.ReadAllBytes(archivedState)),
+            ["baselineContentStateSha256"] = string.IsNullOrWhiteSpace(baseline) ? null : ArtifactHash.Sha256File(baseline),
+            ["contentStateSha256"] = ArtifactHash.Sha256File(archivedState),
             ["bundleCount"] = bundles.Length,
             ["remoteBytes"] = remoteBytes,
             ["largestBundleBytes"] = largestBundle,
             ["estimatedPeakMemoryBytes"] = estimatedPeakMemory,
             ["duplicateImplicitAssets"] = duplicateImplicitAssets,
-            ["files"] = new JArray(files)
+            ["files"] = ArtifactFileManifest.Create(root, roots, new[] { archivedState })
         };
         File.WriteAllText(Path.Combine(candidateDirectory, "candidate-manifest.json"),
             manifest.ToString(Formatting.Indented) + Environment.NewLine);
@@ -357,13 +342,6 @@ public static class AddressablesA7ReleasePipeline
             .Count();
     }
 
-    private static JObject FileRecord(string root, string path) => new JObject
-    {
-        ["path"] = Path.GetRelativePath(root, path).Replace('\\', '/'),
-        ["length"] = new FileInfo(path).Length,
-        ["sha256"] = Sha256(File.ReadAllBytes(path))
-    };
-
     private static void EnforceBudget(string name, long actual, long maximum)
     {
         if (actual > maximum) throw new BuildFailedException($"A7 {name} budget exceeded: {actual} > {maximum}.");
@@ -390,9 +368,8 @@ public static class AddressablesA7ReleasePipeline
 
     private static void WithProductionProfile(AddressableAssetSettings settings, Action action)
     {
-        string original = settings.activeProfileId;
-        try { settings.activeProfileId = settings.profileSettings.GetProfileId(ProfileName); action(); }
-        finally { settings.activeProfileId = original; AssetDatabase.SaveAssets(); }
+        using (new AddressablesProfileScope(settings, ProfileName))
+            action();
     }
 
     private static JObject ReadObject(string path) => File.Exists(path) ? JObject.Parse(File.ReadAllText(path)) :
@@ -405,18 +382,10 @@ public static class AddressablesA7ReleasePipeline
             throw new InvalidDataException($"Required A7 field '{property}' is missing.");
     }
 
-    private static string RepositoryRoot() => Directory.GetParent(Directory.GetParent(Application.dataPath)?.FullName ??
-        Application.dataPath)?.FullName ?? throw new InvalidOperationException("Repository root is unavailable.");
-
-    private static string Sha256(byte[] bytes)
-    {
-        using SHA256 sha = SHA256.Create();
-        return BitConverter.ToString(sha.ComputeHash(bytes)).Replace("-", string.Empty).ToLowerInvariant();
-    }
+    private static string RepositoryRoot() => new ContentBuildContext().RepositoryRoot;
 
     private static void RunCommand(Action action)
     {
-        try { action(); EditorApplication.Exit(0); }
-        catch (Exception ex) { Debug.LogException(ex); EditorApplication.Exit(1); }
+        HotUpdateEditorCommand.Run(action);
     }
 }

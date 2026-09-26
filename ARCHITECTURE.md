@@ -454,6 +454,17 @@ release 不覆盖、不原地删除，当前指针记录 `previousReleaseId`，�
 上一版本且默认回滚窗口为 30 天。坏 JSON、坏 DLL、缺失文件或预算越界只能使候选失败，
 不得改变生产指针。客户端仍只在完整 ToolSet/Catalog 原子激活后记录最后成功版本。
 
+热更新收束 C0-C2 已将 Editor 构建底座与验证编排改为长期模块职责。公共 Core 统一
+Addressables Profile 的恢复、Windows Player 构建、SHA-256、候选文件清单和命令行
+退出；`ContentValidationRunner` 以显式规则顺序执行 `Fast`、`Candidate`、`Release`
+或单 `Module` 验证，并写出不含业务敏感数据的结构化 JSON 报告。Project、Ownership、
+Catalogs、UI、Items、Characters、Scenes、ToolPackages 和 Release 各自返回独立
+Module/RuleId/失败信息；验证器不调用 Setup，并在规则执行后恢复 Editor Scene setup。
+A7 门禁只消费 Candidate Profile，不再逐个调用阶段类。C3/C4 完成以前旧 H7/A7 构建
+入口仍是有效兼容入口，生产发布链尚未宣称完成唯一化；Runtime、A2A、MCP、Save 与
+已发布 Release 标识均未改变。冻结证据见
+`Docs/Baselines/hot-update-consolidation-c0.json`。
+
 - `SampleScene`、NavMeshData 和第一阶段场景固有材质属于
   `Local_SampleScene`；最小下载/错误 UI 和默认内容属于 `Local_Bootstrap`。
 - 客户端 JSON、AOT metadata、版本化工具 DLL、UI、物品表现、角色表现和附加
@@ -554,6 +565,8 @@ Catalog 持有共享资产 lease 到应用退出，窗口仅同步克隆并在�
 | `Assets/Editor/HybridClrProjectSetup.cs` | HybridCLR 配置、生成、带包身份的 staging 和 Player 构建 |
 | `Assets/Editor/AddressablesA0InventoryValidator.cs` | A0 资产所有权、地址和场景硬引用基线校验 |
 | `Assets/Editor/AddressablesA1ProjectSetup.cs` | A1 Profile、Group、Remote Catalog 配置、校验和多 Profile 构建 |
+| `Assets/Editor/HotUpdate/Core` | 公共命令行、Profile scope、Player builder、Hash 和候选文件清单 |
+| `Assets/Editor/HotUpdate/Validation` | 模块验证规则、Profile 编排和结构化报告 |
 | `Assets/Tests/Editor/ToolPackRegistrationTests.cs` | H3 发现、原子提交、冲突拒绝和幂等验证 |
 | `Packages/com.gamewithllm.agent-runtime/Runtime` | SDK 公共契约 |
 
