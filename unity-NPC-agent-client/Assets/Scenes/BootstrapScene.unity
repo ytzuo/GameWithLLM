@@ -232,7 +232,6 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: ef559bf0ea0da4f4dae76d810714e30a, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::AgentHostClient
-  enableHybridClrBootstrap: 1
   enableContentBootstrap: 1
   a2aUrl: http://127.0.0.1:8080/a2a
   agentServiceBaseUrl: http://127.0.0.1:8080

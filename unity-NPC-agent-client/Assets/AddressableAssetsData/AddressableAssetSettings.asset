@@ -198,7 +198,6 @@ MonoBehaviour:
     - content.item-icons
     - content.characters
     - content.scenes
-    - content.a1-required
     - content.ui-required
     - content.character-catalog
     - content.characters.alice

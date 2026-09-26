@@ -21,7 +21,7 @@ public static class ContentSmokeRunner
     public static void BuildLocalSmokePlayer()
     {
         HybridClrProjectSetup.GenerateAndStageForPipeline(false);
-        AddressablesA2ProjectSetup.StageAndConfigure();
+        HotUpdateArtifactStager.StageAndConfigure();
         ToolPackageGateResult gate = ToolPackageReleaseGate.ValidateCandidate();
         AddressableAssetSettings settings = AddressableAssetSettingsDefaultObject.Settings ??
                                             throw new InvalidOperationException("Addressables settings are missing.");
@@ -33,9 +33,12 @@ public static class ContentSmokeRunner
         }
         string output = Path.GetFullPath(Path.Combine(Application.dataPath, "..", "Builds",
             "ContentLocalSmoke", "GameWithLLM.exe"));
-        WindowsPlayerBuilder.Build(settings, LocalProfile, output,
-            new[] { "Assets/Scenes/SampleScene.unity" },
-            BuildOptions.Development | BuildOptions.CleanBuildCache);
+        using (ToolPackageSmokePlanStaging.Stage())
+        {
+            WindowsPlayerBuilder.Build(settings, LocalProfile, output,
+                new[] { "Assets/Scenes/SampleScene.unity" },
+                BuildOptions.Development | BuildOptions.CleanBuildCache);
+        }
         WriteToolSchemaSnapshot(gate);
         Debug.Log("[Content] LOCAL_SMOKE_PLAYER_READY: tool package smoke Player was built.");
     }
@@ -69,5 +72,44 @@ public static class ContentSmokeRunner
         };
         File.WriteAllText(Path.Combine(outputDirectory, "tool-schema-snapshot.json"),
             snapshot.ToString(Formatting.Indented) + Environment.NewLine);
+    }
+}
+
+internal sealed class ToolPackageSmokePlanStaging : IDisposable
+{
+    private const string SourcePath =
+        "Assets/Editor/HotUpdate/Tests/Data/tool-package-smoke-plan.json";
+    private const string StagingDirectory = "Assets/StreamingAssets/SmokeTests";
+    private const string StagingPath = StagingDirectory + "/tool-package-smoke-plan.json";
+    private bool _disposed;
+
+    private ToolPackageSmokePlanStaging() { }
+
+    public static ToolPackageSmokePlanStaging Stage()
+    {
+        if (!File.Exists(SourcePath))
+            throw new FileNotFoundException("Tool package smoke plan source is missing.", SourcePath);
+        if (Directory.Exists(StagingDirectory))
+            throw new InvalidOperationException(
+                $"Smoke staging directory must be absent before a local smoke build: '{StagingDirectory}'.");
+        string folderGuid = AssetDatabase.CreateFolder("Assets/StreamingAssets", "SmokeTests");
+        if (string.IsNullOrWhiteSpace(folderGuid))
+            throw new IOException($"Could not create smoke staging directory '{StagingDirectory}'.");
+        if (!AssetDatabase.CopyAsset(SourcePath, StagingPath))
+        {
+            AssetDatabase.DeleteAsset(StagingDirectory);
+            throw new IOException($"Could not stage tool package smoke plan at '{StagingPath}'.");
+        }
+        AssetDatabase.Refresh();
+        return new ToolPackageSmokePlanStaging();
+    }
+
+    public void Dispose()
+    {
+        if (_disposed)
+            return;
+        _disposed = true;
+        AssetDatabase.DeleteAsset(StagingDirectory);
+        AssetDatabase.Refresh();
     }
 }

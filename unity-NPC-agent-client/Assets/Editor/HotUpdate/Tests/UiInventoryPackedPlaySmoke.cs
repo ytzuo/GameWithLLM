@@ -31,8 +31,8 @@ public static class UiInventoryPackedPlaySmoke
     {
         try
         {
-            AddressablesA3ProjectSetup.Verify();
-            AddressablesA4ProjectSetup.Verify();
+            UiContentSetup.Verify();
+            ItemContentSetup.Verify();
             AddressableAssetSettings settings = AddressableAssetSettingsDefaultObject.Settings ??
                                                 throw new InvalidOperationException("Addressables settings are missing.");
             SessionState.SetInt(OriginalBuilderKey, settings.ActivePlayerDataBuilderIndex);
@@ -122,7 +122,7 @@ public static class UiInventoryPackedPlaySmoke
                 SessionState.SetString(
                     FailureKey,
                     string.IsNullOrEmpty(itemFailure)
-                        ? "Gameplay HUD or A4 item content is not ready after bootstrap."
+                        ? "Gameplay HUD or item content is not ready after bootstrap."
                         : itemFailure);
             }
             else
@@ -153,7 +153,7 @@ public static class UiInventoryPackedPlaySmoke
         ItemDataList catalog = InventoryViewModel.Instance.ItemCatalog;
         if (catalog?.items == null || catalog.items.Count != 4)
         {
-            failure = "A4 item Catalog was not injected into InventoryViewModel.";
+            failure = "Item Catalog was not injected into InventoryViewModel.";
             return false;
         }
         var ids = new HashSet<string>(StringComparer.Ordinal);
@@ -163,7 +163,7 @@ public static class UiInventoryPackedPlaySmoke
                 string.IsNullOrWhiteSpace(item.ItemName) || item.ItemName == item.DisplayNameKey ||
                 string.IsNullOrWhiteSpace(item.Description) || item.Description == item.DescriptionKey)
             {
-                failure = $"A4 item '{item?.ItemId ?? "<null>"}' presentation is incomplete.";
+                failure = $"Item '{item?.ItemId ?? "<null>"}' presentation is incomplete.";
                 return false;
             }
         }

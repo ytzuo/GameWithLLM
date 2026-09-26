@@ -31,7 +31,8 @@ public static class ToolPackageReleaseGate
 {
     private const string PolicyPath = "Assets/Content/HotUpdate/tool-package-release-policy.json";
     private const string ManifestPath = "Assets/Content/HotUpdate/release-manifest.json";
-    private const string SmokePlanPath = "Assets/StreamingAssets/SmokeTests/tool-package-smoke-plan.json";
+    private const string SmokePlanPath =
+        "Assets/Editor/HotUpdate/Tests/Data/tool-package-smoke-plan.json";
     private const string ToolMetadataPath = "Assets/Content/Catalogs/tool_metadata.zh-CN.json";
     private const string ExpectedUnityVersion = "6000.3.19f1";
     private const string ExpectedHybridClrVersion = "8.14.1";
@@ -39,7 +40,7 @@ public static class ToolPackageReleaseGate
     public static ToolPackageGateResult ValidateCandidate()
     {
         VerifyPinnedToolchain();
-        AddressablesA2ProjectSetup.Verify();
+        HotUpdateArtifactStager.Verify();
         JObject policy = ReadObject(PolicyPath);
         JObject manifest = ReadObject(ManifestPath);
         JObject smokePlan = ReadObject(SmokePlanPath);

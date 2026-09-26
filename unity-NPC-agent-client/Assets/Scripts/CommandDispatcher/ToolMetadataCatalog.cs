@@ -40,7 +40,7 @@ public sealed class ToolMetadata
     }
 }
 
-// H5 文案快照。解析完成后不暴露可变 DTO，Registry 只交换完整快照引用。
+// 工具文案快照。解析完成后不暴露可变 DTO，Registry 只交换完整快照引用。
 public sealed class ToolMetadataCatalog
 {
     private const int SupportedSchemaVersion = 1;

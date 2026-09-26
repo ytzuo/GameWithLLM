@@ -11,7 +11,6 @@ using UnityEngine;
 public class AgentHostClient : Singleton<AgentHostClient>, ISceneTransitionParticipant
 {
     [Header("Hot update")]
-    [SerializeField] private bool enableHybridClrBootstrap = true;
     [SerializeField] private bool enableContentBootstrap = true;
 
     public string a2aUrl = "http://127.0.0.1:8080/a2a";
@@ -87,7 +86,6 @@ public class AgentHostClient : Singleton<AgentHostClient>, ISceneTransitionParti
                     {
                         RequiredDownloadLabels = new[]
                         {
-                            "content.a1-required",
                             "content.ui-required",
                             "content.items",
                             "content.item-icons"
@@ -145,7 +143,7 @@ public class AgentHostClient : Singleton<AgentHostClient>, ISceneTransitionParti
                 player.InitializeItemCatalog(_itemContentCatalog.Items);
             Debug.Log("[Content] Item catalog and icons preloaded and contracts validated.");
 
-            // A5 角色表现是可降级内容：目录或单个模型失败时保留本地 fallback，
+            // 角色表现是可降级内容：目录或单个模型失败时保留本地 fallback，
             // 不阻断权威实体、Runtime Manifest 和工具服务初始化。
             _characterVisuals = FindObjectsByType<CharacterVisualController>(
                 FindObjectsInactive.Include,
@@ -213,17 +211,6 @@ public class AgentHostClient : Singleton<AgentHostClient>, ISceneTransitionParti
             return;
 
         LoadedToolSetRelease loadedRelease = _contentRelease;
-        if (!enableContentBootstrap)
-        {
-            try
-            {
-                loadedRelease = HybridClrBootstrap.LoadLocalRelease(enableHybridClrBootstrap);
-            }
-            catch (Exception ex)
-            {
-                Debug.LogError($"[Hot Update] HybridCLR bootstrap failed; continuing with AOT tools only: {ex}");
-            }
-        }
 
         DotEnvConfig config = DotEnvConfig.Load();
         a2aUrl = config.Get("A2A_AGENT_URL", a2aUrl);

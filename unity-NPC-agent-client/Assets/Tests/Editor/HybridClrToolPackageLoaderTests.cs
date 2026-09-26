@@ -80,7 +80,7 @@ public sealed class HybridClrToolPackageLoaderTests
         {
             packageId = "smoke-test-" + suffix,
             packageVersion = "1.0.0",
-            assemblyName = HybridClrBootstrap.SmokeAssemblyName,
+            assemblyName = "GameWithLLM.Tools.Pack.SmokeTest",
             assembly = Artifact("assembly", "smoke.dll.bytes", assembly),
             debugSymbols = symbols == null ? null : Artifact("symbols", "smoke.pdb.bytes", symbols)
         };

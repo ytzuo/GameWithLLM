@@ -6,10 +6,15 @@ using Newtonsoft.Json.Linq;
 using UnityEditor;
 using UnityEngine;
 
-public static class AddressablesA0InventoryValidator
+public static class ContentOwnershipValidation
 {
+    private static readonly HashSet<string> RetiredInventoryEntries =
+        new HashSet<string>(StringComparer.Ordinal)
+        {
+            "a1-bootstrap-delivery-probe"
+        };
     private const string InventoryRelativePath =
-        "Docs/Baselines/addressables-a0-inventory.json";
+        "Docs/History/HotUpdate/Baselines/addressables-a0-inventory.json";
 
     private static readonly string[] RequiredInventoryRoots =
     {
@@ -30,23 +35,22 @@ public static class AddressablesA0InventoryValidator
         "activationPoint", "sceneReferenceDisposition"
     };
 
-    [MenuItem("GameWithLLM/Hot Update/Verify Addressables A0 Inventory")]
     public static void Verify()
     {
         string inventoryPath = GetInventoryPath();
         if (!File.Exists(inventoryPath))
-            throw new FileNotFoundException("Addressables A0 inventory is missing.", inventoryPath);
+            throw new FileNotFoundException("Content ownership inventory is missing.", inventoryPath);
 
         JObject document = JObject.Parse(File.ReadAllText(inventoryPath));
         if (document.Value<int?>("schemaVersion") != 1)
-            throw new InvalidOperationException("Addressables A0 inventory schemaVersion must be 1.");
+            throw new InvalidOperationException("Content ownership inventory schemaVersion must be 1.");
 
         string sampleScene = RequireString(document, "sampleScene", "inventory root");
         if (!File.Exists(ToAbsoluteProjectPath(sampleScene)))
             throw new FileNotFoundException("The inventoried sample scene is missing.", sampleScene);
 
         JArray entries = document["entries"] as JArray ??
-                         throw new InvalidOperationException("Addressables A0 inventory has no entries array.");
+                         throw new InvalidOperationException("Content ownership inventory has no entries array.");
         var errors = new List<string>();
         var ids = new HashSet<string>(StringComparer.Ordinal);
         var addresses = new HashSet<string>(StringComparer.Ordinal);
@@ -62,26 +66,12 @@ public static class AddressablesA0InventoryValidator
         if (errors.Count > 0)
         {
             throw new InvalidOperationException(
-                "Addressables A0 inventory validation failed:\n- " + string.Join("\n- ", errors));
+                "Content ownership inventory validation failed:\n- " + string.Join("\n- ", errors));
         }
 
-        Debug.Log($"[Hot Update] Addressables A0 inventory verified: " +
+        Debug.Log($"[Content] Ownership inventory verified: " +
                   $"{entries.Count} entries, {ownedAssets.Count} source assets, " +
                   $"{addresses.Count} stable address rules.");
-    }
-
-    public static void VerifyFromCommandLine()
-    {
-        try
-        {
-            Verify();
-            EditorApplication.Exit(0);
-        }
-        catch (Exception ex)
-        {
-            Debug.LogException(ex);
-            EditorApplication.Exit(1);
-        }
     }
 
     private static void ValidateEntry(
@@ -93,6 +83,10 @@ public static class AddressablesA0InventoryValidator
         ICollection<string> errors)
     {
         string id = entry.Value<string>("id") ?? "<missing-id>";
+        // Historical ownership baselines are immutable. Explicitly retired entries are
+        // excluded here after their assets, labels and runtime consumers are removed.
+        if (RetiredInventoryEntries.Contains(id))
+            return;
         foreach (string field in RequiredFields)
         {
             if (entry[field] == null)
@@ -212,7 +206,7 @@ public static class AddressablesA0InventoryValidator
                 if (string.IsNullOrEmpty(path) || AssetDatabase.IsValidFolder(path))
                     continue;
                 if (!ownedAssets.ContainsKey(path))
-                    errors.Add($"Asset in A0 scope has no inventory owner: '{path}'.");
+                    errors.Add($"Asset in content scope has no inventory owner: '{path}'.");
             }
         }
     }

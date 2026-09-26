@@ -20,6 +20,8 @@ using UnityEngine;
 public static class HybridClrProjectSetup
 {
     public const string SmokeAssemblyName = "GameWithLLM.Tools.Pack.SmokeTest";
+    public const string SmokePackageId = "smoke-test";
+    public const string SmokePackageVersion = "1.4.0";
     public static bool IsGenerating { get; private set; }
 
     private static readonly string[] PatchAotAssemblies =
@@ -33,7 +35,6 @@ public static class HybridClrProjectSetup
         "Newtonsoft.Json"
     };
 
-    [MenuItem("GameWithLLM/Hot Update/Configure HybridCLR")]
     public static void Configure()
     {
         PlayerSettings.SetScriptingBackend(
@@ -55,8 +56,7 @@ public static class HybridClrProjectSetup
             AddressableAssetSettingsDefaultObject.Settings;
         if (addressableSettings != null)
         {
-            // H2 stages DLLs directly in StreamingAssets. Addressables integration
-            // starts at H6 and must not run during HybridCLR's temporary AOT build.
+            // Artifact generation must not trigger an implicit Addressables build.
             addressableSettings.BuildAddressablesWithPlayerBuild =
                 AddressableAssetSettings.PlayerBuildOption.DoNotBuildWithPlayer;
             EditorUtility.SetDirty(addressableSettings);
@@ -65,35 +65,10 @@ public static class HybridClrProjectSetup
         Debug.Log("[Hot Update] HybridCLR configured for Windows x86_64 IL2CPP and SmokeTest.");
     }
 
-    public static void InstallFromCommandLine()
-    {
-        RunCommand(() =>
-        {
-            Configure();
-            var installer = new InstallerController();
-            if (!installer.HasInstalledHybridCLR() ||
-                !string.Equals(installer.InstalledLibil2cppVersion, installer.PackageVersion, StringComparison.Ordinal))
-            {
-                installer.InstallDefaultHybridCLR();
-            }
-            if (!installer.HasInstalledHybridCLR())
-                throw new BuildFailedException("HybridCLR Installer did not produce a local il2cpp runtime.");
-            Debug.Log($"[Hot Update] HybridCLR Installer ready: {installer.PackageVersion}.");
-        });
-    }
-
-    [MenuItem("GameWithLLM/Hot Update/Generate HybridCLR And Stage Local Artifacts")]
-    public static void GenerateAndStage()
-    {
-        GenerateAndStageForPipeline(true);
-    }
-
     public static void GenerateAndStageForPipeline(bool includeDebugSymbols)
     {
         Configure();
-        // H2 produces a local Development/QA player with portable PDB symbols.
-        // H7 invokes the same generator with includeDebugSymbols=false so the
-        // production candidate never stages or publishes symbols.
+        // Local diagnostics may retain portable PDB symbols; production candidates do not.
         EditorUserBuildSettings.development = includeDebugSymbols;
         if (EditorUserBuildSettings.activeBuildTarget != BuildTarget.StandaloneWindows64 &&
             !EditorUserBuildSettings.SwitchActiveBuildTarget(
@@ -115,11 +90,6 @@ public static class HybridClrProjectSetup
         StageLocalArtifacts(includeDebugSymbols);
     }
 
-    public static void GenerateAndStageFromCommandLine() => RunCommand(GenerateAndStage);
-
-    public static void StageLocalArtifactsFromCommandLine() =>
-        RunCommand(() => StageLocalArtifacts(EditorUserBuildSettings.development));
-
     public static void StageLocalArtifacts(bool includeDebugSymbols)
     {
         BuildTarget target = BuildTarget.StandaloneWindows64;
@@ -138,7 +108,7 @@ public static class HybridClrProjectSetup
         {
             string source = Path.Combine(catalogSource, catalogFile);
             if (!File.Exists(source))
-                throw new FileNotFoundException($"Required H5 Catalog is missing: '{catalogFile}'.", source);
+                throw new FileNotFoundException($"Required content catalog is missing: '{catalogFile}'.", source);
             File.Copy(source, Path.Combine(destination, catalogFile), true);
         }
 
@@ -192,8 +162,8 @@ public static class HybridClrProjectSetup
                 source = hot ? "hot-update" : "builtin",
                 implementationVersion = hot ? "5.0.0" : "1.0.0",
                 contractVersion = "1.0.0",
-                packageId = hot ? HybridClrBootstrap.SmokePackageId : null,
-                packageVersion = hot ? HybridClrBootstrap.SmokePackageVersion : null,
+                packageId = hot ? SmokePackageId : null,
+                packageVersion = hot ? SmokePackageVersion : null,
                 assemblyName = tool.GetType().Assembly.GetName().Name,
                 assemblyHash = hot ? hotDllHash : null,
                 schemaHash = ToolSetValidator.ComputeSchemaHash(tool.Descriptor.InputSchemaJson)
@@ -203,7 +173,7 @@ public static class HybridClrProjectSetup
             Directory.GetParent(Application.dataPath)?.FullName ?? Application.dataPath)?.FullName
             ?? Application.dataPath;
         ToolHistoryDeclaration[] history = LoadAndValidateHistoryLedger(
-            Path.Combine(repositoryRoot, "Docs", "Baselines", "h4-tool-history.json"),
+            Path.Combine(repositoryRoot, "Docs", "History", "HotUpdate", "Baselines", "h4-tool-history.json"),
             activeTools,
             Array.Empty<RetiredToolDeclaration>());
 
@@ -219,8 +189,8 @@ public static class HybridClrProjectSetup
             {
                 new
                 {
-                    packageId = HybridClrBootstrap.SmokePackageId,
-                    packageVersion = HybridClrBootstrap.SmokePackageVersion,
+                    packageId = SmokePackageId,
+                    packageVersion = SmokePackageVersion,
                     assemblyName = SmokeAssemblyName,
                     assemblyFile = hotDllFile,
                     assemblyHash = hotDllHash,
@@ -244,17 +214,17 @@ public static class HybridClrProjectSetup
         IReadOnlyList<RetiredToolDeclaration> retiredTools)
     {
         if (!File.Exists(path))
-            throw new FileNotFoundException("The committed H4 tool history ledger is missing.", path);
+            throw new FileNotFoundException("The committed tool history ledger is missing.", path);
         ToolHistoryDeclaration[] history =
             JsonConvert.DeserializeObject<ToolHistoryDeclaration[]>(File.ReadAllText(path))
-            ?? throw new InvalidDataException("The H4 tool history ledger is invalid.");
+            ?? throw new InvalidDataException("The tool history ledger is invalid.");
         var active = activeTools.ToDictionary(tool => tool.name, StringComparer.Ordinal);
         var retired = retiredTools.ToDictionary(tool => tool.name, StringComparer.Ordinal);
         var seen = new HashSet<string>(StringComparer.Ordinal);
         foreach (ToolHistoryDeclaration record in history)
         {
             if (record == null || string.IsNullOrWhiteSpace(record.name) || !seen.Add(record.name))
-                throw new InvalidDataException("The H4 history ledger contains a null or duplicate tool record.");
+                throw new InvalidDataException("The tool history ledger contains a null or duplicate tool record.");
             if (active.TryGetValue(record.name, out ToolReleaseDeclaration declaration))
             {
                 if (!string.Equals(record.toolIdentity, declaration.toolIdentity, StringComparison.Ordinal) ||
@@ -264,13 +234,13 @@ public static class HybridClrProjectSetup
                     !string.Equals(record.schemaHash, declaration.schemaHash, StringComparison.OrdinalIgnoreCase) ||
                     !string.Equals(record.assemblyHash ?? string.Empty, declaration.assemblyHash ?? string.Empty, StringComparison.OrdinalIgnoreCase) ||
                     !string.IsNullOrEmpty(record.retiredInToolSetVersion))
-                    throw new InvalidDataException($"H4 history ledger does not match active tool '{record.name}'.");
+                    throw new InvalidDataException($"Tool history ledger does not match active tool '{record.name}'.");
             }
             else if (retired.TryGetValue(record.name, out RetiredToolDeclaration tombstone))
             {
                 if (!string.Equals(record.toolIdentity, tombstone.toolIdentity, StringComparison.Ordinal) ||
                     !string.Equals(record.retiredInToolSetVersion, tombstone.retiredInToolSetVersion, StringComparison.Ordinal))
-                    throw new InvalidDataException($"H4 history ledger does not match retired tool '{record.name}'.");
+                    throw new InvalidDataException($"Tool history ledger does not match retired tool '{record.name}'.");
             }
             else
             {
@@ -281,7 +251,7 @@ public static class HybridClrProjectSetup
         foreach (string name in active.Keys.Concat(retired.Keys))
         {
             if (!seen.Contains(name))
-                throw new InvalidDataException($"Release tool '{name}' is missing from the committed H4 history ledger.");
+                throw new InvalidDataException($"Release tool '{name}' is missing from the committed history ledger.");
         }
         return history;
     }
@@ -292,19 +262,6 @@ public static class HybridClrProjectSetup
             return BitConverter.ToString(sha256.ComputeHash(bytes)).Replace("-", string.Empty).ToLowerInvariant();
     }
 
-    private static void RunCommand(Action action)
-    {
-        try
-        {
-            action();
-            EditorApplication.Exit(0);
-        }
-        catch (Exception ex)
-        {
-            Debug.LogException(ex);
-            EditorApplication.Exit(1);
-        }
-    }
 }
 
 public sealed class HybridClrLocalArtifactsBuildProcessor : IPreprocessBuildWithReport
@@ -321,14 +278,9 @@ public sealed class HybridClrLocalArtifactsBuildProcessor : IPreprocessBuildWith
             "Content",
             "HotUpdate",
             "release-manifest.json");
-        if (File.Exists(a2Manifest))
-        {
-            // A2 已把交付物迁入 Addressables；不要再次把同一份 DLL/metadata
-            // 写入 StreamingAssets 形成双来源。
-            AddressablesA2ProjectSetup.Verify();
-            return;
-        }
-        HybridClrProjectSetup.StageLocalArtifacts(
-            (report.summary.options & BuildOptions.Development) != 0);
+        if (!File.Exists(a2Manifest))
+            throw new BuildFailedException(
+                "Player build requires a staged Addressables release manifest; local runtime fallback is disabled.");
+        HotUpdateArtifactStager.Verify();
     }
 }

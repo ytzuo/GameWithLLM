@@ -14,7 +14,7 @@ using UnityEditor.SceneManagement;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 
-public static class AddressablesA5ProjectSetup
+public static class CharacterContentSetup
 {
     private const string GroupName = "Remote_Characters";
     private const string CharacterLabel = "content.characters";
@@ -58,7 +58,6 @@ public static class AddressablesA5ProjectSetup
         }
     };
 
-    [MenuItem("GameWithLLM/Hot Update/Configure Addressables A5 Characters")]
     public static void Configure()
     {
         AddressableAssetSettings settings = AddressableAssetSettingsDefaultObject.Settings ??
@@ -107,10 +106,9 @@ public static class AddressablesA5ProjectSetup
         settings.SetDirty(AddressableAssetSettings.ModificationEvent.BatchModification, null, true, true);
         AssetDatabase.SaveAssets();
         Verify();
-        Debug.Log("[Content] Addressables A5 character visuals and stable VisualRoot owners configured.");
+        Debug.Log("[Content] Addressables character visuals and stable VisualRoot owners configured.");
     }
 
-    [MenuItem("GameWithLLM/Hot Update/Verify Addressables A5 Characters")]
     public static void Verify()
     {
         AddressableAssetSettings settings = AddressableAssetSettingsDefaultObject.Settings ??
@@ -119,15 +117,15 @@ public static class AddressablesA5ProjectSetup
                                       throw new InvalidOperationException($"Addressables Group '{GroupName}' is missing.");
         BundledAssetGroupSchema schema = group.GetSchema<BundledAssetGroupSchema>();
         if (schema == null || schema.BundleMode != BundledAssetGroupSchema.BundlePackingMode.PackSeparately)
-            throw new InvalidDataException("A5 character entries must use PackSeparately.");
+            throw new InvalidDataException("Character entries must use PackSeparately.");
 
         VerifyEntry(settings, group, CatalogPath, CharacterContentIds.Catalog, CatalogLabel);
         TextAsset catalogAsset = AssetDatabase.LoadAssetAtPath<TextAsset>(CatalogPath) ??
-                                 throw new FileNotFoundException("A5 character Catalog is missing.");
+                                 throw new FileNotFoundException("Character Catalog is missing.");
         IReadOnlyDictionary<string, CharacterAppearanceDefinition> catalog =
             CharacterContentCatalog.Parse(catalogAsset.text);
         if (catalog.Count != Characters.Length)
-            throw new InvalidDataException("A5 published character appearance baseline changed.");
+            throw new InvalidDataException("Published character appearance baseline changed.");
 
         foreach (CharacterSpec character in Characters)
         {
@@ -144,7 +142,7 @@ public static class AddressablesA5ProjectSetup
                 $"{character.Prefix}/animation/idle", CharacterLabel, label);
 
             GameObject prefab = AssetDatabase.LoadAssetAtPath<GameObject>(character.PrefabPath) ??
-                                throw new FileNotFoundException($"A5 visual Prefab is missing: {character.PrefabPath}");
+                                throw new FileNotFoundException($"Visual Prefab is missing: {character.PrefabPath}");
             CharacterVisualController.ValidateVisualInstance(prefab);
             if (prefab.GetComponentsInChildren<Collider>(true).Length != 0)
                 throw new InvalidDataException($"Visual Prefab '{character.CharacterId}' owns a Collider.");
@@ -178,59 +176,15 @@ public static class AddressablesA5ProjectSetup
             StringComparer.Ordinal);
         string hardReference = AssetDatabase.GetDependencies(ScenePath, true).FirstOrDefault(remotePaths.Contains);
         if (hardReference != null)
-            throw new InvalidDataException($"SampleScene still hard-references remote A5 asset '{hardReference}'.");
+            throw new InvalidDataException($"SampleScene still hard-references remote character asset '{hardReference}'.");
 
         if (typeof(IAgentEntity).IsAssignableFrom(typeof(CharacterVisualController)) ||
             typeof(IAgentTool).IsAssignableFrom(typeof(CharacterVisualController)))
             throw new InvalidDataException("CharacterVisualController crossed the Entity/Tool authority boundary.");
         Debug.Log(
-            "[Content] Addressables A5 verified: stable IDs, VisualRoot ownership, fallback, " +
+            "[Content] Addressables characters verified: stable IDs, VisualRoot ownership, fallback, " +
             "per-character bundles, URP materials, animation and authority boundary.");
     }
-
-    public static void ConfigureFromCommandLine() => RunCommand(Configure);
-    public static void VerifyFromCommandLine() => RunCommand(Verify);
-    public static void BuildLocalDevelopmentFromCommandLine() => RunCommand(() =>
-    {
-        Verify();
-        AddressableAssetSettings settings = AddressableAssetSettingsDefaultObject.Settings;
-        string originalProfile = settings.activeProfileId;
-        try
-        {
-            settings.activeProfileId = settings.profileSettings.GetProfileId("LocalDevelopment");
-            AddressableAssetSettings.BuildPlayerContent(out AddressablesPlayerBuildResult result);
-            if (!string.IsNullOrWhiteSpace(result.Error))
-                throw new InvalidOperationException("A5 Addressables build failed: " + result.Error);
-            Debug.Log("[Content] Addressables A5 LocalDevelopment content built.");
-        }
-        finally
-        {
-            settings.activeProfileId = originalProfile;
-            AssetDatabase.SaveAssets();
-        }
-    });
-
-    public static void BuildWindowsPlayerFromCommandLine() => RunCommand(() =>
-    {
-        Verify();
-        string output = Path.GetFullPath(Path.Combine(
-            Application.dataPath,
-            "..",
-            "Builds",
-            "AddressablesA5",
-            "GameWithLLM.exe"));
-        Directory.CreateDirectory(Path.GetDirectoryName(output));
-        BuildReport report = BuildPipeline.BuildPlayer(new BuildPlayerOptions
-        {
-            scenes = new[] { ScenePath },
-            locationPathName = output,
-            target = BuildTarget.StandaloneWindows64,
-            options = BuildOptions.Development
-        });
-        if (report.summary.result != BuildResult.Succeeded)
-            throw new InvalidOperationException("A5 Windows Player build failed: " + report.summary.result);
-        Debug.Log($"[Content] Addressables A5 Windows Player built at '{output}'.");
-    });
 
     private static void CreateCharacterAssets(CharacterSpec character)
     {
@@ -373,12 +327,12 @@ public static class AddressablesA5ProjectSetup
         if (character.CharacterId == "player")
         {
             if (root.GetComponent("PlayerMock") == null || root.GetComponent<InventoryComponent>() == null)
-                throw new InvalidDataException("Player AOT authority components changed during A5 migration.");
+                throw new InvalidDataException("Player AOT authority components changed during character migration.");
         }
         else if (root.GetComponent<NpcEntity>() == null || root.GetComponent<InventoryComponent>() == null ||
                  root.GetComponent<UnityEngine.AI.NavMeshAgent>() == null)
             throw new InvalidDataException(
-                $"NPC '{character.RootName}' AOT authority components changed during A5 migration.");
+                $"NPC '{character.RootName}' AOT authority components changed during character migration.");
     }
 
     private static void ConfigureEntry(
@@ -390,7 +344,7 @@ public static class AddressablesA5ProjectSetup
     {
         string guid = AssetDatabase.AssetPathToGUID(path);
         if (string.IsNullOrWhiteSpace(guid))
-            throw new FileNotFoundException($"A5 asset is not imported: '{path}'.");
+            throw new FileNotFoundException($"Character asset is not imported: '{path}'.");
         AddressableAssetEntry entry = settings.CreateOrMoveEntry(guid, group, false, false);
         entry.address = address;
         foreach (string label in labels)
@@ -407,12 +361,7 @@ public static class AddressablesA5ProjectSetup
         AddressableAssetEntry entry = settings.FindAssetEntry(AssetDatabase.AssetPathToGUID(path));
         if (entry == null || entry.parentGroup != group || entry.address != address ||
             labels.Any(label => !entry.labels.Contains(label)))
-            throw new InvalidDataException($"A5 Addressable entry '{address}' is invalid.");
+            throw new InvalidDataException($"Character Addressable entry '{address}' is invalid.");
     }
 
-    private static void RunCommand(Action action)
-    {
-        try { action(); EditorApplication.Exit(0); }
-        catch (Exception ex) { Debug.LogException(ex); EditorApplication.Exit(1); }
-    }
 }

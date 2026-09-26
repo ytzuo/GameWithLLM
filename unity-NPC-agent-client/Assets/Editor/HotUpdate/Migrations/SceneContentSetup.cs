@@ -13,7 +13,7 @@ using UnityEngine;
 using UnityEngine.AI;
 using UnityEngine.SceneManagement;
 
-public static class AddressablesA6ProjectSetup
+public static class SceneContentSetup
 {
     private const string GroupName = "Remote_Scenes";
     private const string SceneLabel = "content.scenes";
@@ -24,7 +24,6 @@ public static class AddressablesA6ProjectSetup
     private const string RemoteNavMeshPath = "Assets/Content/Scenes/WarehouseRemote-NavMesh.asset";
     private const string RemoteMaterialRoot = "Assets/Content/Scenes/WarehouseRemoteAssets/Materials";
 
-    [MenuItem("GameWithLLM/Hot Update/Configure Addressables A6 Scenes")]
     public static void Configure()
     {
         AddressableAssetSettings settings = AddressableAssetSettingsDefaultObject.Settings ??
@@ -46,7 +45,7 @@ public static class AddressablesA6ProjectSetup
 
         string guid = AssetDatabase.AssetPathToGUID(RemoteScenePath);
         if (string.IsNullOrWhiteSpace(guid))
-            throw new FileNotFoundException("A6 remote warehouse scene was not imported.");
+            throw new FileNotFoundException("Remote warehouse scene was not imported.");
         AddressableAssetEntry entry = settings.CreateOrMoveEntry(guid, group, false, false);
         entry.address = RemoteSceneCoordinator.WarehouseAddress;
         entry.SetLabel(SceneLabel, true, false, false);
@@ -60,10 +59,9 @@ public static class AddressablesA6ProjectSetup
         settings.SetDirty(AddressableAssetSettings.ModificationEvent.BatchModification, null, true, true);
         AssetDatabase.SaveAssets();
         Verify();
-        Debug.Log("[Content] Addressables A6 Bootstrap and remote warehouse scenes configured.");
+        Debug.Log("[Content] Addressables Bootstrap and remote warehouse scenes configured.");
     }
 
-    [MenuItem("GameWithLLM/Hot Update/Verify Addressables A6 Scenes")]
     public static void Verify()
     {
         AddressableAssetSettings settings = AddressableAssetSettingsDefaultObject.Settings ??
@@ -72,13 +70,13 @@ public static class AddressablesA6ProjectSetup
                                       throw new InvalidOperationException("Remote_Scenes group is missing.");
         BundledAssetGroupSchema schema = group.GetSchema<BundledAssetGroupSchema>();
         if (schema == null || schema.BundleMode != BundledAssetGroupSchema.BundlePackingMode.PackTogether)
-            throw new InvalidDataException("A6 scene-owned dependencies must share the scene bundle lifecycle.");
+            throw new InvalidDataException("Scene-owned dependencies must share the scene bundle lifecycle.");
 
         AddressableAssetEntry entry = settings.FindAssetEntry(AssetDatabase.AssetPathToGUID(RemoteScenePath));
         if (entry == null || entry.parentGroup != group ||
             entry.address != RemoteSceneCoordinator.WarehouseAddress ||
             !entry.labels.Contains(SceneLabel) || !entry.labels.Contains(WarehouseLabel))
-            throw new InvalidDataException("A6 remote warehouse Addressable entry is invalid.");
+            throw new InvalidDataException("Remote warehouse Addressable entry is invalid.");
         AddressableAssetEntry sampleEntry = settings.FindAssetEntry(
             AssetDatabase.AssetPathToGUID(SampleScenePath));
         if (sampleEntry != null && sampleEntry.parentGroup == group)
@@ -122,53 +120,15 @@ public static class AddressablesA6ProjectSetup
         if (coreAssembly != "GameWithLLM.Client.Core")
             throw new InvalidDataException("Remote scene coordinator must be present in the AOT Core assembly.");
         Debug.Log(
-            "[Content] Addressables A6 verified: Bootstrap ownership, stable scene address, " +
+            "[Content] Addressables scenes verified: Bootstrap ownership, stable scene address, " +
             "AOT types, NavMesh lifecycle, no persistent duplicates and paired scene lease API.");
     }
-
-    public static void ConfigureFromCommandLine() => RunCommand(Configure);
-    public static void VerifyFromCommandLine() => RunCommand(Verify);
-    public static void BuildLocalDevelopmentFromCommandLine() => RunCommand(() =>
-    {
-        Verify();
-        AddressableAssetSettings settings = AddressableAssetSettingsDefaultObject.Settings;
-        string originalProfile = settings.activeProfileId;
-        try
-        {
-            settings.activeProfileId = settings.profileSettings.GetProfileId("LocalDevelopment");
-            AddressableAssetSettings.BuildPlayerContent(out AddressablesPlayerBuildResult result);
-            if (!string.IsNullOrWhiteSpace(result.Error))
-                throw new InvalidOperationException("A6 Addressables build failed: " + result.Error);
-        }
-        finally
-        {
-            settings.activeProfileId = originalProfile;
-            AssetDatabase.SaveAssets();
-        }
-    });
-
-    public static void BuildWindowsPlayerFromCommandLine() => RunCommand(() =>
-    {
-        Verify();
-        string output = Path.GetFullPath(Path.Combine(
-            Application.dataPath, "..", "Builds", "AddressablesA6", "GameWithLLM.exe"));
-        Directory.CreateDirectory(Path.GetDirectoryName(output));
-        BuildReport report = BuildPipeline.BuildPlayer(new BuildPlayerOptions
-        {
-            scenes = new[] { BootstrapScenePath, SampleScenePath },
-            locationPathName = output,
-            target = BuildTarget.StandaloneWindows64,
-            options = BuildOptions.Development
-        });
-        if (report.summary.result != BuildResult.Succeeded)
-            throw new InvalidOperationException("A6 Windows Player build failed: " + report.summary.result);
-    });
 
     private static void CreateRemoteWarehouseScene()
     {
         if (AssetDatabase.LoadAssetAtPath<SceneAsset>(RemoteScenePath) == null &&
             !AssetDatabase.CopyAsset(SampleScenePath, RemoteScenePath))
-            throw new IOException("Unable to clone SampleScene for the A6 remote warehouse test scene.");
+            throw new IOException("Unable to clone SampleScene for the remote warehouse test scene.");
         AssetDatabase.ImportAsset(RemoteScenePath, ImportAssetOptions.ForceUpdate);
         Scene scene = EditorSceneManager.OpenScene(RemoteScenePath, OpenSceneMode.Single);
         foreach (AgentHostClient host in FindInScene<AgentHostClient>(scene).ToArray())
@@ -182,11 +142,11 @@ public static class AddressablesA6ProjectSetup
         {
             string sourcePath = AssetDatabase.GetAssetPath(source);
             if (string.IsNullOrEmpty(sourcePath) || !AssetDatabase.CopyAsset(sourcePath, RemoteNavMeshPath))
-                throw new IOException("Unable to create scene-owned A6 NavMeshData.");
+                throw new IOException("Unable to create scene-owned NavMeshData.");
             AssetDatabase.ImportAsset(RemoteNavMeshPath, ImportAssetOptions.ForceUpdate);
         }
         surface.navMeshData = AssetDatabase.LoadAssetAtPath<NavMeshData>(RemoteNavMeshPath) ??
-                              throw new FileNotFoundException("A6 scene-owned NavMeshData is missing.");
+                              throw new FileNotFoundException("Scene-owned NavMeshData is missing.");
         EditorUtility.SetDirty(surface);
         MoveSceneMaterialsToRemoteOwnership(scene);
         EditorSceneManager.MarkSceneDirty(scene);
@@ -221,7 +181,7 @@ public static class AddressablesA6ProjectSetup
                     owned = AssetDatabase.LoadAssetAtPath<Material>(targetPath);
                 }
                 materials[index] = owned ??
-                                   throw new FileNotFoundException($"A6 scene material is missing: '{targetPath}'.");
+                                   throw new FileNotFoundException($"Scene material is missing: '{targetPath}'.");
                 changed = true;
             }
             if (changed)
@@ -256,9 +216,4 @@ public static class AddressablesA6ProjectSetup
             .SelectMany(root => root.GetComponentsInChildren<T>(true))
             .ToArray();
 
-    private static void RunCommand(Action action)
-    {
-        try { action(); EditorApplication.Exit(0); }
-        catch (Exception ex) { Debug.LogException(ex); EditorApplication.Exit(1); }
-    }
 }

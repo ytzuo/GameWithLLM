@@ -12,7 +12,7 @@ using UnityEditor.U2D;
 using UnityEngine;
 using UnityEngine.U2D;
 
-public static class AddressablesA4ProjectSetup
+public static class ItemContentSetup
 {
     private const string GroupName = "Remote_SpritesTextures";
     private const string ItemLabel = "content.items";
@@ -40,7 +40,6 @@ public static class AddressablesA4ProjectSetup
             ["helmet"] = 1
         };
 
-    [MenuItem("GameWithLLM/Hot Update/Configure Addressables A4 Items")]
     public static void Configure()
     {
         AddressableAssetSettings settings = AddressableAssetSettingsDefaultObject.Settings ??
@@ -62,7 +61,7 @@ public static class AddressablesA4ProjectSetup
             .Select(path => AssetDatabase.LoadAssetAtPath<Sprite>(path) as UnityEngine.Object)
             .ToArray();
         if (icons.Any(icon => icon == null))
-            throw new FileNotFoundException("One or more A4 item icons are missing or not imported as Sprite.");
+            throw new FileNotFoundException("One or more item icons are missing or not imported as Sprite.");
         SpriteAtlasExtensions.Add(atlas, icons);
         EditorUtility.SetDirty(atlas);
 
@@ -72,10 +71,9 @@ public static class AddressablesA4ProjectSetup
         settings.SetDirty(AddressableAssetSettings.ModificationEvent.BatchModification, null, true, true);
         AssetDatabase.SaveAssets();
         Verify();
-        Debug.Log("[Content] Addressables A4 item catalog and core icon atlas configured.");
+        Debug.Log("[Content] Addressables item catalog and core icon atlas configured.");
     }
 
-    [MenuItem("GameWithLLM/Hot Update/Verify Addressables A4 Items")]
     public static void Verify()
     {
         AddressableAssetSettings settings = AddressableAssetSettingsDefaultObject.Settings ??
@@ -83,7 +81,7 @@ public static class AddressablesA4ProjectSetup
         AddressableAssetGroup group = settings.FindGroup(GroupName) ??
                                       throw new InvalidOperationException($"Addressables Group '{GroupName}' is missing.");
         if (EditorSettings.spritePackerMode != SpritePackerMode.BuildTimeOnlyAtlas)
-            throw new InvalidDataException("A4 requires SpritePackerMode.BuildTimeOnlyAtlas.");
+            throw new InvalidDataException("Item content requires SpritePackerMode.BuildTimeOnlyAtlas.");
         VerifyEntry(settings, group, CatalogPath, ItemContentIds.Catalog, ItemLabel);
         VerifyEntry(settings, group, ItemTextCatalogPath, ItemContentIds.TextCatalog, ItemLabel);
         VerifyEntry(settings, group, AtlasPath, AtlasAddress, IconLabel);
@@ -93,7 +91,7 @@ public static class AddressablesA4ProjectSetup
         string[] expectedIds = PublishedStackRules.Keys.OrderBy(value => value, StringComparer.Ordinal).ToArray();
         if (!catalog.items.Select(item => item.ItemId).OrderBy(value => value, StringComparer.Ordinal)
                 .SequenceEqual(expectedIds))
-            throw new InvalidDataException("Published A4 itemId baseline changed; use a tombstone or explicit save migration.");
+            throw new InvalidDataException("Published itemId baseline changed; use a tombstone or explicit save migration.");
         foreach (ItemData item in catalog.items)
         {
             if (item.MaxStackSize != PublishedStackRules[item.ItemId])
@@ -102,12 +100,12 @@ public static class AddressablesA4ProjectSetup
         }
 
         SpriteAtlas atlas = AssetDatabase.LoadAssetAtPath<SpriteAtlas>(AtlasPath) ??
-                            throw new FileNotFoundException($"A4 SpriteAtlas is missing: '{AtlasPath}'.");
+                            throw new FileNotFoundException($"Item SpriteAtlas is missing: '{AtlasPath}'.");
         var packedPaths = new HashSet<string>(
             SpriteAtlasExtensions.GetPackables(atlas).Select(AssetDatabase.GetAssetPath),
             StringComparer.Ordinal);
         if (!packedPaths.SetEquals(IconPaths.Values))
-            throw new InvalidDataException("A4 SpriteAtlas packables do not match the published item icon set.");
+            throw new InvalidDataException("Item SpriteAtlas packables do not match the published icon set.");
 
         IReadOnlyDictionary<string, string> texts = ItemContentCatalog.ParsePresentationTexts(
             File.ReadAllText(ItemTextCatalogPath));
@@ -123,7 +121,7 @@ public static class AddressablesA4ProjectSetup
             StringComparer.Ordinal);
         string hardReference = AssetDatabase.GetDependencies(scenePath, true).FirstOrDefault(remotePaths.Contains);
         if (hardReference != null)
-            throw new InvalidDataException($"SampleScene still references remote A4 asset '{hardReference}'.");
+            throw new InvalidDataException($"SampleScene still references remote item asset '{hardReference}'.");
 
         foreach (string iconPath in IconPaths.Values)
         {
@@ -142,56 +140,17 @@ public static class AddressablesA4ProjectSetup
                 .FirstOrDefault(result => result.severity == MessageType.Warning &&
                                           remotePaths.Any(path => result.resultName.Contains(path, StringComparison.Ordinal)));
             if (duplicate != null)
-                throw new InvalidDataException($"Addressables Analyze reported duplicate A4 packing: {duplicate.resultName}");
+                throw new InvalidDataException($"Addressables Analyze reported duplicate item packing: {duplicate.resultName}");
         }
 
-        Debug.Log("[Content] Addressables A4 verified: stable item IDs, text keys, atlas, ownership and scene boundary.");
+        Debug.Log("[Content] Addressables items verified: stable IDs, text keys, atlas, ownership and scene boundary.");
     }
-
-    public static void ConfigureFromCommandLine() => RunCommand(Configure);
-    public static void VerifyFromCommandLine() => RunCommand(Verify);
-    public static void BuildLocalDevelopmentFromCommandLine() => RunCommand(() =>
-    {
-        Verify();
-        AddressableAssetSettings settings = AddressableAssetSettingsDefaultObject.Settings;
-        string originalProfile = settings.activeProfileId;
-        try
-        {
-            settings.activeProfileId = settings.profileSettings.GetProfileId("LocalDevelopment");
-            AddressableAssetSettings.BuildPlayerContent(out AddressablesPlayerBuildResult result);
-            if (!string.IsNullOrWhiteSpace(result.Error))
-                throw new InvalidOperationException("A4 Addressables build failed: " + result.Error);
-            Debug.Log("[Content] Addressables A4 LocalDevelopment content built.");
-        }
-        finally
-        {
-            settings.activeProfileId = originalProfile;
-            AssetDatabase.SaveAssets();
-        }
-    });
-
-    public static void BuildWindowsPlayerFromCommandLine() => RunCommand(() =>
-    {
-        Verify();
-        string output = Path.GetFullPath(Path.Combine(Application.dataPath, "..", "Builds", "AddressablesA4", "GameWithLLM.exe"));
-        Directory.CreateDirectory(Path.GetDirectoryName(output));
-        BuildReport report = BuildPipeline.BuildPlayer(new BuildPlayerOptions
-        {
-            scenes = new[] { "Assets/Scenes/SampleScene.unity" },
-            locationPathName = output,
-            target = BuildTarget.StandaloneWindows64,
-            options = BuildOptions.Development
-        });
-        if (report.summary.result != BuildResult.Succeeded)
-            throw new InvalidOperationException("A4 Windows Player build failed: " + report.summary.result);
-        Debug.Log($"[Content] Addressables A4 Windows Player built at '{output}'.");
-    });
 
     private static void ConfigureEntry(AddressableAssetSettings settings, AddressableAssetGroup group, string path, string address, string label)
     {
         string guid = AssetDatabase.AssetPathToGUID(path);
         if (string.IsNullOrWhiteSpace(guid))
-            throw new FileNotFoundException($"A4 asset is not imported: '{path}'.");
+            throw new FileNotFoundException($"Item asset is not imported: '{path}'.");
         AddressableAssetEntry entry = settings.CreateOrMoveEntry(guid, group, false, false);
         entry.address = address;
         entry.SetLabel(label, true, false, false);
@@ -201,12 +160,7 @@ public static class AddressablesA4ProjectSetup
     {
         AddressableAssetEntry entry = settings.FindAssetEntry(AssetDatabase.AssetPathToGUID(path));
         if (entry == null || entry.parentGroup != group || entry.address != address || !entry.labels.Contains(label))
-            throw new InvalidDataException($"A4 Addressable entry '{address}' is invalid.");
+            throw new InvalidDataException($"Item Addressable entry '{address}' is invalid.");
     }
 
-    private static void RunCommand(Action action)
-    {
-        try { action(); EditorApplication.Exit(0); }
-        catch (Exception ex) { Debug.LogException(ex); EditorApplication.Exit(1); }
-    }
 }

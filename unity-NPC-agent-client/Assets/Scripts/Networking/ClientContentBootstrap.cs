@@ -89,8 +89,6 @@ public sealed class PlayerPrefsContentBootstrapStore : IContentBootstrapStore
     }
 }
 
-// A1 只建立可靠的 Catalog/下载门控。远端 release manifest 与候选内容从 A2 开始
-// 接入，因此 A1 的 release candidate 是内置空候选，但仍完整经过状态机。
 public sealed class ClientContentBootstrap
 {
     private readonly IContentAssetProvider _provider;
@@ -114,8 +112,8 @@ public sealed class ClientContentBootstrap
     public event Action<ClientContentBootstrapState, string> StateChanged;
     public event Action<ContentDownloadProgress> DownloadProgressChanged;
 
-    // A2/H6 only becomes the last-known-good content after the H4 Registry accepts and
-    // atomically activates the complete ToolSet. A1 without a release loader confirms inline.
+    // Content only becomes last-known-good after the Registry atomically activates
+    // the complete ToolSet. A bootstrap without a release loader confirms inline.
     public void ConfirmActivation()
     {
         if (!_activationConfirmationPending)
@@ -244,14 +242,14 @@ public sealed class ClientContentBootstrap
                 }
                 catch (Exception ex)
                 {
-                    // A2 候选是可选业务内容。损坏候选不能开放半套工具，但也不能让
+                    // 热更新候选是可选业务内容。损坏候选不能开放半套工具，但也不能让
                     // 首次安装黑屏；随后以 Player 内置工具和稳定文本键启动。
                     candidateError = ex;
                 }
             }
             if (candidateError != null)
                 Debug.LogError(
-                    $"[Content] A2 release '{manifest?.releaseId ?? "unknown"}' was rejected; " +
+                    $"[Content] Release '{manifest?.releaseId ?? "unknown"}' was rejected; " +
                     $"using builtin tools and default text keys " +
                     $"(code={(candidateError as HotUpdateLoadException)?.ErrorCode ?? "HOT_UPDATE_CANDIDATE_REJECTED"}): " +
                     $"{candidateError.GetBaseException().Message}");

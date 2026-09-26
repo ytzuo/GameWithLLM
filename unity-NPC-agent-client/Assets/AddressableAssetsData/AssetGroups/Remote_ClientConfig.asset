@@ -21,12 +21,6 @@ MonoBehaviour:
     m_SerializedLabels:
     - content.release-manifest
     FlaggedDuringContentUpdateRestriction: 0
-  - m_GUID: b88db5e10fbe492b858c807b5bf808c5
-    m_Address: config/bootstrap/a1-probe
-    m_ReadOnly: 0
-    m_SerializedLabels:
-    - content.a1-required
-    FlaggedDuringContentUpdateRestriction: 0
   - m_GUID: c997175828c44e4eb48de5550465145d
     m_Address: config/tool-metadata/zh-CN
     m_ReadOnly: 0

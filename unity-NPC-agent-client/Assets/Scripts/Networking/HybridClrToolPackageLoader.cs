@@ -92,7 +92,7 @@ public sealed class AddressableHotUpdateArtifactSource : IHotUpdateArtifactSourc
     }
 }
 
-// H6 owns Addressables-delivered HybridCLR metadata and tool assemblies. All selected
+// Addressables owns delivery of HybridCLR metadata and tool assemblies. All selected
 // artifacts are copied and verified before HybridCLR/Assembly.Load creates side effects.
 public sealed class HybridClrToolPackageLoader
 {

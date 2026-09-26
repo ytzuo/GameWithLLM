@@ -48,7 +48,7 @@ public static class ContentReleasePipeline
     public static void BuildFullReleaseCandidate()
     {
         HybridClrProjectSetup.GenerateAndStageForPipeline(false);
-        AddressablesA2ProjectSetup.StageAndConfigure();
+        HotUpdateArtifactStager.StageAndConfigure();
         VerifyProductionGate();
         VerifyToolPackageSmokeEvidence();
         AddressableAssetSettings settings = Settings();
@@ -70,7 +70,7 @@ public static class ContentReleasePipeline
     public static void BuildContentUpdateCandidate()
     {
         HybridClrProjectSetup.GenerateAndStageForPipeline(false);
-        AddressablesA2ProjectSetup.StageAndConfigure();
+        HotUpdateArtifactStager.StageAndConfigure();
         VerifyProductionGate();
         VerifyToolPackageSmokeEvidence();
         string baseline = Environment.GetEnvironmentVariable("CONTENT_BASELINE_STATE_PATH");
@@ -263,11 +263,26 @@ public static class ContentReleasePipeline
 
     private static string BuildProductionPlayer()
     {
+        VerifyProductionPlayerStagingIsClean();
         string output = Path.GetFullPath(Path.Combine(Application.dataPath, "..", "Builds", "ContentReleaseProduction", "GameWithLLM.exe"));
         AddressableAssetSettings settings = Settings();
         return WindowsPlayerBuilder.Build(settings, ProfileName, output,
             EditorBuildSettings.scenes.Where(item => item.enabled).Select(item => item.path),
             BuildOptions.CleanBuildCache);
+    }
+
+    private static void VerifyProductionPlayerStagingIsClean()
+    {
+        foreach (string path in new[]
+                 {
+                     "Assets/StreamingAssets/HotUpdate",
+                     "Assets/StreamingAssets/SmokeTests"
+                 })
+        {
+            if (Directory.Exists(path) || File.Exists(path))
+                throw new BuildFailedException(
+                    $"Production Player cannot contain local hot-update or smoke staging: '{path}'.");
+        }
     }
 
     private static void WriteCandidate(string kind, string baseline, string player)

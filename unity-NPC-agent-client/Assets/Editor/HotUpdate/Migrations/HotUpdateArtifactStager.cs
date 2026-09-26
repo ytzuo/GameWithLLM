@@ -12,14 +12,13 @@ using UnityEditor.AddressableAssets.Settings;
 using UnityEditor.Build.Reporting;
 using UnityEngine;
 
-public static class AddressablesA2ProjectSetup
+public static class HotUpdateArtifactStager
 {
     private const string StagingRoot = "Assets/Content/HotUpdate";
     private const string LocalRoot = "Assets/StreamingAssets/HotUpdate";
     private const string ManifestPath = StagingRoot + "/release-manifest.json";
     private const string ContentVersion = "2026.09.001";
 
-    [MenuItem("GameWithLLM/Hot Update/Stage And Configure Addressables A2")]
     public static void StageAndConfigure()
     {
         HybridClrProjectSetup.StageLocalArtifacts(EditorUserBuildSettings.development);
@@ -53,7 +52,7 @@ public static class AddressablesA2ProjectSetup
                 ["assembly"] = Artifact(
                     assemblyPath,
                     $"hotfix/tools/{packageId}/{packageVersion}/assembly"),
-                // 单一 A2 候选会同时发布到三个 channel；为保证 Production
+                // 单一候选会同时发布到三个 channel；为保证 Production
                 // 不携带调试符号，当前公共候选统一不发布 PDB。
                 ["debugSymbols"] = null
             });
@@ -92,7 +91,7 @@ public static class AddressablesA2ProjectSetup
         File.WriteAllText(
             ManifestPath,
             publishedManifest.ToString(Formatting.Indented) + Environment.NewLine);
-        // 旧目录只是 H2-H5 的可重建中转站。A2 复制完成后立即移除，避免
+        // 旧目录只是可重建中转站。复制完成后立即移除，避免
         // StreamingAssets 把同一候选再次嵌入 Player。
         RemoveLegacyLocalStaging();
         AssetDatabase.Refresh();
@@ -121,20 +120,19 @@ public static class AddressablesA2ProjectSetup
         settings.SetDirty(AddressableAssetSettings.ModificationEvent.BatchModification, null, true, true);
         AssetDatabase.SaveAssets();
         Verify();
-        Debug.Log($"[Content] Addressables A2 release '{releaseId}' staged and configured.");
+        Debug.Log($"[Content] Addressables release '{releaseId}' staged and configured.");
     }
 
-    [MenuItem("GameWithLLM/Hot Update/Verify Addressables A2")]
     public static void Verify()
     {
         AddressableAssetSettings settings = AddressableAssetSettingsDefaultObject.Settings ??
                                             throw new InvalidOperationException("Addressables settings are missing.");
         if (!File.Exists(ManifestPath))
-            throw new FileNotFoundException("A2 release manifest is missing.", ManifestPath);
+            throw new FileNotFoundException("Release manifest is missing.", ManifestPath);
         JObject manifest = JObject.Parse(File.ReadAllText(ManifestPath));
         if ((int?)manifest["schemaVersion"] != 1 ||
             (string)manifest["contentVersion"] != (string)manifest["catalogVersion"])
-            throw new InvalidDataException("A2 release manifest version envelope is invalid.");
+            throw new InvalidDataException("Release manifest version envelope is invalid.");
         var addresses = new HashSet<string>(StringComparer.Ordinal);
         foreach (JObject artifact in EnumerateArtifacts(manifest))
         {
@@ -142,96 +140,18 @@ public static class AddressablesA2ProjectSetup
             AddressableAssetEntry entry = FindEntryByAddress(settings, address);
             string path = entry?.AssetPath;
             if (string.IsNullOrWhiteSpace(path) || !File.Exists(path) || !addresses.Add(address))
-                throw new InvalidDataException($"A2 artifact '{address}' is missing or duplicated.");
+                throw new InvalidDataException($"Artifact '{address}' is missing or duplicated.");
             byte[] bytes = File.ReadAllBytes(path);
             if ((long?)artifact["length"] != bytes.LongLength ||
                 !string.Equals((string)artifact["sha256"], Sha256(bytes), StringComparison.OrdinalIgnoreCase))
-                throw new InvalidDataException($"A2 artifact '{address}' does not match its manifest.");
+                throw new InvalidDataException($"Artifact '{address}' does not match its manifest.");
         }
         AddressableAssetEntry releaseEntry = settings.FindAssetEntry(AssetDatabase.AssetPathToGUID(ManifestPath));
         if (releaseEntry == null || releaseEntry.parentGroup.Name != "Remote_ClientConfig" ||
             releaseEntry.address != AddressableHotUpdateReleaseLoader.ManifestAddress)
-            throw new InvalidDataException("A2 release manifest Addressable entry is invalid.");
-        Debug.Log($"[Content] Addressables A2 verified: {addresses.Count} immutable candidate artifacts.");
+            throw new InvalidDataException("Release manifest Addressable entry is invalid.");
+        Debug.Log($"[Content] Addressables candidate verified: {addresses.Count} immutable artifacts.");
     }
-
-    public static void StageAndConfigureFromCommandLine() => RunCommand(StageAndConfigure);
-    public static void VerifyFromCommandLine() => RunCommand(Verify);
-    public static void BuildAllWindowsProfilesFromCommandLine() => RunCommand(() =>
-    {
-        Verify();
-        AddressableAssetSettings settings = AddressableAssetSettingsDefaultObject.Settings;
-        string originalProfile = settings.activeProfileId;
-        try
-        {
-            foreach (string profileName in new[] { "LocalDevelopment", "QA", "Production" })
-            {
-                settings.activeProfileId = settings.profileSettings.GetProfileId(profileName);
-                AddressableAssetSettings.BuildPlayerContent(out AddressablesPlayerBuildResult result);
-                if (!string.IsNullOrWhiteSpace(result.Error))
-                    throw new InvalidOperationException(
-                        $"A2 Addressables build for '{profileName}' failed: {result.Error}");
-                string releaseId = settings.profileSettings.GetValueByName(
-                    settings.activeProfileId,
-                    "ReleaseId");
-                Debug.Log(
-                    $"[Content] Built A2 Windows profile '{profileName}' release '{releaseId}'.");
-            }
-        }
-        finally
-        {
-            settings.activeProfileId = originalProfile;
-            AssetDatabase.SaveAssets();
-        }
-    });
-
-    public static void StripDebugSymbolsFromCommandLine() => RunCommand(() =>
-    {
-        AddressableAssetSettings settings = AddressableAssetSettingsDefaultObject.Settings ??
-                                            throw new InvalidOperationException("Addressables settings are missing.");
-        JObject manifest = JObject.Parse(File.ReadAllText(ManifestPath));
-        foreach (JObject package in manifest["toolPackages"].Children<JObject>())
-            package["debugSymbols"] = null;
-        File.WriteAllText(ManifestPath, manifest.ToString(Formatting.Indented) + Environment.NewLine);
-        RemovePublishedDebugSymbols(settings);
-        AssetDatabase.Refresh();
-        settings.SetDirty(AddressableAssetSettings.ModificationEvent.BatchModification, null, true, true);
-        AssetDatabase.SaveAssets();
-        Verify();
-    });
-
-    public static void BuildSmokePlayerFromCommandLine() => RunCommand(() =>
-    {
-        // 发布 staging 是独立步骤；Player 构建只消费并验证已经冻结的候选，
-        // 避免失败重试时悄悄重写 release 内容。
-        Verify();
-        RemoveLegacyLocalStaging();
-        AssetDatabase.Refresh();
-        AddressableAssetSettings settings = AddressableAssetSettingsDefaultObject.Settings;
-        settings.activeProfileId = settings.profileSettings.GetProfileId("LocalDevelopment");
-        AddressableAssetSettings.BuildPlayerContent(out AddressablesPlayerBuildResult contentResult);
-        if (!string.IsNullOrWhiteSpace(contentResult.Error))
-            throw new InvalidOperationException("A2 Addressables build failed: " + contentResult.Error);
-        string output = Path.GetFullPath(Path.Combine(
-            Application.dataPath,
-            "..",
-            "Builds",
-            "AddressablesA2",
-            "GameWithLLM.exe"));
-        Directory.CreateDirectory(Path.GetDirectoryName(output));
-        BuildReport report = BuildPipeline.BuildPlayer(new BuildPlayerOptions
-        {
-            scenes = new[] { "Assets/Scenes/SampleScene.unity" },
-            locationPathName = output,
-            target = BuildTarget.StandaloneWindows64,
-            // H6 validates the real IL2CPP/HybridCLR path. Do not reuse native objects
-            // produced by another MSVC toolset from a previous incremental smoke build.
-            options = BuildOptions.Development | BuildOptions.CleanBuildCache
-        });
-        if (report.summary.result != BuildResult.Succeeded)
-            throw new InvalidOperationException("A2 Windows Player build failed: " + report.summary.result);
-        Debug.Log($"[Content] A2 Windows Player built at '{output}'.");
-    });
 
     private static JObject Catalog(string id, string path, string address)
     {
@@ -293,7 +213,7 @@ public static class AddressablesA2ProjectSetup
     {
         string guid = AssetDatabase.AssetPathToGUID(path);
         if (string.IsNullOrEmpty(guid))
-            throw new InvalidOperationException($"A2 source asset is not imported: '{path}'.");
+            throw new InvalidOperationException($"Candidate source asset is not imported: '{path}'.");
         AddressableAssetGroup group = settings.FindGroup(groupName) ??
                                       throw new InvalidOperationException($"Addressables Group '{groupName}' is missing.");
         AddressableAssetEntry entry = settings.CreateOrMoveEntry(guid, group, false, false);
@@ -337,9 +257,4 @@ public static class AddressablesA2ProjectSetup
         }
     }
 
-    private static void RunCommand(Action action)
-    {
-        try { action(); EditorApplication.Exit(0); }
-        catch (Exception ex) { Debug.LogException(ex); EditorApplication.Exit(1); }
-    }
 }

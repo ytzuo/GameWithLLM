@@ -11,7 +11,7 @@ using UnityEditor.Build.Reporting;
 using UnityEngine;
 using UnityEngine.UIElements;
 
-public static class AddressablesA3ProjectSetup
+public static class UiContentSetup
 {
     private const string GroupName = "Remote_UI";
     private const string RequiredLabel = "content.ui-required";
@@ -39,7 +39,6 @@ public static class AddressablesA3ProjectSetup
             ["ui/theme/default-runtime"] = "Assets/UI Toolkit/UnityThemes/UnityDefaultRuntimeTheme.tss"
         };
 
-    [MenuItem("GameWithLLM/Hot Update/Configure Addressables A3 UI")]
     public static void Configure()
     {
         AddressableAssetSettings settings = AddressableAssetSettingsDefaultObject.Settings ??
@@ -51,7 +50,7 @@ public static class AddressablesA3ProjectSetup
         {
             string guid = AssetDatabase.AssetPathToGUID(asset.Value);
             if (string.IsNullOrWhiteSpace(guid))
-                throw new FileNotFoundException($"A3 UI asset is not imported: '{asset.Value}'.");
+                throw new FileNotFoundException($"UI asset is not imported: '{asset.Value}'.");
             AddressableAssetEntry entry = settings.CreateOrMoveEntry(guid, group, false, false);
             entry.address = asset.Key;
             entry.SetLabel(RequiredLabel, true, false, false);
@@ -60,10 +59,9 @@ public static class AddressablesA3ProjectSetup
         settings.SetDirty(AddressableAssetSettings.ModificationEvent.BatchModification, null, true, true);
         AssetDatabase.SaveAssets();
         Verify();
-        Debug.Log($"[Content] Addressables A3 configured: {AssetsByAddress.Count} UI assets.");
+        Debug.Log($"[Content] Addressables UI configured: {AssetsByAddress.Count} assets.");
     }
 
-    [MenuItem("GameWithLLM/Hot Update/Verify Addressables A3 UI")]
     public static void Verify()
     {
         AddressableAssetSettings settings = AddressableAssetSettingsDefaultObject.Settings ??
@@ -78,14 +76,14 @@ public static class AddressablesA3ProjectSetup
             AddressableAssetEntry entry = settings.FindAssetEntry(AssetDatabase.AssetPathToGUID(asset.Value));
             if (entry == null || entry.parentGroup != group || entry.address != asset.Key ||
                 !entry.labels.Contains(RequiredLabel))
-                throw new InvalidDataException($"A3 Addressable entry '{asset.Key}' is invalid.");
+                throw new InvalidDataException($"UI Addressable entry '{asset.Key}' is invalid.");
 
             if (AssetDatabase.LoadAssetAtPath<VisualTreeAsset>(asset.Value) is VisualTreeAsset visualTree)
                 UiContentContractValidator.ValidateAsset(asset.Key, visualTree);
         }
 
         if (Directory.Exists("Assets/Resources/UI"))
-            throw new InvalidDataException("A3 UI assets still exist under Assets/Resources/UI.");
+            throw new InvalidDataException("UI assets still exist under Assets/Resources/UI.");
 
         string scenePath = "Assets/Scenes/SampleScene.unity";
         string[] sceneDependencies = AssetDatabase.GetDependencies(scenePath, true);
@@ -114,59 +112,10 @@ public static class AddressablesA3ProjectSetup
         foreach (string script in Directory.GetFiles(scriptsRoot, "*.cs", SearchOption.AllDirectories))
         {
             if (File.ReadAllText(script).Contains("Resources.Load", StringComparison.Ordinal))
-                throw new InvalidDataException($"A3 production UI still uses Resources.Load: '{script}'.");
+                throw new InvalidDataException($"Production UI still uses Resources.Load: '{script}'.");
         }
 
-        Debug.Log($"[Content] Addressables A3 verified: {AssetsByAddress.Count} UI assets and contracts.");
+        Debug.Log($"[Content] Addressables UI verified: {AssetsByAddress.Count} assets and contracts.");
     }
 
-    public static void ConfigureFromCommandLine() => RunCommand(Configure);
-    public static void VerifyFromCommandLine() => RunCommand(Verify);
-    public static void BuildLocalDevelopmentFromCommandLine() => RunCommand(() =>
-    {
-        Verify();
-        AddressableAssetSettings settings = AddressableAssetSettingsDefaultObject.Settings;
-        string originalProfile = settings.activeProfileId;
-        try
-        {
-            settings.activeProfileId = settings.profileSettings.GetProfileId("LocalDevelopment");
-            AddressableAssetSettings.BuildPlayerContent(out AddressablesPlayerBuildResult result);
-            if (!string.IsNullOrWhiteSpace(result.Error))
-                throw new InvalidOperationException("A3 Addressables build failed: " + result.Error);
-            Debug.Log("[Content] Addressables A3 LocalDevelopment content built.");
-        }
-        finally
-        {
-            settings.activeProfileId = originalProfile;
-            AssetDatabase.SaveAssets();
-        }
-    });
-
-    public static void BuildWindowsPlayerFromCommandLine() => RunCommand(() =>
-    {
-        Verify();
-        string output = Path.GetFullPath(Path.Combine(
-            Application.dataPath,
-            "..",
-            "Builds",
-            "AddressablesA3",
-            "GameWithLLM.exe"));
-        Directory.CreateDirectory(Path.GetDirectoryName(output));
-        BuildReport report = BuildPipeline.BuildPlayer(new BuildPlayerOptions
-        {
-            scenes = new[] { "Assets/Scenes/SampleScene.unity" },
-            locationPathName = output,
-            target = BuildTarget.StandaloneWindows64,
-            options = BuildOptions.Development
-        });
-        if (report.summary.result != BuildResult.Succeeded)
-            throw new InvalidOperationException("A3 Windows Player build failed: " + report.summary.result);
-        Debug.Log($"[Content] Addressables A3 Windows Player built at '{output}'.");
-    });
-
-    private static void RunCommand(Action action)
-    {
-        try { action(); EditorApplication.Exit(0); }
-        catch (Exception ex) { Debug.LogException(ex); EditorApplication.Exit(1); }
-    }
 }

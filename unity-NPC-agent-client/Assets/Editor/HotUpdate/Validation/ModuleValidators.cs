@@ -29,7 +29,7 @@ public abstract class ContentValidationRule : IContentValidationRule
 public sealed class ProjectConfigurationValidator : ContentValidationRule
 {
     public ProjectConfigurationValidator(Action<ContentValidationContext> validation = null)
-        : base(validation ?? (_ => AddressablesA1ProjectSetup.Verify())) { }
+        : base(validation ?? (_ => ContentDeliveryProjectSetup.Verify())) { }
     public override string RuleId => "ProjectConfiguration";
     public override string Module => "Project";
 }
@@ -37,7 +37,7 @@ public sealed class ProjectConfigurationValidator : ContentValidationRule
 public sealed class ContentOwnershipValidator : ContentValidationRule
 {
     public ContentOwnershipValidator(Action<ContentValidationContext> validation = null)
-        : base(validation ?? (_ => AddressablesA0InventoryValidator.Verify())) { }
+        : base(validation ?? (_ => ContentOwnershipValidation.Verify())) { }
     public override string RuleId => "OwnershipInventory";
     public override string Module => "Ownership";
 }
@@ -45,7 +45,7 @@ public sealed class ContentOwnershipValidator : ContentValidationRule
 public sealed class ContentCatalogValidator : ContentValidationRule
 {
     public ContentCatalogValidator(Action<ContentValidationContext> validation = null)
-        : base(validation ?? (_ => AddressablesA2ProjectSetup.Verify())) { }
+        : base(validation ?? (_ => HotUpdateArtifactStager.Verify())) { }
     public override string RuleId => "ReleaseArtifacts";
     public override string Module => "Catalogs";
 }
@@ -61,7 +61,7 @@ public sealed class ToolPackageValidator : ContentValidationRule
 public sealed class UiContentValidator : ContentValidationRule
 {
     public UiContentValidator(Action<ContentValidationContext> validation = null)
-        : base(validation ?? (_ => AddressablesA3ProjectSetup.Verify())) { }
+        : base(validation ?? (_ => UiContentSetup.Verify())) { }
     public override string RuleId => "UiContracts";
     public override string Module => "UI";
 }
@@ -69,7 +69,7 @@ public sealed class UiContentValidator : ContentValidationRule
 public sealed class ItemContentValidator : ContentValidationRule
 {
     public ItemContentValidator(Action<ContentValidationContext> validation = null)
-        : base(validation ?? (_ => AddressablesA4ProjectSetup.Verify())) { }
+        : base(validation ?? (_ => ItemContentSetup.Verify())) { }
     public override string RuleId => "ItemCatalog";
     public override string Module => "Items";
 }
@@ -77,7 +77,7 @@ public sealed class ItemContentValidator : ContentValidationRule
 public sealed class CharacterContentValidator : ContentValidationRule
 {
     public CharacterContentValidator(Action<ContentValidationContext> validation = null)
-        : base(validation ?? (_ => AddressablesA5ProjectSetup.Verify())) { }
+        : base(validation ?? (_ => CharacterContentSetup.Verify())) { }
     public override string RuleId => "CharacterContent";
     public override string Module => "Characters";
 }
@@ -85,7 +85,7 @@ public sealed class CharacterContentValidator : ContentValidationRule
 public sealed class SceneContentValidator : ContentValidationRule
 {
     public SceneContentValidator(Action<ContentValidationContext> validation = null)
-        : base(validation ?? (_ => AddressablesA6ProjectSetup.Verify())) { }
+        : base(validation ?? (_ => SceneContentSetup.Verify())) { }
     public override string RuleId => "SceneBoundaries";
     public override string Module => "Scenes";
 }

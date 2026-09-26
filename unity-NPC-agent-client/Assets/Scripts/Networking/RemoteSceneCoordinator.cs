@@ -14,7 +14,7 @@ public interface ISceneTransitionParticipant
     Task RollbackSceneTransitionAsync(Scene retainedScene, CancellationToken cancellationToken);
 }
 
-// A6 场景唯一入口。Bootstrap Scene 始终保留；远端 Scene 的 Addressables handle
+// 远端场景唯一入口。Bootstrap Scene 始终保留；远端 Scene 的 Addressables handle
 // 只由此组件持有，并只通过 provider 的 Load/UnloadSceneAsync 成对管理。
 public sealed class RemoteSceneCoordinator : MonoBehaviour
 {

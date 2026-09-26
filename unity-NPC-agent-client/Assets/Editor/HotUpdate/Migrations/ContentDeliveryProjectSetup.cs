@@ -9,15 +9,11 @@ using UnityEditor.AddressableAssets.Settings.GroupSchemas;
 using UnityEditor.SceneManagement;
 using UnityEngine;
 
-public static class AddressablesA1ProjectSetup
+public static class ContentDeliveryProjectSetup
 {
     private const string ReleaseIdVariable = "ReleaseId";
     private const string RemoteCatalogBuildPathVariable = "RemoteCatalog.BuildPath";
     private const string RemoteCatalogLoadPathVariable = "RemoteCatalog.LoadPath";
-    private const string BootstrapProbePath =
-        "Assets/Content/Bootstrap/a1-bootstrap-probe.json";
-    private const string BootstrapProbeAddress = "config/bootstrap/a1-probe";
-    private const string BootstrapRequiredLabel = "content.a1-required";
 
     private static readonly string[] LocalGroups =
     {
@@ -41,7 +37,6 @@ public static class AddressablesA1ProjectSetup
     private static readonly string[] ContentLabels =
     {
         "content.bootstrap",
-        BootstrapRequiredLabel,
         "content.client-config",
         "content.release-manifest",
         "content.hotfix-metadata",
@@ -54,7 +49,6 @@ public static class AddressablesA1ProjectSetup
         "content.scenes"
     };
 
-    [MenuItem("GameWithLLM/Hot Update/Configure Addressables A1")]
     public static void Configure()
     {
         AddressableAssetSettings settings = AddressableAssetSettingsDefaultObject.Settings ??
@@ -91,8 +85,6 @@ public static class AddressablesA1ProjectSetup
         settings.DefaultGroup = settings.FindGroup("Local_Bootstrap");
         foreach (string label in ContentLabels)
             settings.AddLabel(label, false);
-        ConfigureBootstrapProbe(settings);
-
         EnableBootstrapInSampleScene();
         settings.SetDirty(
             AddressableAssetSettings.ModificationEvent.BatchModification,
@@ -100,10 +92,9 @@ public static class AddressablesA1ProjectSetup
             true,
             true);
         AssetDatabase.SaveAssets();
-        Debug.Log("[Content] Addressables A1 profiles, catalog and owner Groups configured.");
+        Debug.Log("[Content] Delivery profiles, catalog and owner Groups configured.");
     }
 
-    [MenuItem("GameWithLLM/Hot Update/Verify Addressables A1")]
     public static void Verify()
     {
         AddressableAssetSettings settings = AddressableAssetSettingsDefaultObject.Settings ??
@@ -203,103 +194,13 @@ public static class AddressablesA1ProjectSetup
                 errors.Add($"Remote Group '{groupName}' does not use immutable hash bundle names.");
         }
 
-        AddressableAssetEntry bootstrapProbe = settings.FindAssetEntry(
-            AssetDatabase.AssetPathToGUID(BootstrapProbePath));
-        if (bootstrapProbe == null || bootstrapProbe.parentGroup?.Name != "Remote_ClientConfig" ||
-            bootstrapProbe.address != BootstrapProbeAddress ||
-            !bootstrapProbe.labels.Contains(BootstrapRequiredLabel))
-        {
-            errors.Add("The A1 bootstrap delivery probe is not correctly addressable.");
-        }
-
         if (errors.Count > 0)
             throw new InvalidOperationException(
-                "Addressables A1 validation failed:\n- " + string.Join("\n- ", errors));
+                "Content delivery validation failed:\n- " + string.Join("\n- ", errors));
 
         Debug.Log(
-            "[Content] Addressables A1 verified: 3 deployment profiles, stable remote catalog, " +
+            "[Content] Delivery configuration verified: 3 deployment profiles, stable remote catalog, " +
             $"{LocalGroups.Length} local Groups and {RemoteGroups.Length} remote Groups.");
-    }
-
-    public static void BuildAllWindowsProfilesFromCommandLine()
-    {
-        try
-        {
-            Configure();
-            Verify();
-            AddressableAssetSettings settings = AddressableAssetSettingsDefaultObject.Settings;
-            string originalProfile = settings.activeProfileId;
-            try
-            {
-                foreach (string profileName in new[] { "LocalDevelopment", "QA", "Production" })
-                {
-                    settings.activeProfileId = settings.profileSettings.GetProfileId(profileName);
-                    AddressableAssetSettings.BuildPlayerContent(
-                        out AddressablesPlayerBuildResult result);
-                    if (!string.IsNullOrWhiteSpace(result.Error))
-                        throw new InvalidOperationException(
-                            $"Addressables build for '{profileName}' failed: {result.Error}");
-
-                    string rawCatalogPath = settings.profileSettings.GetValueByName(
-                        settings.activeProfileId,
-                        RemoteCatalogBuildPathVariable);
-                    string catalogPath = settings.profileSettings.EvaluateString(
-                        settings.activeProfileId,
-                        rawCatalogPath);
-                    Debug.Log(
-                        $"[Content] Built Windows Addressables profile '{profileName}' " +
-                        $"to stable catalog path '{catalogPath}'.");
-                }
-            }
-            finally
-            {
-                settings.activeProfileId = originalProfile;
-                if (!string.IsNullOrEmpty(originalProfile))
-                {
-                    AddressableAssetSettings.BuildPlayerContent(
-                        out AddressablesPlayerBuildResult activeResult);
-                    if (!string.IsNullOrWhiteSpace(activeResult.Error))
-                        throw new InvalidOperationException(
-                            $"Addressables rebuild for the active profile failed: {activeResult.Error}");
-                }
-                AssetDatabase.SaveAssets();
-            }
-            EditorApplication.Exit(0);
-        }
-        catch (Exception ex)
-        {
-            Debug.LogException(ex);
-            EditorApplication.Exit(1);
-        }
-    }
-
-    public static void ConfigureAndVerifyFromCommandLine()
-    {
-        try
-        {
-            Configure();
-            Verify();
-            EditorApplication.Exit(0);
-        }
-        catch (Exception ex)
-        {
-            Debug.LogException(ex);
-            EditorApplication.Exit(1);
-        }
-    }
-
-    public static void VerifyFromCommandLine()
-    {
-        try
-        {
-            Verify();
-            EditorApplication.Exit(0);
-        }
-        catch (Exception ex)
-        {
-            Debug.LogException(ex);
-            EditorApplication.Exit(1);
-        }
     }
 
     private static void ConfigureProfiles(AddressableAssetSettings settings)
@@ -406,20 +307,6 @@ public static class AddressablesA1ProjectSetup
         EditorUtility.SetDirty(group);
         EditorUtility.SetDirty(bundled);
         EditorUtility.SetDirty(update);
-    }
-
-    private static void ConfigureBootstrapProbe(AddressableAssetSettings settings)
-    {
-        string guid = AssetDatabase.AssetPathToGUID(BootstrapProbePath);
-        if (string.IsNullOrEmpty(guid))
-            throw new InvalidOperationException(
-                $"A1 bootstrap delivery probe is missing: {BootstrapProbePath}");
-        AddressableAssetGroup group = settings.FindGroup("Remote_ClientConfig") ??
-                                      throw new InvalidOperationException(
-                                          "Remote_ClientConfig Group is missing.");
-        AddressableAssetEntry entry = settings.CreateOrMoveEntry(guid, group, false, false);
-        entry.address = BootstrapProbeAddress;
-        entry.SetLabel(BootstrapRequiredLabel, true, false, false);
     }
 
     private static void EnableBootstrapInSampleScene()

@@ -19,7 +19,7 @@ public sealed class ToolSetActivationTests
     [SetUp]
     public void SetUp()
     {
-        _gameObject = new GameObject("H4 ToolsRegistry Test");
+        _gameObject = new GameObject("ToolSet Registry Test");
         _registry = _gameObject.AddComponent<ToolsRegistry>();
     }
 
@@ -92,7 +92,7 @@ public sealed class ToolSetActivationTests
         Assert.Throws<InvalidOperationException>(() => _registry.PrepareToolSet(CandidateFromCurrent(
             "invalid",
             "1.0.0",
-            new[] { HotTool("H4_Invalid", "1.0.0", "1.0.0", HashA, "{}") })));
+            new[] { HotTool("InvalidTool", "1.0.0", "1.0.0", HashA, "{}") })));
         Assert.That(_registry.ActiveSnapshot.Fingerprint, Is.EqualTo(before));
 
         PreparedToolSet stale = _registry.PrepareToolSet(CandidateFromCurrent(
@@ -204,7 +204,7 @@ public sealed class ToolSetActivationTests
     public void CatalogOnlyActivation_ChangesDescriptionsButNotStructuralSchema()
     {
         AgentToolDescriptor before = _registry.GetRuntimeTools().Single(tool => tool.Name == "game_npc_move");
-        string json = CreateCatalogJson(_registry.ActiveSnapshot, "2026.09.002", "H5 更新后的移动描述");
+        string json = CreateCatalogJson(_registry.ActiveSnapshot, "2026.09.002", "更新后的移动描述");
         int changes = 0;
         _registry.ToolsChanged += () => changes++;
 
@@ -213,7 +213,7 @@ public sealed class ToolSetActivationTests
         AgentToolDescriptor after = _registry.GetRuntimeTools().Single(tool => tool.Name == "game_npc_move");
         Assert.That(activated, Is.True);
         Assert.That(changes, Is.EqualTo(1));
-        Assert.That(after.Description, Is.EqualTo("H5 更新后的移动描述"));
+        Assert.That(after.Description, Is.EqualTo("更新后的移动描述"));
         Assert.That(
             ToolSetValidator.ComputeSchemaHash(after.InputSchemaJson),
             Is.EqualTo(ToolSetValidator.ComputeSchemaHash(before.InputSchemaJson)));

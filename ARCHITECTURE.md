@@ -282,8 +282,8 @@ ConversationService
 
 ### 5.1 启动和注册
 
-1. Unity 完成内容 bootstrap，读取 H4 release，只加载活动工具包并发现候选工具。
-2. Unity 联合验证完整 ToolSet 与 H5 三份 JSON Catalog，原子激活后注册
+1. Unity 完成内容 bootstrap，读取 release manifest，只加载活动工具包并发现候选工具。
+2. Unity 联合验证完整 ToolSet 与三份 JSON Catalog，原子激活后注册
    `IAgentEntity` 并生成完整 Manifest。
 3. `RuntimeGatewayClient` 作为 WebSocket 客户端主动连接 Gateway 的
    `/runtime/ws`，并发送 `runtime.initialize`。
@@ -375,7 +375,7 @@ Windows Player 使用 IL2CPP x86_64，HybridCLR 只承载版本化的 NPC 工具
   只能以同一逻辑身份和更高版本重新启用，不得改作无关语义。
 - 参数仍以 JSON 对象跨越 Runtime/MCP 边界。
 
-当前 A2 + H6 启动顺序为：Addressables 内容 bootstrap 读取完整 release manifest，只为
+当前启动顺序为：Addressables 内容 bootstrap 读取完整 release manifest，只为
 候选快照引用的包下载 AOT 补充元数据和经 SHA-256 校验的 DLL；三份 JSON 与全部二进制
 先完成拷贝和校验，再由 `HybridClrToolPackageLoader` 按 metadata、DLL、工具发现的顺序
 构建包候选。内置程序集和选中的热更新程序集只产生发现候选，不直接修改 Registry。
@@ -391,7 +391,7 @@ Gateway 与 A2A 在激活成功后才创建，因此不会发布或执行半套�
 候选失败时 Registry 保持上一完整快照，业务回滚通过下次启动选择上一成功 release
 完成。
 
-H5 将自然语言文案与结构契约分离。`ToolContract<TArgs>` 生成的缓存 Schema 只含
+内容 Catalog 将自然语言文案与结构契约分离。`ToolContract<TArgs>` 生成的缓存 Schema 只含
 类型、必填、范围、模式、枚举和 `additionalProperties` 等结构字段；工具及参数
 description 只从版本化 `tool_metadata.zh-CN.json` 注入。Catalog 使用严格 JSON
 解析，并与候选 ToolSet 联合验证：活动工具和结构参数必须完整覆盖，未知/停用工具、
@@ -405,14 +405,14 @@ ToolSet/Catalog，纯文案更新则只原子交换 Catalog；成功切换只触
 共享同一 `contentVersion`，在 ToolSet 提交前全部完成严格验证，再由
 `ClientTextCatalogs` 一次发布；调用点不保存自然语言 fallback，Catalog 未激活时只
 返回稳定文本键。错误码、协议错误和日志事件名仍固定在代码中。
-A2 将三份 JSON、release manifest、metadata 和工具 DLL 分别交付到
+统一内容候选将三份 JSON、release manifest、metadata 和工具 DLL 分别交付到
 `Remote_ClientConfig`、`Remote_HotfixMetadata` 和 `Remote_ToolPacks`。候选先按
 地址、长度、SHA-256、内容版本和 Player 版本整体验证，再执行 HybridCLR 加载；
 Player 不再包含 `StreamingAssets/HotUpdate` 双来源。
 
 加载失败由 `AgentHostClient` 记录稳定错误码并降级为只运行 AOT BuiltinTools，不改变
 Go/Unity 权威边界。已加载工具包按 packageId、packageVersion 和程序集 hash 幂等缓存；
-失败项不进入缓存，以允许重试。只有 H4 完整快照原子激活后才确认最后成功内容。
+失败项不进入缓存，以允许重试。只有完整快照原子激活后才确认最后成功内容。
 PDB 只进入 Development/QA 的可选加载路径；Production 不把 PDB 地址加入必需下载集，
 正式构建的 staging hook 也会将其排除。
 
@@ -426,15 +426,12 @@ Addressables，只向统一发布链返回 release、ToolSet 和工具候选信�
 
 ### 6.2 Addressables 内容边界
 
-Addressables A0 已冻结资产所有权、稳定逻辑地址和生命周期；完整逐项台账位于
-`Docs/ADDRESSABLES_A0_INVENTORY.md` 和
-`Docs/Baselines/addressables-a0-inventory.json`。A1 已建立 Bootstrap、Remote
-Catalog 和 Profile；A2 已迁移客户端 JSON 与 HybridCLR 交付物；A3 已将 UI 布局、
-样式、PanelSettings、theme 和模板迁入 `Remote_UI`；A4 已将物品
-目录、文案和图标 Atlas 迁入 `Remote_SpritesTextures`；A5 已将 Alice、Ryan 和
-Player 的模型、专属材质/纹理及 Animator/Animation 迁入 `Remote_Characters`。
-A6 已增加本地常驻 `BootstrapScene`，并将首个远端验证场景 Warehouse、场景物件和
-独立 NavMeshData 迁入 `Remote_Scenes`。
+资产所有权、稳定逻辑地址和生命周期已冻结；历史盘点和阶段基线归档在
+`Docs/History/HotUpdate`。当前 Bootstrap、Remote Catalog 和三套部署 Profile 已建立；
+客户端 JSON 与 HybridCLR 交付物由 Addressables 发布；UI、物品表现、角色表现和远端场景
+分别归属 `Remote_UI`、`Remote_SpritesTextures`、`Remote_Characters` 和
+`Remote_Scenes`。本地常驻 `BootstrapScene` 负责最小启动面，Warehouse 及其独立
+NavMeshData 作为远端场景交付。
 
 `ContentReleasePipeline` 是唯一 Production Player/Addressables 候选构建入口，并将
 生产交付固化为候选与提升分离的流水线。完整发布执行 Production
@@ -453,7 +450,7 @@ release 不覆盖、不原地删除，当前指针记录 `previousReleaseId`，�
 上一版本且默认回滚窗口为 30 天。坏 JSON、坏 DLL、缺失文件或预算越界只能使候选失败，
 不得改变生产指针。客户端仍只在完整 ToolSet/Catalog 原子激活后记录最后成功版本。
 
-热更新收束 C0-C4 已将 Editor 构建底座、验证、Smoke 和生产发布改为长期模块职责。公共 Core 统一
+热更新收束已将 Editor 构建底座、验证、Smoke 和生产发布改为长期模块职责。公共 Core 统一
 Addressables Profile 的恢复、Windows Player 构建、SHA-256、候选文件清单和命令行
 退出；`ContentValidationRunner` 以显式规则顺序执行 `Fast`、`Candidate`、`Release`
 或单 `Module` 验证，并写出不含业务敏感数据的结构化 JSON 报告。Project、Ownership、
@@ -464,8 +461,13 @@ smoke，CI 分层保存报告，不把不同运行环境合并为单一测试方
 LocalDevelopment Player；绑定 `TOOL_PACKAGE_SMOKE_SUCCESS` 证据后，才允许
 `ContentReleasePipeline` 构建 Production 候选。生产构建脚本唯一为
 `Build-ContentRelease.ps1`，提升与回滚唯一为 `Publish-ContentRelease.ps1`；候选统一写入
-`Artifacts/Content/<releaseId>`。Runtime、A2A、MCP、Save 与已发布 Release 标识均未改变。冻结证据见
-`Docs/Baselines/hot-update-consolidation-c0.json`。
+`Artifacts/Content/<releaseId>`。运行时只允许
+`ClientContentBootstrap → AddressableHotUpdateReleaseLoader → HybridClrToolPackageLoader`
+交付热更新包；关闭 `enableContentBootstrap` 时仅启用 AOT BuiltinTools，不读取本地
+manifest、DLL、metadata 或 Catalog。工具包 smoke plan 位于 Editor 测试目录，仅在本地
+smoke Player 构建期间临时注入 `StreamingAssets`，构建结束立即清除；Production 构建会
+拒绝任何本地热更新或 smoke staging。Runtime、A2A、MCP、Save 与已发布 Release 标识均未改变。
+冻结证据见 `Docs/History/HotUpdate/Baselines/hot-update-consolidation-c0.json`。
 
 - `SampleScene`、NavMeshData 和第一阶段场景固有材质属于
   `Local_SampleScene`；最小下载/错误 UI 和默认内容属于 `Local_Bootstrap`。
@@ -475,21 +477,21 @@ LocalDevelopment Player；绑定 `TOOL_PACKAGE_SMOKE_SUCCESS` 证据后，才允
   Address 和业务 ID 不得删除后复用；版本化工具二进制地址包含不可复用版本。
 - 每次运行时加载都必须由 bootstrap、catalog、窗口、实体视觉或场景协调器之一
   持有 handle，并在对应生命周期结束时释放。
-- `SampleScene` 对 UI、ItemData 和物品 Sprite 的硬引用已分别在 A3/A4 删除。
+- `SampleScene` 对 UI、ItemData 和物品 Sprite 的远端硬引用已删除。
 - `ItemContentCatalog` 在开放 Inventory、发放器、存档和 Runtime 工具前预加载
   `item/catalog/default`、`item/catalog/text/zh-CN` 和
   `item/icons/core-atlas`，校验已发布 itemId、堆叠规则、文本键和图标映射，
   并持有全部 Addressables lease 到应用退出。Inventory 只同步读取已就绪缓存。
-- A4 的业务定义只保存稳定 `itemId` 和 `MaxStackSize`；名称、描述、
+- 物品业务定义只保存稳定 `itemId` 和 `MaxStackSize`；名称、描述、
   图标 Atlas 与可选 `WorldVisualAddress` 属于表现契约。当前没有已发布的物品世界
   Prefab，因此启动与打开 Inventory 不会下载世界模型。
-- A5 的权威 NPC/Player 根对象继续持有 Entity、NavMesh、Inventory、工具与存档
+- 权威 NPC/Player 根对象继续持有 Entity、NavMesh、Inventory、工具与存档
   组件；其直接子对象 `VisualRoot` 由 `CharacterVisualController` 管理。角色目录只
   保存稳定 `characterId/appearanceId` 与逻辑地址，模型按实体按需实例化，失败时
   保留本地 fallback。每个角色的 Prefab、专属 Material/Texture、Animator
   Controller 和 AnimationClip 使用独立 Addressable entry 与角色 label，实例 lease
   在实体销毁时释放；已实例化模型不在运行中原地替换。
-- A6 的 `RemoteSceneCoordinator` 位于本地 Bootstrap/AOT 层，只通过
+- `RemoteSceneCoordinator` 位于本地 Bootstrap/AOT 层，只通过
   `IContentSceneProvider.LoadSceneAsync` / `UnloadSceneAsync` 管理唯一活动 Scene
   lease。切场前 `AgentHostClient` 冻结新请求、取得对话/存档锁、等待在途工具完成、
   注销旧实体并发布 Manifest；新场景完成 Item/角色目录绑定后才重新开放输入。
@@ -506,23 +508,22 @@ Bundle cache。
 
 启动时 `AgentHostClient` 先冻结 `PlayerMock` 输入并隐藏业务 `UIDocument`，再执行
 Addressables 初始化、Catalog 检查/更新、候选验证、下载和激活。激活之前不会创建
-A2A、Save 或 Runtime Gateway 客户端，不会发布 Runtime Manifest；H4 本地
-release 的完整 ToolSet 也在内容激活之后、网络输入开放之前原子激活。首次离线且无
+A2A、Save 或 Runtime Gateway 客户端，不会发布 Runtime Manifest；release 的完整
+ToolSet 也在内容激活之后、网络输入开放之前原子激活。首次离线且无
 成功缓存时，本地 IMGUI 错误界面保持可见并允许
 重试；有最后成功缓存时可降级继续。`enableContentBootstrap` 是场景级回滚开关。
 
 `ContentAssetProvider` 是 Addressables 唯一运行时入口。资源、实例和场景加载分别
 返回显式 lease，调用方负责释放，Provider 在应用退出时兜底；禁止业务代码获取后
-丢弃裸 handle。A1 的详细基线见 `Docs/ADDRESSABLES_A1_BASELINE.md`。
+丢弃裸 handle。历史实现基线见 `Docs/History/HotUpdate`。
 
-A3 的 `UiContentCatalog` 使用 `content.ui-required` 在启动下载阶段取得
+`UiContentCatalog` 使用 `content.ui-required` 在启动下载阶段取得
 `Remote_UI`，随后预加载稳定 `ui/...` 地址并校验所有代码依赖的 `Q<T>(name)`。
 Catalog 持有共享资产 lease 到应用退出，窗口仅同步克隆并在关闭时移除 VisualTree
 实例；`UIDocument.panelSettings` 也只在 Catalog 就绪后赋值。UI 资源更新不修改已
 打开窗口，当前只在下次启动获取新 Catalog 后生效。运行时赋值 PanelSettings 会
 触发 UIDocument 延迟重建根节点，因此 HUD 只在根节点稳定后挂载，并在根节点再次
-变化时重新挂载。详细地址与契约见
-`Docs/ADDRESSABLES_A3_BASELINE.md`。
+变化时重新挂载。历史地址与迁移证据归档在 `Docs/History/HotUpdate`。
 
 ## 7. 代码地图
 
@@ -548,28 +549,30 @@ Catalog 持有共享资产 lease 到应用退出，窗口仅同步克隆并在�
 | `Assets/Scripts/Networking/A2AClientAdapter.cs` | A2A JSON-RPC/SSE 与 SDK 事件映射 |
 | `Assets/Scripts/Networking/RuntimeGatewayClient.cs` | `IRuntimeTransport` WebSocket 实现 |
 | `Assets/Scripts/Networking/SaveCoordinationClient.cs` | Save Coordination REST Client |
-| `Assets/Scripts/CommandDispatcher/ToolsRegistry.cs` | H4/H5 ToolSet 与 Catalog 两阶段准备/原子激活、Manifest 快照 |
-| `Assets/Scripts/CommandDispatcher/ToolMetadataCatalog.cs` | H5 工具/参数描述 JSON 的严格验证与 Schema 注入 |
+| `Assets/Scripts/CommandDispatcher/ToolsRegistry.cs` | ToolSet 与 Catalog 两阶段准备/原子激活、Manifest 快照 |
+| `Assets/Scripts/CommandDispatcher/ToolMetadataCatalog.cs` | 工具/参数描述 JSON 的严格验证与 Schema 注入 |
 | `Assets/Scripts/CommandDispatcher/ToolSetValidator.cs` | 工具版本、结构 Schema、身份历史和 tombstone 校验 |
 | `Assets/Scripts/CommandDispatcher/CommandDispatcher.cs` | 主线程 Entity 路由和每实体 FIFO |
 | `Assets/Scripts/CommandDispatcher/NpcTool.cs` | Warehouse 工具适配基类 |
 | `Assets/Scripts/Gameplay/NpcEntity.cs` | NPC 生命周期、NavMesh 行为和结果 |
-| `Assets/Scripts/Gameplay/ClientTextCatalog.cs` | H5 agent/UI 稳定文本键 Catalog 与活动快照 |
+| `Assets/Scripts/Gameplay/ClientTextCatalog.cs` | agent/UI 稳定文本键 Catalog 与活动快照 |
 | `Assets/Scripts/Gameplay/Inventory` | 稳定 AOT 库存能力与视图模型 |
 | `Assets/Scripts/Tools` | AOT BuiltinTools 实现 |
-| `Assets/Scripts/Networking/HybridClrBootstrap.cs` | H4 release manifest、AOT metadata 和候选工具包加载 |
+| `Assets/Scripts/Networking/HotUpdateReleaseModels.cs` | 已加载工具包和 ToolSet release 的运行时模型 |
+| `Assets/Scripts/Networking/AddressableHotUpdateReleaseLoader.cs` | release manifest、Catalog 与候选工具包加载 |
 | `Assets/Scripts/Networking/ClientContentBootstrap.cs` | Addressables 启动状态机、缓存降级和内容激活门控 |
 | `Assets/Scripts/Networking/ContentAssetProvider.cs` | Addressables 初始化、Catalog、下载、加载和 handle lease |
 | `Assets/Scripts/Networking/ContentBootstrapOverlay.cs` | 不依赖远端内容的本地错误、进度与重试 UI |
-| `Assets/HotUpdate/SmokeTest` | H3 建立、由 H4 release 选择的本地多工具 Smoke Tool Pack |
-| `Assets/Content/Catalogs` | H5 工具元数据、Agent 消息和 UI 文本 JSON 源文件 |
-| `Assets/Content/HotUpdate` | A2 Addressables 源交付物：AOT metadata、版本化工具 DLL/PDB 和 release manifest |
-| `Assets/Editor/HybridClrProjectSetup.cs` | HybridCLR 配置、生成、带包身份的 staging 和 Player 构建 |
-| `Assets/Editor/AddressablesA0InventoryValidator.cs` | A0 资产所有权、地址和场景硬引用基线校验 |
-| `Assets/Editor/AddressablesA1ProjectSetup.cs` | A1 Profile、Group、Remote Catalog 配置、校验和多 Profile 构建 |
+| `Assets/HotUpdate/SmokeTest` | 由 release 选择的本地多工具 Smoke Tool Pack |
+| `Assets/Content/Catalogs` | 工具元数据、Agent 消息和 UI 文本 JSON 源文件 |
+| `Assets/Content/HotUpdate` | Addressables 源交付物：AOT metadata、版本化工具 DLL 和 release manifest |
+| `Assets/Editor/HybridClrProjectSetup.cs` | HybridCLR 配置、生成和带包身份的候选 staging |
 | `Assets/Editor/HotUpdate/Core` | 公共命令行、Profile scope、Player builder、Hash 和候选文件清单 |
 | `Assets/Editor/HotUpdate/Validation` | 模块验证规则、Profile 编排和结构化报告 |
-| `Assets/Tests/Editor/ToolPackRegistrationTests.cs` | H3 发现、原子提交、冲突拒绝和幂等验证 |
+| `Assets/Editor/HotUpdate/Migrations` | 显式项目修复、资产迁移和候选 staging；生产 Pipeline 不隐式调用 Setup |
+| `Assets/Editor/HotUpdate/Tests` | 分层 smoke 编排及不进入 Production 的测试数据 |
+| `Assets/Editor/HotUpdate/Release` | 唯一 Production 候选构建与工具包门禁 |
+| `Assets/Tests/Editor/ToolPackRegistrationTests.cs` | 工具发现、原子提交、冲突拒绝和幂等验证 |
 | `Packages/com.gamewithllm.agent-runtime/Runtime` | SDK 公共契约 |
 
 移动或重命名 Unity 资源时必须同时移动 `.meta` 并保留 GUID。

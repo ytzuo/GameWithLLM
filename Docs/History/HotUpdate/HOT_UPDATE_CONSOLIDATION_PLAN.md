@@ -1,6 +1,6 @@
 # 热更新开发收束计划
 
-> 状态：实施中（C0-C4 已完成）
+> 状态：已完成（C0-C6，2026-09-27）
 > 创建日期：2026-09-26  
 > 适用项目：`unity-NPC-agent-client`  
 > 前置条件：HybridCLR H0-H7、Addressables A0-A7 已完成  
@@ -512,6 +512,12 @@ Docs/HOT_UPDATE_CONSOLIDATION_PLAN.md
 
 ### C5：生产路径清理
 
+> 完成记录（2026-09-27）：生产运行时已删除本地 HybridCLR loader 与场景开关；禁用
+> 内容 bootstrap 时仅注册 AOT BuiltinTools。A1 delivery probe 和 label 已删除；工具包
+> smoke plan 移入 Editor 测试数据并只在本地 smoke Player 构建期间临时 staging。
+> 阶段类、菜单、命令行入口、生产日志和错误已改为模块语义，Production 构建会拒绝
+> `StreamingAssets/HotUpdate` 与 smoke staging。
+
 1. 移除本地 HybridCLR runtime fallback。
 2. 移除 A1 probe。
 3. 将 smoke plan 移出 Production StreamingAssets。
@@ -519,6 +525,11 @@ Docs/HOT_UPDATE_CONSOLIDATION_PLAN.md
 5. 删除旧 A/H 菜单和命令行入口。
 
 ### C6：文档与磁盘清理
+
+> 完成记录（2026-09-27）：已新增 Operations 与 Release Checklist，同步
+> `ARCHITECTURE.md`，阶段计划、Baseline 与冻结证据已归档到
+> `Docs/History/HotUpdate`。本地可再生成的 Builds、HybridCLRData、ServerData、Logs、
+> Temp 与 Artifacts 已在验证证据确认后清理；收束计划随历史资料归档。
 
 1. 编写 Operations 和 Release Checklist。
 2. 将阶段 Baseline 移入 History。

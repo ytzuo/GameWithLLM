@@ -141,8 +141,9 @@ Transport 公共类型。网络客户端、Registry、Dispatcher、UI 和具体�
 | `Assets/Scripts/CommandDispatcher/CommandDispatcher.cs` | 主线程路由和每实体 FIFO |
 | `Assets/Scripts/CommandDispatcher/NpcTool.cs` | Warehouse `IAgentTool` 适配基类 |
 | `Assets/Scripts/Gameplay/NpcEntity.cs` | Entity、NavMesh 与长时行为 |
-| `Assets/Scripts/Networking/HybridClrBootstrap.cs` | H4 release manifest、AOT 元数据、包哈希校验和候选加载 |
-| `Assets/HotUpdate/SmokeTest` | H3 建立、由 H4 release 选择的本地多工具 Smoke Tool Pack |
+| `Assets/Scripts/Networking/AddressableHotUpdateReleaseLoader.cs` | release manifest、AOT 元数据、包哈希校验和候选加载 |
+| `Assets/Scripts/Networking/HotUpdateReleaseModels.cs` | 已加载工具包和 ToolSet release 运行时模型 |
+| `Assets/HotUpdate/SmokeTest` | 由 release 选择的本地多工具 Smoke Tool Pack |
 | `Packages/com.gamewithllm.agent-runtime/Runtime` | SDK 公共契约 |
 
 移动或重命名 Unity 资源时必须同时移动 `.meta` 并保留 GUID。

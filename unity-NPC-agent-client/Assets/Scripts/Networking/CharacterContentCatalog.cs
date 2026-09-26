@@ -23,7 +23,7 @@ public sealed class CharacterAppearanceDefinition
     public IReadOnlyList<string> TextureAddresses { get; internal set; }
 }
 
-// A5 目录只保存稳定业务 ID 与逻辑地址，不直接引用任何角色资源。
+// 角色目录只保存稳定业务 ID 与逻辑地址，不直接引用任何角色资源。
 // 因此加载目录不会隐式下载所有模型，具体 Prefab 由实体 VisualRoot 按需实例化。
 public sealed class CharacterContentCatalog : IDisposable
 {

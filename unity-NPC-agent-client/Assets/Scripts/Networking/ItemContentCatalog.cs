@@ -13,7 +13,7 @@ public static class ItemContentIds
     public const string TextCatalog = "item/catalog/text/zh-CN";
 }
 
-// A4 的运行时边界：启动期加载目录与 UI 图标，不加载世界模型。
+// 物品内容的运行时边界：启动期加载目录与 UI 图标，不加载世界模型。
 // Catalog 独占所有 lease，因此 Inventory 只同步读取已验证的缓存。
 public sealed class ItemContentCatalog : IDisposable
 {

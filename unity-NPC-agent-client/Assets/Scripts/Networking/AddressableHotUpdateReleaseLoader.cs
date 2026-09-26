@@ -63,7 +63,7 @@ public sealed class HotUpdateReleaseManifest
     public ToolHistoryDeclaration[] toolHistory;
 }
 
-// A2 的候选加载器。所有 Addressable bytes 都先复制并完成长度/hash/JSON 校验，
+// 候选加载器。所有 Addressable bytes 都先复制并完成长度/hash/JSON 校验，
 // 之后才调用 HybridCLR 或 Assembly.Load，避免损坏候选产生半套运行时状态。
 public sealed class AddressableHotUpdateReleaseLoader : IHotUpdateReleaseLoader
 {
@@ -90,7 +90,7 @@ public sealed class AddressableHotUpdateReleaseLoader : IHotUpdateReleaseLoader
             await _provider.LoadAssetAsync<TextAsset>(ManifestAddress, cancellationToken);
         string json = lease.Asset != null
             ? lease.Asset.text
-            : throw new InvalidDataException("The A2 release manifest TextAsset is null.");
+            : throw new InvalidDataException("The release manifest TextAsset is null.");
         HotUpdateReleaseManifest manifest;
         try
         {
@@ -105,7 +105,7 @@ public sealed class AddressableHotUpdateReleaseLoader : IHotUpdateReleaseLoader
         }
         catch (JsonException ex)
         {
-            throw new InvalidDataException("The A2 release manifest is invalid JSON.", ex);
+            throw new InvalidDataException("The release manifest is invalid JSON.", ex);
         }
         ValidateManifest(manifest);
         return manifest;
@@ -126,7 +126,7 @@ public sealed class AddressableHotUpdateReleaseLoader : IHotUpdateReleaseLoader
                 $"Release '{manifest.releaseId}' is not compatible with Player '{Application.version}'.");
         }
 #if !UNITY_EDITOR && !UNITY_STANDALONE_WIN
-        throw new PlatformNotSupportedException("A2 hot-update releases support Windows players only.");
+        throw new PlatformNotSupportedException("Hot-update releases support Windows players only.");
 #endif
     }
 
@@ -207,16 +207,16 @@ public sealed class AddressableHotUpdateReleaseLoader : IHotUpdateReleaseLoader
             string.IsNullOrWhiteSpace(manifest.playerBuildId) ||
             string.IsNullOrWhiteSpace(manifest.minPlayerVersion) ||
             string.IsNullOrWhiteSpace(manifest.maxPlayerVersion))
-            throw new InvalidDataException("A2 release manifest header is incomplete or inconsistent.");
+            throw new InvalidDataException("Release manifest header is incomplete or inconsistent.");
         manifest.catalogs ??= Array.Empty<HotUpdateCatalogDeclaration>();
         manifest.aotMetadata ??= Array.Empty<HotUpdateArtifactDeclaration>();
         manifest.toolPackages ??= Array.Empty<HotUpdateToolPackageDeclaration>();
         manifest.activeTools ??= Array.Empty<ToolReleaseDeclaration>();
         if (manifest.catalogs.Length != 3 || manifest.aotMetadata.Length == 0)
-            throw new InvalidDataException("A2 release must contain three catalogs and AOT metadata.");
+            throw new InvalidDataException("Release must contain three catalogs and AOT metadata.");
         var catalogIds = new HashSet<string>(manifest.catalogs.Select(item => item.catalogId), StringComparer.Ordinal);
         if (!catalogIds.SetEquals(new[] { ToolMetadataId, AgentMessagesId, UiId }))
-            throw new InvalidDataException("A2 release catalog set is incomplete.");
+            throw new InvalidDataException("Release catalog set is incomplete.");
         var addresses = new HashSet<string>(StringComparer.Ordinal);
         foreach (HotUpdateArtifactDeclaration artifact in EnumerateArtifacts(manifest))
         {
@@ -225,7 +225,7 @@ public sealed class AddressableHotUpdateReleaseLoader : IHotUpdateReleaseLoader
                 artifact.sha256 == null || artifact.sha256.Length != 64 ||
                 artifact.sha256.Any(character => !Uri.IsHexDigit(character)) ||
                 !addresses.Add(artifact.address))
-                throw new InvalidDataException("A2 release contains an invalid or duplicate artifact.");
+                throw new InvalidDataException("Release contains an invalid or duplicate artifact.");
             if (Path.GetFileName(artifact.fileName) != artifact.fileName)
                 throw new InvalidDataException($"Invalid artifact file name '{artifact.fileName}'.");
         }
@@ -234,7 +234,7 @@ public sealed class AddressableHotUpdateReleaseLoader : IHotUpdateReleaseLoader
             if (package == null || string.IsNullOrWhiteSpace(package.packageId) ||
                 string.IsNullOrWhiteSpace(package.packageVersion) ||
                 string.IsNullOrWhiteSpace(package.assemblyName) || package.assembly == null)
-                throw new InvalidDataException("A2 tool package declaration is incomplete.");
+                throw new InvalidDataException("Tool package declaration is incomplete.");
         }
         var selectedPackages = new HashSet<string>(manifest.activeTools
             .Where(tool => string.Equals(tool.source, "hot-update", StringComparison.Ordinal))
@@ -244,7 +244,7 @@ public sealed class AddressableHotUpdateReleaseLoader : IHotUpdateReleaseLoader
         {
             string key = package.packageId + "\n" + package.packageVersion;
             if (!declaredPackages.Add(key))
-                throw new InvalidDataException($"Duplicate A2 tool package '{package.packageId}'.");
+                throw new InvalidDataException($"Duplicate tool package '{package.packageId}'.");
             ToolReleaseDeclaration[] packageTools = manifest.activeTools.Where(tool =>
                 string.Equals(tool.source, "hot-update", StringComparison.Ordinal) &&
                 string.Equals(tool.packageId, package.packageId, StringComparison.Ordinal) &&
@@ -253,10 +253,10 @@ public sealed class AddressableHotUpdateReleaseLoader : IHotUpdateReleaseLoader
                     !string.Equals(tool.assemblyName, package.assemblyName, StringComparison.Ordinal) ||
                     !string.Equals(tool.assemblyHash, package.assembly.sha256, StringComparison.OrdinalIgnoreCase)))
                 throw new InvalidDataException(
-                    $"A2 package '{package.packageId}' does not match its active tool declarations.");
+                    $"Package '{package.packageId}' does not match its active tool declarations.");
         }
         if (!selectedPackages.SetEquals(declaredPackages))
-            throw new InvalidDataException("A2 release package set does not match the selected ToolSet.");
+            throw new InvalidDataException("Release package set does not match the selected ToolSet.");
     }
 
     private static void ValidateArtifact(HotUpdateArtifactDeclaration artifact, byte[] bytes)

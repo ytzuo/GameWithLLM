@@ -105,7 +105,7 @@ public sealed class ClientContentBootstrapTests
             });
         LogAssert.Expect(
             LogType.Error,
-            "[Content] A2 release 'unknown' was rejected; using builtin tools and default text keys " +
+            "[Content] Release 'unknown' was rejected; using builtin tools and default text keys " +
             "(code=HOT_UPDATE_CANDIDATE_REJECTED): corrupt manifest");
 
         ClientContentBootstrapResult result =

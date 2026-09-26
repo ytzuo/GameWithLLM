@@ -34,7 +34,7 @@ public static class RemoteScenePackedPlaySmoke
     {
         try
         {
-            AddressablesA6ProjectSetup.Verify();
+            SceneContentSetup.Verify();
             AddressableAssetSettings settings = AddressableAssetSettingsDefaultObject.Settings ??
                                                 throw new InvalidOperationException("Addressables settings are missing.");
             SessionState.SetInt(OriginalBuilderKey, settings.ActivePlayerDataBuilderIndex);
@@ -111,7 +111,7 @@ public static class RemoteScenePackedPlaySmoke
                         FindObjectsInactive.Include, FindObjectsSortMode.None).Count(player => player.enabled) != 1 ||
                     UnityEngine.Object.FindObjectsByType<NpcEntity>(
                         FindObjectsInactive.Exclude, FindObjectsSortMode.None).Length < 1)
-                    throw new InvalidOperationException("A6 remote warehouse runtime boundary is invalid.");
+                    throw new InvalidOperationException("Remote warehouse runtime boundary is invalid.");
                 _returnTask = coordinator.ReturnToBootstrapAsync(CancellationToken.None);
                 return;
             }
@@ -133,7 +133,7 @@ public static class RemoteScenePackedPlaySmoke
                         FindObjectsInactive.Include, FindObjectsSortMode.None).Length != 0 ||
                     UnityEngine.Object.FindObjectsByType<NpcEntity>(
                         FindObjectsInactive.Include, FindObjectsSortMode.None).Length != 0)
-                    throw new InvalidOperationException("A6 remote scene did not release back to Bootstrap.");
+                    throw new InvalidOperationException("Remote scene did not release back to Bootstrap.");
                 Debug.Log("[Scenes] REMOTE_SCENE_PACKED_PLAY_SUCCESS: remote load, bind, unload and failed-candidate Bootstrap fallback verified.");
                 BeginFinish(true);
                 return;
@@ -142,7 +142,7 @@ public static class RemoteScenePackedPlaySmoke
             if (double.TryParse(SessionState.GetString(DeadlineKey, "0"), NumberStyles.Float,
                     CultureInfo.InvariantCulture, out double deadline) &&
                 EditorApplication.timeSinceStartup >= deadline)
-                throw new TimeoutException("Timed out waiting for the A6 remote scene lifecycle.");
+                throw new TimeoutException("Timed out waiting for the remote scene lifecycle.");
         }
         catch (Exception ex)
         {
@@ -168,7 +168,7 @@ public static class RemoteScenePackedPlaySmoke
             rejected = true;
         }
         if (!rejected)
-            throw new InvalidOperationException("Missing A6 candidate unexpectedly activated.");
+            throw new InvalidOperationException("Missing scene candidate unexpectedly activated.");
     }
 
     private static void BeginFinish(bool success)
