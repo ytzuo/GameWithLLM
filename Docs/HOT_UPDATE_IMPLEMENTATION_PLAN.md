@@ -1,6 +1,6 @@
 # 客户端热更新实施计划
 
-> 状态：H0-H7、A0-A6 已完成；A7 及后续阶段待实施
+> 状态：H0-H7、A0-A7 已完成
 > 创建日期：2026-09-21  
 > 适用项目：`unity-NPC-agent-client`（Unity `6000.3.19f1`，Windows）  
 > 实施范围：第一部分 HybridCLR；第二部分 Addressables
@@ -932,6 +932,13 @@ USS、图标和模板可独立更新。
 - 场景更新失败时仍可返回本地 Bootstrap Scene。
 
 ## A7：Addressables CI/CD、差量更新和回滚
+
+> 完成记录（2026-09-26）：已增加锁定 Production Profile 的完整发布与基于归档
+> `addressables_content_state.bin` 的内容更新候选；统一门禁覆盖 A1-A6、H7、JSON、
+> Address/业务 ID、Group/Label、AOT 身份、Resources/Build Settings 重复、Missing
+> Script 与 Build Layout 预算。候选逐文件记录长度和 SHA-256；独立提升脚本要求全新
+> 安装或已有安装升级以及断网、缓存命中、磁盘不足、断点重试证据，先落不可变版本，
+> 最后原子切换 `current.json`，并保留上一版本用于回滚。
 
 ### 目标
 

@@ -1,0 +1,38 @@
+name: Addressables A7 promote or rollback
+
+on:
+  workflow_dispatch:
+    inputs:
+      candidate_directory:
+        description: Absolute candidate or retained release directory on the protected publisher
+        required: true
+        type: string
+      publish_root:
+        description: Absolute immutable content publish root
+        required: true
+        type: string
+      rollback:
+        description: Switch current.json to an already retained release
+        required: true
+        default: false
+        type: boolean
+
+jobs:
+  promote:
+    environment: production-content
+    runs-on: [self-hosted, Windows, X64, content-publisher]
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify candidate and switch pointer last
+        shell: pwsh
+        env:
+          A7_CANDIDATE_DIRECTORY: ${{ inputs.candidate_directory }}
+          A7_PUBLISH_ROOT: ${{ inputs.publish_root }}
+          A7_ROLLBACK: ${{ inputs.rollback }}
+        run: |
+          $rollback = [bool]::Parse($env:A7_ROLLBACK)
+          ./Scripts/Promote-A7Release.ps1 `
+            -CandidateDirectory $env:A7_CANDIDATE_DIRECTORY `
+            -PublishRoot $env:A7_PUBLISH_ROOT `
+            -Rollback:$rollback

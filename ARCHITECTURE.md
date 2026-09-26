@@ -438,6 +438,22 @@ Player 的模型、专属材质/纹理及 Animator/Animation 迁入 `Remote_Char
 A6 已增加本地常驻 `BootstrapScene`，并将首个远端验证场景 Warehouse、场景物件和
 独立 NavMeshData 迁入 `Remote_Scenes`。
 
+A7 将 Addressables 生产交付固化为候选与提升分离的流水线。完整发布执行 Production
+Clean Build 和 Windows IL2CPP Player Build；内容更新必须显式提供与 Player 匹配的
+归档 `addressables_content_state.bin`，先检查 Content Update Restrictions，再执行
+Update a Previous Build。两种候选共同执行 A1-A6/H7 门禁、严格 JSON、全局 Address、
+业务 ID、Group/Label、AOT build id、Resources/Build Settings 重复和 Missing Script
+检查，并以 Build Layout 限制重复隐式依赖、Bundle 数、补丁体积、最大 Bundle 与估算
+峰值内存。候选清单记录 Unity/Addressables/Player 身份以及每个 Player、Bundle、Catalog
+和 content state 文件的长度与 SHA-256。
+
+生产提升与构建进程隔离。提升端只有在候选 hash 未变化，且全新安装或已有安装升级、
+断点重试、断网、缓存命中和磁盘不足证据齐全后，才按 Bundle/JSON/DLL、Catalog、版本化
+候选清单的顺序写入新的不可变 release 目录；`current.json` 始终最后原子替换。已发布
+release 不覆盖、不原地删除，当前指针记录 `previousReleaseId`，服务端至少保留当前与
+上一版本且默认回滚窗口为 30 天。坏 JSON、坏 DLL、缺失文件或预算越界只能使候选失败，
+不得改变生产指针。客户端仍只在完整 ToolSet/Catalog 原子激活后记录最后成功版本。
+
 - `SampleScene`、NavMeshData 和第一阶段场景固有材质属于
   `Local_SampleScene`；最小下载/错误 UI 和默认内容属于 `Local_Bootstrap`。
 - 客户端 JSON、AOT metadata、版本化工具 DLL、UI、物品表现、角色表现和附加

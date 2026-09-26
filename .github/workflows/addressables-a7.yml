@@ -1,0 +1,66 @@
+name: Addressables A7 candidate
+
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: Candidate type
+        required: true
+        type: choice
+        options: [Full, ContentUpdate]
+      baseline_content_state:
+        description: Absolute archived content_state.bin path for ContentUpdate
+        required: false
+        type: string
+  push:
+    branches: [main]
+    paths:
+      - "unity-NPC-agent-client/Assets/Content/**"
+      - "unity-NPC-agent-client/Assets/Editor/AddressablesA*.cs"
+      - "unity-NPC-agent-client/Assets/Scripts/**"
+      - "unity-NPC-agent-client/Packages/**"
+      - "Scripts/Build-A7Release.ps1"
+      - ".github/workflows/addressables-a7.yml"
+
+jobs:
+  candidate:
+    runs-on: [self-hosted, Windows, X64, unity-6000.3.19f1]
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          lfs: true
+      - name: Verify publish and rollback transaction
+        shell: pwsh
+        run: ./Scripts/Test-A7Promotion.ps1
+      - name: Resolve candidate mode
+        id: candidate
+        shell: pwsh
+        run: |
+          $mode = '${{ inputs.mode }}'
+          if (-not $mode) { $mode = 'Full' }
+          "mode=$mode" >> $env:GITHUB_OUTPUT
+      - name: Build and gate candidate
+        shell: pwsh
+        env:
+          A7_UNITY_EXE: ${{ vars.UNITY_6000_3_19F1_EXE }}
+          A7_LICENSING_IPC: ${{ vars.UNITY_LICENSING_IPC }}
+          A7_MODE: ${{ steps.candidate.outputs.mode }}
+          A7_BASELINE: ${{ inputs.baseline_content_state }}
+        run: |
+          ./Scripts/Build-A7Release.ps1 `
+            -UnityExe $env:A7_UNITY_EXE `
+            -LicensingIpc $env:A7_LICENSING_IPC `
+            -Mode $env:A7_MODE `
+            -BaselineContentState $env:A7_BASELINE
+      - name: Upload immutable candidate for environment smoke tests
+        uses: actions/upload-artifact@v4
+        with:
+          name: addressables-a7-${{ github.sha }}
+          if-no-files-found: error
+          retention-days: 30
+          path: |
+            Artifacts/A7/**
+            unity-NPC-agent-client/Builds/AddressablesA7Production/**
+            unity-NPC-agent-client/ServerData/production/StandaloneWindows64/**
+            unity-NPC-agent-client/Logs/a7-*.log

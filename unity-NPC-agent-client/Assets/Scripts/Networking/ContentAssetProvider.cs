@@ -109,7 +109,9 @@ public sealed class ContentAssetProvider : IContentAssetProvider, IContentSceneP
         if (catalogIds == null || catalogIds.Count == 0)
             return;
 
-        // A1 明确不自动清旧 Bundle cache；A7 再引入清理策略。
+        // A7 的回滚窗口要求保留上一成功版本，因此 catalog 切换时禁止 eager cleanup。
+        // Group 的 ClearWhenSpaceIsNeededInCache 只在 Unity Cache 面临空间压力时驱逐；
+        // 服务端 immutable release/previousReleaseId 负责可重新下载的回滚来源。
         AsyncOperationHandle<List<IResourceLocator>> handle =
             Addressables.UpdateCatalogs(false, catalogIds, false);
         try
