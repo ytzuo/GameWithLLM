@@ -16,20 +16,20 @@ using UnityEditor.SceneManagement;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 
-public static class AddressablesA7ReleasePipeline
+public static class ContentReleasePipeline
 {
-    private const string PolicyPath = "Assets/Content/HotUpdate/a7-release-policy.json";
+    private const string PolicyPath = "Assets/Content/HotUpdate/content-release-policy.json";
     private const string ReleaseManifestPath = "Assets/Content/HotUpdate/release-manifest.json";
     private const string ProfileName = "Production";
     private const string BuildTargetName = "StandaloneWindows64";
     private const string ContentStateName = "addressables_content_state.bin";
 
-    [MenuItem("GameWithLLM/Hot Update/A7/Verify Production Gate")]
+    [MenuItem("GameWithLLM/Content/Validate Release Candidate")]
     public static void VerifyProductionGate()
     {
         ContentValidationReport report = ContentValidationRunner.Run(ContentValidationProfile.Candidate);
         ContentValidationRunner.ThrowIfFailed(report);
-        Debug.Log("[Content] A7_PRODUCTION_GATE_SUCCESS: release inputs and compatibility are valid.");
+        Debug.Log("[Release] CANDIDATE_GATE_SUCCESS: release inputs and compatibility are valid.");
     }
 
     public static void ValidateReleaseInputs()
@@ -44,12 +44,13 @@ public static class AddressablesA7ReleasePipeline
         ReadPolicy();
     }
 
-    [MenuItem("GameWithLLM/Hot Update/A7/Build Full Release Candidate")]
+    [MenuItem("GameWithLLM/Content/Build Full Release Candidate")]
     public static void BuildFullReleaseCandidate()
     {
         HybridClrProjectSetup.GenerateAndStageForPipeline(false);
         AddressablesA2ProjectSetup.StageAndConfigure();
         VerifyProductionGate();
+        VerifyToolPackageSmokeEvidence();
         AddressableAssetSettings settings = Settings();
         WithProductionProfile(settings, () =>
         {
@@ -62,18 +63,19 @@ public static class AddressablesA7ReleasePipeline
         });
         string player = BuildProductionPlayer();
         WriteCandidate("full", null, player);
-        Debug.Log("[Content] A7_FULL_CANDIDATE_READY: immutable full release is ready for smoke testing.");
+        Debug.Log("[Release] FULL_CANDIDATE_READY: immutable full release is ready for environment smoke testing.");
     }
 
-    [MenuItem("GameWithLLM/Hot Update/A7/Build Content Update Candidate")]
+    [MenuItem("GameWithLLM/Content/Build Content Update Candidate")]
     public static void BuildContentUpdateCandidate()
     {
         HybridClrProjectSetup.GenerateAndStageForPipeline(false);
         AddressablesA2ProjectSetup.StageAndConfigure();
         VerifyProductionGate();
-        string baseline = Environment.GetEnvironmentVariable("A7_CONTENT_STATE_PATH");
+        VerifyToolPackageSmokeEvidence();
+        string baseline = Environment.GetEnvironmentVariable("CONTENT_BASELINE_STATE_PATH");
         if (string.IsNullOrWhiteSpace(baseline) || !File.Exists(baseline))
-            throw new BuildFailedException("A7_CONTENT_STATE_PATH must name the archived Player baseline content_state.bin.");
+            throw new BuildFailedException("CONTENT_BASELINE_STATE_PATH must name the archived Player baseline content_state.bin.");
         baseline = Path.GetFullPath(baseline);
         ValidateBaseline(baseline);
         AddressableAssetSettings settings = Settings();
@@ -88,12 +90,11 @@ public static class AddressablesA7ReleasePipeline
             BuildAddressables(() => ContentUpdateScript.BuildContentUpdate(settings, baseline));
         });
         WriteCandidate("content-update", baseline, null);
-        Debug.Log("[Content] A7_UPDATE_CANDIDATE_READY: delta release is ready for existing-install testing.");
+        Debug.Log("[Release] UPDATE_CANDIDATE_READY: delta release is ready for existing-install testing.");
     }
 
-    public static void VerifyProductionGateFromCommandLine() => RunCommand(VerifyProductionGate);
-    public static void BuildFullReleaseCandidateFromCommandLine() => RunCommand(BuildFullReleaseCandidate);
-    public static void BuildContentUpdateCandidateFromCommandLine() => RunCommand(BuildContentUpdateCandidate);
+    public static void BuildFullFromCommandLine() => RunCommand(BuildFullReleaseCandidate);
+    public static void BuildUpdateFromCommandLine() => RunCommand(BuildContentUpdateCandidate);
 
     private static void VerifyProfile(AddressableAssetSettings settings)
     {
@@ -127,12 +128,12 @@ public static class AddressablesA7ReleasePipeline
             "Remote_SpritesTextures", "Remote_Materials", "Remote_Characters", "Remote_Scenes" };
         foreach (string group in groups)
             if (settings.FindGroup(group) == null)
-                throw new InvalidDataException($"Required A7 Group '{group}' is missing.");
+                throw new InvalidDataException($"Required content Group '{group}' is missing.");
         string[] labels = { "content.client-config", "content.release-manifest", "content.hotfix-metadata",
             "content.hotfix-tools", "content.ui", "content.items", "content.characters", "content.scenes" };
         foreach (string label in labels)
             if (!settings.GetLabels().Contains(label))
-                throw new InvalidDataException($"Required A7 Label '{label}' is missing.");
+                throw new InvalidDataException($"Required content Label '{label}' is missing.");
     }
 
     private static void VerifyJsonAndBusinessIds()
@@ -220,9 +221,25 @@ public static class AddressablesA7ReleasePipeline
             !string.Equals((string)baseline["playerBuildId"], (string)release["playerBuildId"], StringComparison.Ordinal) ||
             !string.Equals((string)baseline["contentStateSha256"], ArtifactHash.Sha256File(contentStatePath),
                 StringComparison.OrdinalIgnoreCase))
-            throw new BuildFailedException("A7 content state does not match the Unity/Addressables/Player baseline.");
+            throw new BuildFailedException("Content state does not match the Unity/Addressables/Player baseline.");
         if (string.Equals((string)baseline["releaseId"], (string)release["releaseId"], StringComparison.Ordinal))
-            throw new BuildFailedException("A7 content update must use a new immutable releaseId.");
+            throw new BuildFailedException("Content update must use a new immutable releaseId.");
+    }
+
+    private static void VerifyToolPackageSmokeEvidence()
+    {
+        JObject release = ReadObject(ReleaseManifestPath);
+        string path = Path.Combine(
+            RepositoryRoot(), "Artifacts", "Content", RequiredString(release, "releaseId"),
+            "tool-package-smoke.passed.json");
+        JObject evidence = ReadObject(path);
+        if ((int?)evidence["schemaVersion"] != 1 ||
+            !string.Equals((string)evidence["releaseId"], (string)release["releaseId"], StringComparison.Ordinal) ||
+            !string.Equals((string)evidence["toolSetVersion"], (string)release["toolSetVersion"], StringComparison.Ordinal) ||
+            !string.Equals((string)evidence["manifestSha256"], ArtifactHash.Sha256File(ReleaseManifestPath),
+                StringComparison.OrdinalIgnoreCase) ||
+            !string.Equals((string)evidence["successMarker"], "TOOL_PACKAGE_SMOKE_SUCCESS", StringComparison.Ordinal))
+            throw new BuildFailedException("Tool package Player smoke evidence is missing, stale, or invalid.");
     }
 
     private static int CountMissing(GameObject root) =>
@@ -236,17 +253,17 @@ public static class AddressablesA7ReleasePipeline
             UnityEditor.AddressableAssets.Settings.ProjectConfigData.ReportFileFormat.JSON;
         AddressablesPlayerBuildResult result = build();
         if (result == null || !string.IsNullOrWhiteSpace(result.Error))
-            throw new BuildFailedException("A7 Addressables build failed: " + (result?.Error ?? "no result"));
+            throw new BuildFailedException("Release Addressables build failed: " + (result?.Error ?? "no result"));
         List<AnalyzeRule.AnalyzeResult> analysis = new CheckBundleDupeDependencies().RefreshAnalysis(Settings());
         string[] issues = analysis.Where(item => item.severity == MessageType.Warning || item.severity == MessageType.Error)
             .Select(item => item.resultName).Where(item => !string.IsNullOrWhiteSpace(item)).ToArray();
         if (issues.Length > 0)
-            throw new BuildFailedException("A7 duplicate dependency Analyze failed: " + string.Join("; ", issues));
+            throw new BuildFailedException("Release duplicate dependency Analyze failed: " + string.Join("; ", issues));
     }
 
     private static string BuildProductionPlayer()
     {
-        string output = Path.GetFullPath(Path.Combine(Application.dataPath, "..", "Builds", "AddressablesA7Production", "GameWithLLM.exe"));
+        string output = Path.GetFullPath(Path.Combine(Application.dataPath, "..", "Builds", "ContentReleaseProduction", "GameWithLLM.exe"));
         AddressableAssetSettings settings = Settings();
         return WindowsPlayerBuilder.Build(settings, ProfileName, output,
             EditorBuildSettings.scenes.Where(item => item.enabled).Select(item => item.path),
@@ -259,8 +276,11 @@ public static class AddressablesA7ReleasePipeline
         JObject policy = ReadPolicy();
         string releaseId = RequiredString(release, "releaseId");
         string root = RepositoryRoot();
-        string candidateDirectory = Path.Combine(root, "Artifacts", "A7", releaseId);
+        string candidateDirectory = Path.Combine(root, "Artifacts", "Content", releaseId);
         Directory.CreateDirectory(candidateDirectory);
+        string toolPackageEvidence = Path.Combine(candidateDirectory, "tool-package-smoke.passed.json");
+        if (!File.Exists(toolPackageEvidence))
+            throw new FileNotFoundException("Tool package smoke evidence is missing.", toolPackageEvidence);
         string serverDirectory = Path.GetFullPath(Path.Combine(Application.dataPath, "..", "ServerData", "production", BuildTargetName));
         if (!Directory.Exists(serverDirectory))
             throw new DirectoryNotFoundException("Production Addressables output is missing: " + serverDirectory);
@@ -301,6 +321,8 @@ public static class AddressablesA7ReleasePipeline
             ["unityVersion"] = Application.unityVersion,
             ["addressablesVersion"] = "2.9.1",
             ["commit"] = Environment.GetEnvironmentVariable("GITHUB_SHA") ?? "local",
+            ["toolPackageSmokeEvidence"] = "tool-package-smoke.passed.json",
+            ["toolPackageSmokeEvidenceSha256"] = ArtifactHash.Sha256File(toolPackageEvidence),
             ["baselineContentStateSha256"] = string.IsNullOrWhiteSpace(baseline) ? null : ArtifactHash.Sha256File(baseline),
             ["contentStateSha256"] = ArtifactHash.Sha256File(archivedState),
             ["bundleCount"] = bundles.Length,
@@ -334,7 +356,7 @@ public static class AddressablesA7ReleasePipeline
         string layout = Path.GetFullPath(Path.Combine(Application.dataPath, "..", "Library",
             "com.unity.addressables", "buildlayout.json"));
         if (!File.Exists(layout))
-            throw new FileNotFoundException("A7 requires the Addressables JSON Build Layout report.", layout);
+            throw new FileNotFoundException("Release candidate requires the Addressables JSON Build Layout report.", layout);
         JToken root = JToken.Parse(File.ReadAllText(layout));
         return root.SelectTokens("$..DuplicatedAssets")
             .OfType<JArray>()
@@ -344,7 +366,7 @@ public static class AddressablesA7ReleasePipeline
 
     private static void EnforceBudget(string name, long actual, long maximum)
     {
-        if (actual > maximum) throw new BuildFailedException($"A7 {name} budget exceeded: {actual} > {maximum}.");
+        if (actual > maximum) throw new BuildFailedException($"Release {name} budget exceeded: {actual} > {maximum}.");
     }
 
     private static JObject ReadPolicy()
@@ -352,7 +374,7 @@ public static class AddressablesA7ReleasePipeline
         JObject policy = ReadObject(PolicyPath);
         if ((int?)policy["schemaVersion"] != 1 || policy["budgets"] is not JObject ||
             (int?)policy["retentionDays"] < 1 || (int?)policy["minimumRetainedReleases"] < 2)
-            throw new InvalidDataException("A7 release policy is invalid.");
+            throw new InvalidDataException("Content release policy is invalid.");
         return policy;
     }
 
@@ -373,13 +395,13 @@ public static class AddressablesA7ReleasePipeline
     }
 
     private static JObject ReadObject(string path) => File.Exists(path) ? JObject.Parse(File.ReadAllText(path)) :
-        throw new FileNotFoundException("Required A7 file is missing: " + path, path);
+        throw new FileNotFoundException("Required content release file is missing: " + path, path);
 
     private static string RequiredString(JObject value, string property)
     {
         string result = (string)value?[property];
         return !string.IsNullOrWhiteSpace(result) ? result :
-            throw new InvalidDataException($"Required A7 field '{property}' is missing.");
+            throw new InvalidDataException($"Required content release field '{property}' is missing.");
     }
 
     private static string RepositoryRoot() => new ContentBuildContext().RepositoryRoot;

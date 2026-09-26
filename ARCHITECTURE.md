@@ -416,15 +416,13 @@ Go/Unity 权威边界。已加载工具包按 packageId、packageVersion 和程�
 PDB 只进入 Development/QA 的可选加载路径；Production 不把 PDB 地址加入必需下载集，
 正式构建的 staging hook 也会将其排除。
 
-H7 将该边界固化为两阶段发布流水线。候选阶段锁定 Unity `6000.3.19f1`、
+`ToolPackageReleaseGate` 固化工具包生产门禁，锁定 Unity `6000.3.19f1`、
 HybridCLR `8.14.1` 与 Windows x86_64 IL2CPP，重新生成 AOT/metadata/tool pack，读取
 实际 DLL 的 AssemblyRef 并按白名单拒绝越界依赖，再联合验证历史工具指纹、JSON
 Catalog、规范化 Schema 快照和 Player build id。真实 Player 从本地 Addressables
-端点启动，执行 `h7-smoke-plan.json` 中每个要求的调用，并确认所有 tombstone 不再
-出现在 Manifest、能力枚举或执行路由中。只有带 smoke 证据的候选才能构建 Production
-内容和产物 hash 清单；上传不可变文件后由独立脚本原子替换 `current.json`，失败阶段
-永不修改生产指针。H7 只负责 HybridCLR 候选门禁，完整 CDN 差量发布与保留窗口仍由
-A7 负责。
+端点启动，执行 `tool-package-smoke-plan.json` 中每个要求的调用，并确认所有 tombstone
+不再出现在 Manifest、能力枚举或执行路由中。门禁本身不构建 Production Player 或
+Addressables，只向统一发布链返回 release、ToolSet 和工具候选信息。
 
 ### 6.2 Addressables 内容边界
 
@@ -438,10 +436,11 @@ Player 的模型、专属材质/纹理及 Animator/Animation 迁入 `Remote_Char
 A6 已增加本地常驻 `BootstrapScene`，并将首个远端验证场景 Warehouse、场景物件和
 独立 NavMeshData 迁入 `Remote_Scenes`。
 
-A7 将 Addressables 生产交付固化为候选与提升分离的流水线。完整发布执行 Production
+`ContentReleasePipeline` 是唯一 Production Player/Addressables 候选构建入口，并将
+生产交付固化为候选与提升分离的流水线。完整发布执行 Production
 Clean Build 和 Windows IL2CPP Player Build；内容更新必须显式提供与 Player 匹配的
 归档 `addressables_content_state.bin`，先检查 Content Update Restrictions，再执行
-Update a Previous Build。两种候选共同执行 A1-A6/H7 门禁、严格 JSON、全局 Address、
+Update a Previous Build。两种候选共同执行 Candidate 模块门禁、严格 JSON、全局 Address、
 业务 ID、Group/Label、AOT build id、Resources/Build Settings 重复和 Missing Script
 检查，并以 Build Layout 限制重复隐式依赖、Bundle 数、补丁体积、最大 Bundle 与估算
 峰值内存。候选清单记录 Unity/Addressables/Player 身份以及每个 Player、Bundle、Catalog
@@ -454,15 +453,18 @@ release 不覆盖、不原地删除，当前指针记录 `previousReleaseId`，�
 上一版本且默认回滚窗口为 30 天。坏 JSON、坏 DLL、缺失文件或预算越界只能使候选失败，
 不得改变生产指针。客户端仍只在完整 ToolSet/Catalog 原子激活后记录最后成功版本。
 
-热更新收束 C0-C2 已将 Editor 构建底座与验证编排改为长期模块职责。公共 Core 统一
+热更新收束 C0-C4 已将 Editor 构建底座、验证、Smoke 和生产发布改为长期模块职责。公共 Core 统一
 Addressables Profile 的恢复、Windows Player 构建、SHA-256、候选文件清单和命令行
 退出；`ContentValidationRunner` 以显式规则顺序执行 `Fast`、`Candidate`、`Release`
 或单 `Module` 验证，并写出不含业务敏感数据的结构化 JSON 报告。Project、Ownership、
 Catalogs、UI、Items、Characters、Scenes、ToolPackages 和 Release 各自返回独立
 Module/RuleId/失败信息；验证器不调用 Setup，并在规则执行后恢复 Editor Scene setup。
-A7 门禁只消费 Candidate Profile，不再逐个调用阶段类。C3/C4 完成以前旧 H7/A7 构建
-入口仍是有效兼容入口，生产发布链尚未宣称完成唯一化；Runtime、A2A、MCP、Save 与
-已发布 Release 标识均未改变。冻结证据见
+`ContentSmokeRunner` 按运行环境选择 Bootstrap、UI/Inventory、Scene 或 Tool Package
+smoke，CI 分层保存报告，不把不同运行环境合并为单一测试方法。工具包 smoke 只构建
+LocalDevelopment Player；绑定 `TOOL_PACKAGE_SMOKE_SUCCESS` 证据后，才允许
+`ContentReleasePipeline` 构建 Production 候选。生产构建脚本唯一为
+`Build-ContentRelease.ps1`，提升与回滚唯一为 `Publish-ContentRelease.ps1`；候选统一写入
+`Artifacts/Content/<releaseId>`。Runtime、A2A、MCP、Save 与已发布 Release 标识均未改变。冻结证据见
 `Docs/Baselines/hot-update-consolidation-c0.json`。
 
 - `SampleScene`、NavMeshData 和第一阶段场景固有材质属于

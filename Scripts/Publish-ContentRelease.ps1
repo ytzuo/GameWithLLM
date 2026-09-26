@@ -22,29 +22,35 @@ function Resolve-ContainedPath {
 
 $candidate = (Resolve-Path -LiteralPath $CandidateDirectory).Path
 $manifestPath = Join-Path $candidate 'candidate-manifest.json'
-$evidencePath = Join-Path $candidate 'a7-smoke.passed.json'
+$evidencePath = Join-Path $candidate 'content-release-smoke.passed.json'
 if (-not (Test-Path -LiteralPath $manifestPath -PathType Leaf) -or
     -not (Test-Path -LiteralPath $evidencePath -PathType Leaf)) {
-    throw 'A7 candidate manifest and smoke evidence are both required.'
+    throw 'Content candidate manifest and environment smoke evidence are both required.'
 }
 $manifest = Get-Content -Raw -LiteralPath $manifestPath | ConvertFrom-Json
 $evidence = Get-Content -Raw -LiteralPath $evidencePath | ConvertFrom-Json
 $manifestHash = (Get-FileHash -Algorithm SHA256 -LiteralPath $manifestPath).Hash.ToLowerInvariant()
+$toolEvidencePath = Join-Path $candidate $manifest.toolPackageSmokeEvidence
+if (-not (Test-Path -LiteralPath $toolEvidencePath -PathType Leaf) -or
+    (Get-FileHash -Algorithm SHA256 -LiteralPath $toolEvidencePath).Hash.ToLowerInvariant() -ne
+        $manifest.toolPackageSmokeEvidenceSha256) {
+    throw 'Tool package smoke evidence is missing or changed after candidate creation.'
+}
 $requiredScenarios = @('offline', 'cache-hit', 'low-disk', 'interrupted-retry')
 if ($manifest.releaseKind -eq 'full') {
     $requiredScenarios += 'fresh-install'
 } elseif ($manifest.releaseKind -eq 'content-update') {
     $requiredScenarios += 'existing-install-upgrade'
 } else {
-    throw "Unknown A7 release kind '$($manifest.releaseKind)'."
+    throw "Unknown content release kind '$($manifest.releaseKind)'."
 }
 if ($evidence.schemaVersion -ne 1 -or $evidence.releaseId -ne $manifest.releaseId -or
-    $evidence.candidateManifestSha256 -ne $manifestHash -or $evidence.successMarker -ne 'A7_SMOKE_SUCCESS') {
-    throw 'A7 smoke evidence is stale or does not describe this successful candidate.'
+    $evidence.candidateManifestSha256 -ne $manifestHash -or $evidence.successMarker -ne 'CONTENT_RELEASE_SMOKE_SUCCESS') {
+    throw 'Content release smoke evidence is stale or does not describe this successful candidate.'
 }
 $passed = @($evidence.scenarios | Where-Object { $_.passed } | ForEach-Object { $_.name })
 foreach ($scenario in $requiredScenarios) {
-    if ($passed -notcontains $scenario) { throw "A7 smoke scenario '$scenario' did not pass." }
+    if ($passed -notcontains $scenario) { throw "Content release smoke scenario '$scenario' did not pass." }
 }
 
 $publish = [IO.Path]::GetFullPath($PublishRoot)
@@ -94,7 +100,9 @@ if (-not $Rollback -and -not $releaseAlreadyPresent) {
             Copy-Item -LiteralPath $source -Destination $destination
         }
         Copy-Item -LiteralPath $manifestPath -Destination (Join-Path $staging 'candidate-manifest.json')
-        Copy-Item -LiteralPath $evidencePath -Destination (Join-Path $staging 'a7-smoke.passed.json')
+        Copy-Item -LiteralPath $evidencePath -Destination (Join-Path $staging 'content-release-smoke.passed.json')
+        Copy-Item -LiteralPath $toolEvidencePath -Destination `
+            (Join-Path $staging $manifest.toolPackageSmokeEvidence)
         Move-Item -LiteralPath $staging -Destination $releaseDirectory
     }
     catch {
@@ -120,8 +128,8 @@ $pointer = [ordered]@{
     rollback = [bool]$Rollback
 }
 $temporary = Join-Path $publish ("current.{0}.tmp" -f [Guid]::NewGuid().ToString('N'))
-if ($PSCmdlet.ShouldProcess($currentPath, "atomically publish A7 release '$($manifest.releaseId)'")) {
+if ($PSCmdlet.ShouldProcess($currentPath, "atomically publish content release '$($manifest.releaseId)'")) {
     $pointer | ConvertTo-Json | Set-Content -LiteralPath $temporary -Encoding utf8
     Move-Item -LiteralPath $temporary -Destination $currentPath -Force
 }
-Write-Output "A7 release '$($manifest.releaseId)' published; previous release '$previous' remains retained."
+Write-Output "Content release '$($manifest.releaseId)' published; previous release '$previous' remains retained."

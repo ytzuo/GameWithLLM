@@ -1,6 +1,6 @@
 # 热更新开发收束计划
 
-> 状态：实施中（C0-C2 已完成）
+> 状态：实施中（C0-C4 已完成）
 > 创建日期：2026-09-26  
 > 适用项目：`unity-NPC-agent-client`  
 > 前置条件：HybridCLR H0-H7、Addressables A0-A7 已完成  
@@ -487,12 +487,22 @@ Docs/HOT_UPDATE_CONSOLIDATION_PLAN.md
 
 ### C3：测试入口统一
 
+> 完成记录（2026-09-26）：Bootstrap、Tool Package、UI/Inventory、Scene 和 Release
+> smoke 已切换到模块命名；`ContentSmokeRunner` 统一选择独立运行层，CI 分开执行静态验证、
+> EditMode 和两类 Packed Play smoke 并分别保存证据。H2-H5 独立 Smoke Player 构建入口、
+> 旧命令行 flag 和阶段成功标记已删除。
+
 1. 重命名 Bootstrap、Tool Package、UI/Inventory、Scene 和 Release smoke。
 2. 建立统一 `ContentSmokeRunner`。
 3. CI 按层执行并汇总报告，不将不同运行环境合并为单一测试方法。
 4. 移除 H2-H5 历史 Smoke Player 构建入口。
 
 ### C4：唯一生产发布链
+
+> 完成记录（2026-09-26）：`ToolPackageReleaseGate` 只返回门禁结果和工具包候选信息；
+> `ContentReleasePipeline` 是唯一 Production Addressables/Player 候选构建入口。本地工具包
+> Player smoke 先产生与 release manifest 绑定的证据，生产候选随后才可构建。构建、发布、
+> 事务测试脚本和三条 CI workflow 已统一为 Content 命名，旧 H7/A7 workflow 与提升脚本已删除。
 
 1. `ToolPackageReleaseGate` 只返回验证结果和工具候选信息。
 2. `ContentReleasePipeline` 成为唯一 Production Player/Addressables 候选构建入口。

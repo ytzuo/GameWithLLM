@@ -1,4 +1,4 @@
-name: Addressables A7 candidate
+name: Content release candidate
 
 on:
   workflow_dispatch:
@@ -16,11 +16,11 @@ on:
     branches: [main]
     paths:
       - "unity-NPC-agent-client/Assets/Content/**"
-      - "unity-NPC-agent-client/Assets/Editor/AddressablesA*.cs"
+      - "unity-NPC-agent-client/Assets/Editor/HotUpdate/**"
       - "unity-NPC-agent-client/Assets/Scripts/**"
       - "unity-NPC-agent-client/Packages/**"
-      - "Scripts/Build-A7Release.ps1"
-      - ".github/workflows/addressables-a7.yml"
+      - "Scripts/Build-ContentRelease.ps1"
+      - ".github/workflows/content-release-candidate.yml"
 
 jobs:
   candidate:
@@ -30,9 +30,12 @@ jobs:
       - uses: actions/checkout@v4
         with:
           lfs: true
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
       - name: Verify publish and rollback transaction
         shell: pwsh
-        run: ./Scripts/Test-A7Promotion.ps1
+        run: ./Scripts/Test-ContentReleaseTransaction.ps1
       - name: Resolve candidate mode
         id: candidate
         shell: pwsh
@@ -43,24 +46,24 @@ jobs:
       - name: Build and gate candidate
         shell: pwsh
         env:
-          A7_UNITY_EXE: ${{ vars.UNITY_6000_3_19F1_EXE }}
-          A7_LICENSING_IPC: ${{ vars.UNITY_LICENSING_IPC }}
-          A7_MODE: ${{ steps.candidate.outputs.mode }}
-          A7_BASELINE: ${{ inputs.baseline_content_state }}
+          CONTENT_UNITY_EXE: ${{ vars.UNITY_6000_3_19F1_EXE }}
+          CONTENT_LICENSING_IPC: ${{ vars.UNITY_LICENSING_IPC }}
+          CONTENT_MODE: ${{ steps.candidate.outputs.mode }}
+          CONTENT_BASELINE: ${{ inputs.baseline_content_state }}
         run: |
-          ./Scripts/Build-A7Release.ps1 `
-            -UnityExe $env:A7_UNITY_EXE `
-            -LicensingIpc $env:A7_LICENSING_IPC `
-            -Mode $env:A7_MODE `
-            -BaselineContentState $env:A7_BASELINE
+          ./Scripts/Build-ContentRelease.ps1 `
+            -UnityExe $env:CONTENT_UNITY_EXE `
+            -LicensingIpc $env:CONTENT_LICENSING_IPC `
+            -Mode $env:CONTENT_MODE `
+            -BaselineContentState $env:CONTENT_BASELINE
       - name: Upload immutable candidate for environment smoke tests
         uses: actions/upload-artifact@v4
         with:
-          name: addressables-a7-${{ github.sha }}
+          name: content-release-${{ github.sha }}
           if-no-files-found: error
           retention-days: 30
           path: |
-            Artifacts/A7/**
-            unity-NPC-agent-client/Builds/AddressablesA7Production/**
+            Artifacts/Content/**
+            unity-NPC-agent-client/Builds/ContentReleaseProduction/**
             unity-NPC-agent-client/ServerData/production/StandaloneWindows64/**
-            unity-NPC-agent-client/Logs/a7-*.log
+            unity-NPC-agent-client/Logs/content-*.log

@@ -1,4 +1,4 @@
-name: Addressables A7 promote or rollback
+name: Content release publish or rollback
 
 on:
   workflow_dispatch:
@@ -27,12 +27,12 @@ jobs:
       - name: Verify candidate and switch pointer last
         shell: pwsh
         env:
-          A7_CANDIDATE_DIRECTORY: ${{ inputs.candidate_directory }}
-          A7_PUBLISH_ROOT: ${{ inputs.publish_root }}
-          A7_ROLLBACK: ${{ inputs.rollback }}
+          CONTENT_CANDIDATE_DIRECTORY: ${{ inputs.candidate_directory }}
+          CONTENT_PUBLISH_ROOT: ${{ inputs.publish_root }}
+          CONTENT_ROLLBACK: ${{ inputs.rollback }}
         run: |
-          $rollback = [bool]::Parse($env:A7_ROLLBACK)
-          ./Scripts/Promote-A7Release.ps1 `
-            -CandidateDirectory $env:A7_CANDIDATE_DIRECTORY `
-            -PublishRoot $env:A7_PUBLISH_ROOT `
+          $rollback = [bool]::Parse($env:CONTENT_ROLLBACK)
+          ./Scripts/Publish-ContentRelease.ps1 `
+            -CandidateDirectory $env:CONTENT_CANDIDATE_DIRECTORY `
+            -PublishRoot $env:CONTENT_PUBLISH_ROOT `
             -Rollback:$rollback

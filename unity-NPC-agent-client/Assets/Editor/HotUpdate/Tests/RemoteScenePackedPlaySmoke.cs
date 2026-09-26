@@ -11,7 +11,7 @@ using UnityEngine;
 using UnityEngine.SceneManagement;
 
 [InitializeOnLoad]
-public static class AddressablesA6PackedPlaySmoke
+public static class RemoteScenePackedPlaySmoke
 {
     private const string ActiveKey = "GameWithLLM.A6PackedPlay.Active";
     private const string FinishingKey = "GameWithLLM.A6PackedPlay.Finishing";
@@ -24,7 +24,7 @@ public static class AddressablesA6PackedPlaySmoke
     private static Task _returnTask;
     private static Task _fallbackTask;
 
-    static AddressablesA6PackedPlaySmoke()
+    static RemoteScenePackedPlaySmoke()
     {
         if (SessionState.GetBool(ActiveKey, false))
             Bind();
@@ -134,7 +134,7 @@ public static class AddressablesA6PackedPlaySmoke
                     UnityEngine.Object.FindObjectsByType<NpcEntity>(
                         FindObjectsInactive.Include, FindObjectsSortMode.None).Length != 0)
                     throw new InvalidOperationException("A6 remote scene did not release back to Bootstrap.");
-                Debug.Log("[Content] Addressables A6 PACKED PLAY PASSED: remote load, bind, unload and failed-candidate Bootstrap fallback verified.");
+                Debug.Log("[Scenes] REMOTE_SCENE_PACKED_PLAY_SUCCESS: remote load, bind, unload and failed-candidate Bootstrap fallback verified.");
                 BeginFinish(true);
                 return;
             }
@@ -199,7 +199,7 @@ public static class AddressablesA6PackedPlaySmoke
         if (success) EditorApplication.Exit(0);
         else
         {
-            Debug.LogError("[Content] Addressables A6 Packed Play failed: " + failure);
+            Debug.LogError("[Scenes] REMOTE_SCENE_PACKED_PLAY_FAILED: " + failure);
             EditorApplication.Exit(1);
         }
     }

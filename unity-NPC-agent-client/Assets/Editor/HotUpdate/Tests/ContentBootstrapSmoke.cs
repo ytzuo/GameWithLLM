@@ -5,7 +5,7 @@ using UnityEditor.SceneManagement;
 using UnityEngine;
 
 [InitializeOnLoad]
-public static class AddressablesA1PlayModeSmoke
+public static class ContentBootstrapSmoke
 {
     private const string LastSuccessKey = "gamewithllm.content.last-success.v1";
     private const string ActiveSessionKey = "gamewithllm.a1-smoke.active";
@@ -14,7 +14,7 @@ public static class AddressablesA1PlayModeSmoke
     private const string ExitCodeSessionKey = "gamewithllm.a1-smoke.exit-code";
     private const string ModeSessionKey = "gamewithllm.a1-smoke.mode";
 
-    static AddressablesA1PlayModeSmoke()
+    static ContentBootstrapSmoke()
     {
         if (SessionState.GetBool(ActiveSessionKey, false))
             AttachPoller();
@@ -98,7 +98,7 @@ public static class AddressablesA1PlayModeSmoke
                         "Offline bootstrap failure has no active local error overlay.");
 
                 Debug.Log(
-                    "[Content] A1 OFFLINE UI READY: no success marker, runtime/game blocked, " +
+                    "[Content] BOOTSTRAP_OFFLINE_UI_READY: no success marker, runtime/game blocked, " +
                     "local retry overlay active.");
                 Finish(0);
                 return;
@@ -118,8 +118,8 @@ public static class AddressablesA1PlayModeSmoke
                         $"Unexpected final content state: {host.ContentBootstrapState}.");
 
                 Debug.Log(mode == "offline"
-                    ? "[Content] A1 OFFLINE CACHE READY: cached catalog/probe activated and runtime/game/UI enabled."
-                    : "[Content] A1 PLAY MODE READY: required remote probe downloaded, runtime/game/UI enabled.");
+                    ? "[Content] BOOTSTRAP_OFFLINE_CACHE_READY: cached content activated and runtime/game/UI enabled."
+                    : "[Content] BOOTSTRAP_ONLINE_READY: required remote content downloaded, runtime/game/UI enabled.");
                 Finish(0);
                 return;
             }
@@ -131,7 +131,7 @@ public static class AddressablesA1PlayModeSmoke
             {
                 string state = host == null ? "host-missing" : host.ContentBootstrapState.ToString();
                 throw new TimeoutException(
-                    $"A1 Play Mode bootstrap did not become ready; state={state}.");
+                    $"Content bootstrap did not become ready; state={state}.");
             }
         }
         catch (Exception ex)

@@ -8,7 +8,7 @@ using UnityEditor.SceneManagement;
 using UnityEngine;
 
 [InitializeOnLoad]
-public static class AddressablesA3PackedPlaySmoke
+public static class UiInventoryPackedPlaySmoke
 {
     private const double TimeoutSeconds = 90;
     private const string ActiveKey = "GameWithLLM.A3PackedPlay.Active";
@@ -21,7 +21,7 @@ public static class AddressablesA3PackedPlaySmoke
     private const string HudConfirmationFrameKey = "GameWithLLM.A3PackedPlay.HudConfirmationFrame";
     private static bool _bound;
 
-    static AddressablesA3PackedPlaySmoke()
+    static UiInventoryPackedPlaySmoke()
     {
         if (SessionState.GetBool(ActiveKey, false))
             Bind();
@@ -197,12 +197,12 @@ public static class AddressablesA3PackedPlaySmoke
 
         if (succeeded)
         {
-            Debug.Log("[Content] Addressables A3 Packed Play Mode smoke passed.");
+            Debug.Log("[Content] UI_INVENTORY_PACKED_PLAY_SUCCESS: UI and inventory content passed.");
             EditorApplication.Exit(0);
         }
         else
         {
-            Debug.LogError("[Content] Addressables A3 Packed Play Mode smoke failed: " + failure);
+            Debug.LogError("[Content] UI_INVENTORY_PACKED_PLAY_FAILED: " + failure);
             EditorApplication.Exit(1);
         }
     }

@@ -53,7 +53,7 @@ public sealed class ContentCatalogValidator : ContentValidationRule
 public sealed class ToolPackageValidator : ContentValidationRule
 {
     public ToolPackageValidator(Action<ContentValidationContext> validation = null)
-        : base(validation ?? (_ => HybridClrH7ReleasePipeline.ValidateProductionGate())) { }
+        : base(validation ?? (_ => ToolPackageReleaseGate.ValidateCandidate())) { }
     public override string RuleId => "ToolPackageGate";
     public override string Module => "ToolPackages";
 }
@@ -93,7 +93,7 @@ public sealed class SceneContentValidator : ContentValidationRule
 public sealed class ReleaseBudgetValidator : ContentValidationRule
 {
     public ReleaseBudgetValidator(Action<ContentValidationContext> validation = null)
-        : base(validation ?? (_ => AddressablesA7ReleasePipeline.ValidateReleaseInputs())) { }
+        : base(validation ?? (_ => ContentReleasePipeline.ValidateReleaseInputs())) { }
     public override string RuleId => "ReleaseInputs";
     public override string Module => "Release";
 }
