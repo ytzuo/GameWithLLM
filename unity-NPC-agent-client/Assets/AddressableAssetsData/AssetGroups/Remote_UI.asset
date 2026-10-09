@@ -15,6 +15,18 @@ MonoBehaviour:
   m_GroupName: Remote_UI
   m_GUID: 676ffb6e7351de94a90cb15a6e8e9451
   m_SerializeEntries:
+  - m_GUID: 0d0f6e7cfa5c4a5b9ac4f9476a69c1b8
+    m_Address: ui/window/npc-library
+    m_ReadOnly: 0
+    m_SerializedLabels:
+    - content.ui-required
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 7be164aa909a4a5290fa6fdb918698f1
+    m_Address: ui/style/npc-library
+    m_ReadOnly: 0
+    m_SerializedLabels:
+    - content.ui-required
+    FlaggedDuringContentUpdateRestriction: 0
   - m_GUID: 0771d2d524697f447b7fbbf5c500c276
     m_Address: ui/template/chat/opponent-message
     m_ReadOnly: 0

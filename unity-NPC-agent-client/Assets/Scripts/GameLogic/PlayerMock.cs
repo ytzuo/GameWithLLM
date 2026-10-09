@@ -64,6 +64,10 @@ public class PlayerMock : MonoBehaviour, IGameplayWorldTarget
     private SaveGameWindow _saveGameWindow;
     private SaveGameService _saveGameService;
 
+    // ── Remote NPC library ──
+    private InputAction _npcLibraryAction; // M key
+    private NpcLibraryWindow _npcLibraryWindow;
+
     // ──────────────────────────────────────────────────────
     //  Lifecycle
     // ──────────────────────────────────────────────────────
@@ -86,6 +90,7 @@ public class PlayerMock : MonoBehaviour, IGameplayWorldTarget
         // E —— 打开物品发放器
         _dispenserAction = new InputAction("Dispenser", InputActionType.Button, "<Keyboard>/e", null, null, null);
         _saveGameAction = new InputAction("SaveGame", InputActionType.Button, "<Keyboard>/g", null, null, null);
+        _npcLibraryAction = new InputAction("NpcLibrary", InputActionType.Button, "<Keyboard>/m", null, null, null);
 
         _onInteract = _ => OnInteract();
         _onCloseChat = _ => OnCloseChat();
@@ -96,6 +101,7 @@ public class PlayerMock : MonoBehaviour, IGameplayWorldTarget
         _openInventoryAction.performed += OnOpenInventory;
         _dispenserAction.performed += OnOpenDispenser;
         _saveGameAction.performed += OnOpenSaveGame;
+        _npcLibraryAction.performed += OnOpenNpcLibrary;
 
         if (npcEntities == null)
             npcEntities = new List<NpcEntity>();
@@ -125,6 +131,8 @@ public class PlayerMock : MonoBehaviour, IGameplayWorldTarget
             _dispenserAction.Disable();
         if (_saveGameAction != null)
             _saveGameAction.Disable();
+        if (_npcLibraryAction != null)
+            _npcLibraryAction.Disable();
     }
 
     private void OnDestroy()
@@ -169,6 +177,12 @@ public class PlayerMock : MonoBehaviour, IGameplayWorldTarget
             _saveGameAction.Dispose();
             _saveGameAction = null;
         }
+        if (_npcLibraryAction != null)
+        {
+            _npcLibraryAction.performed -= OnOpenNpcLibrary;
+            _npcLibraryAction.Dispose();
+            _npcLibraryAction = null;
+        }
     }
 
     // ──────────────────────────────────────────────────────
@@ -185,6 +199,7 @@ public class PlayerMock : MonoBehaviour, IGameplayWorldTarget
             _openInventoryAction?.Disable();
             _dispenserAction?.Disable();
             _saveGameAction?.Disable();
+            _npcLibraryAction?.Disable();
             Cursor.visible = true;
             Cursor.lockState = CursorLockMode.None;
         }
@@ -196,6 +211,7 @@ public class PlayerMock : MonoBehaviour, IGameplayWorldTarget
             _openInventoryAction?.Enable();
             _dispenserAction?.Enable();
             _saveGameAction?.Enable();
+            _npcLibraryAction?.Enable();
             Cursor.visible = false;
             Cursor.lockState = CursorLockMode.Locked;
         }
@@ -287,6 +303,10 @@ public class PlayerMock : MonoBehaviour, IGameplayWorldTarget
             if (_saveGameWindow.IsBusy) return;
             _saveGameWindow.Close();
         }
+        if (_npcLibraryWindow != null && _npcLibraryWindow.IsOpen)
+        {
+            _npcLibraryWindow.Close();
+        }
 
         if (_chatWindow != null && _chatWindow.IsOpen)
         {
@@ -299,6 +319,24 @@ public class PlayerMock : MonoBehaviour, IGameplayWorldTarget
     }
 
     private void OnChatWindowClosed()
+    {
+        SwitchToGameplayMode();
+    }
+
+    private void OnOpenNpcLibrary(InputAction.CallbackContext ctx)
+    {
+        if (_npcLibraryWindow != null && _npcLibraryWindow.IsOpen) return;
+        if (UIManager.Instance == null || NpcLibraryServices.Current == null)
+        {
+            Debug.LogWarning("PlayerMock: NPC 资料库服务或 UIManager 不可用。");
+            return;
+        }
+        if (!_isUiMode) SwitchToUiMode();
+        _npcLibraryWindow = UIManager.Instance.OpenNewWindow<NpcLibraryWindow>();
+        _npcLibraryWindow.Closed += OnNpcLibraryClosed;
+    }
+
+    private void OnNpcLibraryClosed()
     {
         SwitchToGameplayMode();
     }
@@ -652,6 +690,11 @@ public class PlayerMock : MonoBehaviour, IGameplayWorldTarget
             _saveGameWindow.RetrySyncRequested -= OnRetrySaveSyncRequested;
             _saveGameWindow.LoadRequested -= OnLoadSaveRequested;
             _saveGameWindow = null;
+        }
+        if (_npcLibraryWindow != null)
+        {
+            _npcLibraryWindow.Closed -= OnNpcLibraryClosed;
+            _npcLibraryWindow = null;
         }
     }
 }

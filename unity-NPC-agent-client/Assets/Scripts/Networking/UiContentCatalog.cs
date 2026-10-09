@@ -14,6 +14,7 @@ public static class UiContentIds
     public const string InventoryWindow = "ui/window/inventory";
     public const string ItemDispenserWindow = "ui/window/item-dispenser";
     public const string SaveGameWindow = "ui/window/save-game";
+    public const string NpcLibraryWindow = "ui/window/npc-library";
     public const string SystemMessageTemplate = "ui/template/chat/system-message";
     public const string PlayerMessageTemplate = "ui/template/chat/player-message";
     public const string OpponentMessageTemplate = "ui/template/chat/opponent-message";
@@ -33,6 +34,7 @@ public sealed class UiContentCatalog : IDisposable
         UiContentIds.InventoryWindow,
         UiContentIds.ItemDispenserWindow,
         UiContentIds.SaveGameWindow,
+        UiContentIds.NpcLibraryWindow,
         UiContentIds.SystemMessageTemplate,
         UiContentIds.PlayerMessageTemplate,
         UiContentIds.OpponentMessageTemplate,
@@ -186,6 +188,18 @@ public static class UiContentContractValidator
                 E<Label>("save-status"), E<Button>("save-create"),
                 E<Button>("save-overwrite"), E<Button>("save-retry"),
                 E<Button>("save-load"), E<Button>("save-close")
+            },
+            [UiContentIds.NpcLibraryWindow] = new[]
+            {
+                E<Button>("npc-library-installed-tab"), E<Button>("npc-library-discover-tab"),
+                E<TextField>("npc-library-search"), E<Label>("npc-library-search-placeholder"),
+                E<ScrollView>("npc-library-scroll"),
+                E<VisualElement>("npc-library-grid"), E<VisualElement>("npc-library-state"),
+                E<Label>("npc-library-state-icon"), E<Button>("npc-library-retry"),
+                E<Button>("npc-library-close"), E<ScrollView>("npc-library-detail-copy-scroll"),
+                E<VisualElement>("npc-library-detail-avatar"), E<Label>("npc-library-detail-name"),
+                E<Label>("npc-library-detail-description"), E<Label>("npc-library-status"),
+                E<ProgressBar>("npc-library-progress"), E<Button>("npc-library-action")
             },
             [UiContentIds.SystemMessageTemplate] = new[] { E<Label>("message-text") },
             [UiContentIds.PlayerMessageTemplate] = new[] { E<Label>("message-text") },

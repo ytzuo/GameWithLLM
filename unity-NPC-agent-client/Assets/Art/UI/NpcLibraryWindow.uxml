@@ -1,0 +1,55 @@
+<ui:UXML xmlns:ui="UnityEngine.UIElements">
+    <Style src="project://database/Assets/Art/UI/NpcLibraryStyle.uss" />
+    <ui:VisualElement name="npc-library-root" class="npc-library-root">
+        <ui:VisualElement class="npc-library-panel">
+            <ui:VisualElement class="npc-library-header">
+                <ui:VisualElement class="npc-library-title-block">
+                    <ui:Label text="NPC 资料库" class="npc-library-title" />
+                    <ui:Label text="发现角色，加入场景" class="npc-library-kicker" />
+                </ui:VisualElement>
+                <ui:Button name="npc-library-close" text="×" class="npc-library-close" tooltip="关闭" />
+            </ui:VisualElement>
+            <ui:VisualElement class="npc-library-body">
+                <ui:VisualElement class="npc-library-main">
+                    <ui:VisualElement class="npc-library-toolbar">
+                        <ui:VisualElement class="npc-library-tabs">
+                            <ui:Button name="npc-library-installed-tab" text="已下载" class="npc-library-tab" />
+                            <ui:Button name="npc-library-discover-tab" text="发现" class="npc-library-tab npc-library-tab--active" />
+                        </ui:VisualElement>
+                        <ui:VisualElement name="npc-library-search-wrap" class="npc-library-search-wrap">
+                            <ui:TextField name="npc-library-search" class="npc-library-search" />
+                            <ui:Label name="npc-library-search-placeholder" text="搜索 NPC 名称或描述" picking-mode="Ignore" class="npc-library-search-placeholder" />
+                        </ui:VisualElement>
+                    </ui:VisualElement>
+                    <ui:VisualElement name="npc-library-state" class="npc-library-state">
+                        <ui:Label name="npc-library-state-icon" text="···" class="npc-library-state-icon npc-library-state-icon--loading" />
+                        <ui:Label name="npc-library-state-title" text="正在读取 NPC 列表" class="npc-library-state-title" />
+                        <ui:Label name="npc-library-state-detail" text="只会加载列表与头像" class="npc-library-state-detail" />
+                        <ui:Button name="npc-library-retry" text="重试" class="npc-library-secondary-button" />
+                    </ui:VisualElement>
+                    <ui:ScrollView name="npc-library-scroll" mode="Vertical" class="npc-library-scroll">
+                        <ui:VisualElement name="npc-library-grid" class="npc-library-grid" />
+                    </ui:ScrollView>
+                </ui:VisualElement>
+                <ui:VisualElement class="npc-library-detail">
+                    <ui:VisualElement name="npc-library-detail-avatar" class="npc-library-detail-avatar">
+                        <ui:VisualElement class="npc-library-placeholder">
+                            <ui:VisualElement class="npc-library-placeholder-head" />
+                            <ui:VisualElement class="npc-library-placeholder-body" />
+                        </ui:VisualElement>
+                    </ui:VisualElement>
+                    <ui:ScrollView name="npc-library-detail-copy-scroll" mode="Vertical" class="npc-library-detail-copy-scroll">
+                        <ui:Label name="npc-library-detail-name" text="选择一个 NPC" class="npc-library-detail-name" />
+                        <ui:Label name="npc-library-detail-version" text="" class="npc-library-detail-version" />
+                        <ui:Label name="npc-library-detail-description" text="从左侧列表选择角色，查看内容说明与可用操作。" class="npc-library-detail-description" />
+                    </ui:ScrollView>
+                    <ui:VisualElement class="npc-library-detail-footer">
+                        <ui:Label name="npc-library-status" text="" class="npc-library-status" />
+                        <ui:ProgressBar name="npc-library-progress" low-value="0" high-value="1" class="npc-library-progress npc-library-progress--hidden" />
+                        <ui:Button name="npc-library-action" text="下载" enabled="false" class="npc-library-action" />
+                    </ui:VisualElement>
+                </ui:VisualElement>
+            </ui:VisualElement>
+        </ui:VisualElement>
+    </ui:VisualElement>
+</ui:UXML>

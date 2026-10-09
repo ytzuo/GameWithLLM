@@ -24,7 +24,8 @@ public class UIManager : MonoBehaviour
             [typeof(InventoryInteractWindow)] = UiContentIds.InventoryInteractWindow,
             [typeof(InventoryWindow)] = UiContentIds.InventoryWindow,
             [typeof(ItemDispenserWindow)] = UiContentIds.ItemDispenserWindow,
-            [typeof(SaveGameWindow)] = UiContentIds.SaveGameWindow
+            [typeof(SaveGameWindow)] = UiContentIds.SaveGameWindow,
+            [typeof(NpcLibraryWindow)] = UiContentIds.NpcLibraryWindow
         };
     
     // 集中管理所有被实例化的窗口

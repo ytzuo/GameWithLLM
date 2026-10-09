@@ -48,6 +48,7 @@ public class AgentHostClient : Singleton<AgentHostClient>, ISceneTransitionParti
     private UIManager _gatedUi;
     private float _nextCapabilityCheckAt;
     private LoadedToolSetRelease _contentRelease;
+    private string _activeContentVersion;
     private UiContentCatalog _uiContentCatalog;
     private ItemContentCatalog _itemContentCatalog;
     private CharacterContentCatalog _characterContentCatalog;
@@ -55,6 +56,7 @@ public class AgentHostClient : Singleton<AgentHostClient>, ISceneTransitionParti
     private readonly ConcurrentDictionary<string, Task> _runtimeInvocations =
         new ConcurrentDictionary<string, Task>(StringComparer.Ordinal);
     private RemoteSceneCoordinator _sceneCoordinator;
+    private NpcLibraryServices _npcLibraryServices;
     private volatile bool _sceneTransitionBusy;
     private bool _sceneTransitionOwnsSendLock;
 
@@ -105,6 +107,7 @@ public class AgentHostClient : Singleton<AgentHostClient>, ISceneTransitionParti
                         if (result.UsedCachedCatalog)
                             Debug.LogWarning("[Content] Started with the last successful cached catalog.");
                         _contentRelease = result.LoadedRelease;
+                        _activeContentVersion = result.ActiveContentVersion;
                         if (result.CandidateError != null)
                             Debug.LogWarning(
                                 "[Content] Remote hot-update candidate was rejected; " +
@@ -169,6 +172,11 @@ public class AgentHostClient : Singleton<AgentHostClient>, ISceneTransitionParti
                     "[Content] Character Catalog failed; all entities keep local fallback visuals " +
                     $"and runtime initialization continues: {ex.GetBaseException().Message}");
             }
+
+            _npcLibraryServices = new NpcLibraryServices(
+                _contentProvider,
+                _activeContentVersion ?? _contentRelease?.CatalogVersion);
+            Debug.Log("[NPC Content] Catalog, installer and unique spawn services initialized.");
 
             InitializeRuntimeServices();
             _sceneCoordinator = GetComponent<RemoteSceneCoordinator>();
@@ -874,6 +882,7 @@ public class AgentHostClient : Singleton<AgentHostClient>, ISceneTransitionParti
                 visual.ReleaseVisual();
         }
         _characterContentCatalog?.Dispose();
+        _npcLibraryServices?.Dispose();
         _itemContentCatalog?.Dispose();
         _uiContentCatalog?.Dispose();
         _contentProvider?.Dispose();

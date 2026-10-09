@@ -15,6 +15,7 @@ public sealed class UiContentContractTests
             [UiContentIds.InventoryWindow] = "Assets/Art/UI/InventoryView.uxml",
             [UiContentIds.ItemDispenserWindow] = "Assets/Art/UI/ItemDispenserView.uxml",
             [UiContentIds.SaveGameWindow] = "Assets/Art/UI/SaveGameView.uxml",
+            [UiContentIds.NpcLibraryWindow] = "Assets/Art/UI/NpcLibraryWindow.uxml",
             [UiContentIds.SystemMessageTemplate] = "Assets/Art/UI/Templates/Chat/SystemMessage.uxml",
             [UiContentIds.PlayerMessageTemplate] = "Assets/Art/UI/Templates/Chat/PlayerMessage.uxml",
             [UiContentIds.OpponentMessageTemplate] = "Assets/Art/UI/Templates/Chat/OpponentMessage.uxml",

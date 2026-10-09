@@ -1,7 +1,9 @@
 # 远端 NPC 下载、安装与生成实现方案
 
 日期：2026-10-08  
-状态：第一轮已实施并完成本地验证；第二、三轮待实施。目标方案和已实现内容由文末记录区分，当前实现事实仍以 `ARCHITECTURE.md` 为准。
+状态：第一轮已完成；第二轮代码已实施并通过本地 Editor/内容构建验证，Windows
+IL2CPP 硬门禁因已提交的工具历史台账与重新生成的工具包 hash 不一致而未完成；第三轮待实施。目标方案和已实现
+内容由文末记录区分，当前实现事实仍以 `ARCHITECTURE.md` 为准。
 
 ## 1. 目标与范围
 
@@ -296,3 +298,48 @@ Artifacts 和 Unity Logs，源测试入口只在 Editor 编译。
    UI 或动态生成流程。
 4. 正式发布前保留所有已发布旧版本的 Address/Bundle/静态目录，并补 Unity 与 Go
    从真实受信任端点读取的发布证据。不要用生产发布来替代本地 staging。
+
+## 11. 第二轮交接记录（2026-10-09）
+
+已完成：
+
+- 新增严格 Unity 目录/清单客户端：从当前 Addressables 内容通道同源推导静态根，
+  校验冻结字段、重复/未知字段、版本化路径、原始字节 hash、响应大小、超时和取消；
+  目录失败仅回退最后一次完整缓存。头像只在窗口需要时请求，窗口关闭释放纹理。
+- 新增单任务安装器：安装索引和原始清单保存在
+  `Application.persistentDataPath/NpcContent`，以临时文件原子替换；取消或任一校验失败
+  不提交。下载后再次校验 Addressables 缓存、动画 DLL 字节、视觉 Prefab 和 Animator；
+  已安装内容显示/生成前用实际下载大小检测缓存驱逐并进入修复状态。
+- 新增唯一生成入口：在当前活动 Player 所在场景以 inactive AOT 权威根构造实体，
+  严格要求 `(0,0,0)` 位于 NavMesh；绑定 npcId、库存身份和 NpcContentBinding，完成
+  视觉、Animator、DLL 长度/hash/程序集/入口及 driver Bind 后才激活。重复/并发请求
+  不产生多实例，失败路径释放根、driver 和全部资源 lease。
+- 下载成功后自动生成；本地版本可手动生成，已生成按钮禁用。发现页支持未安装下载、
+  旧版本更新、单任务取消与重试；Catalog 版本不一致时提示重启并禁止新下载。
+- 新增 UI Toolkit NPC 资料库并登记现有 Remote_UI/content.ui-required 管线：1280×720
+  四列头像卡片、底部半透明名称条、左上已下载标记、已下载/发现页签、可见搜索框、
+  右侧头像/名称/版本/可滚动描述/固定操作区，以及 loading/empty/error/progress 状态。
+  `M` 打开、`Esc` 关闭，HUD 已同步。独立源码设计评估第二轮为 PASS。
+- 启动内容结果显式保留 active contentVersion/playerBuildId，不再用可选 ToolSet 候选
+  是否加载成功来猜 Catalog 版本；现有 Host 注册和完整 Manifest 发布仍是唯一权威。
+- `ARCHITECTURE.md` 已同步第二轮实际实现。
+
+验证结果：
+
+| 检查 | 结果与证据 |
+|---|---|
+| Unity C# 编译与 EditMode | 40/40 通过；最终复跑证据为 `Artifacts/NpcRound2/editmode-results-final2.xml`、`unity-NPC-agent-client/Logs/npc-round2-editmode-final2.log` |
+| NPC 内容契约 | 通过，出现 `NPC_CONTENT_RELEASE_VALIDATED`；`unity-NPC-agent-client/Logs/npc-round2-content-validation.log` |
+| 本地 NPC DLL/Addressables | 通过，出现 `NPC_SAMPLE_BUILD_SUCCESS` 与 `NPC_LOCAL_CONTENT_BUILD_SUCCESS`；`unity-NPC-agent-client/Logs/npc-round2-local-content-build.log` |
+| UI 设计复评 | 源码复评 PASS；修正头像遮罩、异步串位、瞬态错误串 NPC、长描述溢出、空搜索残留、搜索占位与键盘焦点。未把源码复评冒充真实截图验收 |
+| Windows IL2CPP Player | HybridCLR Installer 已成功初始化（`HYBRIDCLR_INSTALL_SUCCESS`）；重新生成后被仓库工具历史门禁阻断：`game_hotfix_smoke_package_info` 的新 DLL hash 与 `h4-tool-history.json` 已提交记录不一致，未进入 Player 构建；`unity-NPC-agent-client/Logs/hybridclr-install.log`、`unity-NPC-agent-client/Logs/npc-round2-il2cpp-build.log` |
+| 真实远端/LLM/SampleScene 回归 | 本轮未执行，不沿用第一轮结果冒充第二轮动态 NPC 证据 |
+
+第二轮剩余门禁与第三轮入口：
+
+1. 按正式 release 流程提升并重建 Smoke Tool Pack/历史台账，解除当前 assembly hash
+   一致性门禁；随后建立非 0.1.0 的新 Player 身份，在 Windows IL2CPP Player 中执行
+   真实下载、driver、唯一生成和 Go 对话验收。不能直接覆盖历史 hash 来绕过版本规则。
+2. 在 1280×720 Player 实际渲染中补截图和长文本/键盘交互证据；源码评估不能替代此项。
+3. 第三轮继续接入动态 NPC 存档/restore、切场取消和生产发布门禁；不得把当前未完成的
+   Player 硬门禁标记为已通过。

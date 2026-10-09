@@ -32,6 +32,8 @@ public sealed class ClientContentBootstrapResult
         bool usedCachedCatalog,
         long downloadBytes,
         LoadedToolSetRelease loadedRelease,
+        string activeContentVersion,
+        string playerBuildId,
         Exception candidateError,
         Exception error)
     {
@@ -39,6 +41,8 @@ public sealed class ClientContentBootstrapResult
         UsedCachedCatalog = usedCachedCatalog;
         DownloadBytes = downloadBytes;
         LoadedRelease = loadedRelease;
+        ActiveContentVersion = activeContentVersion;
+        PlayerBuildId = playerBuildId;
         CandidateError = candidateError;
         Error = error;
     }
@@ -47,6 +51,8 @@ public sealed class ClientContentBootstrapResult
     public bool UsedCachedCatalog { get; }
     public long DownloadBytes { get; }
     public LoadedToolSetRelease LoadedRelease { get; }
+    public string ActiveContentVersion { get; }
+    public string PlayerBuildId { get; }
     public Exception CandidateError { get; }
     public string CandidateErrorCode =>
         (CandidateError as HotUpdateLoadException)?.ErrorCode ??
@@ -57,17 +63,21 @@ public sealed class ClientContentBootstrapResult
         bool usedCachedCatalog,
         long downloadBytes,
         LoadedToolSetRelease loadedRelease = null,
+        string activeContentVersion = null,
+        string playerBuildId = null,
         Exception candidateError = null) =>
         new ClientContentBootstrapResult(
             true,
             usedCachedCatalog,
             downloadBytes,
             loadedRelease,
+            activeContentVersion,
+            playerBuildId,
             candidateError,
             null);
 
     public static ClientContentBootstrapResult Failure(Exception error) =>
-        new ClientContentBootstrapResult(false, false, 0, null, null, error);
+        new ClientContentBootstrapResult(false, false, 0, null, null, null, null, error);
 }
 
 public interface IContentBootstrapStore
@@ -268,6 +278,8 @@ public sealed class ClientContentBootstrap
                 usedCachedCatalog,
                 downloadBytes,
                 loadedRelease,
+                manifest?.contentVersion,
+                manifest?.playerBuildId,
                 candidateError);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)

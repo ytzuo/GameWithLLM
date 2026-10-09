@@ -21,6 +21,10 @@
                 <ui:Label text="Tab" class="gameplay-hud-key" picking-mode="Ignore" />
                 <ui:Label text="打开自己背包" class="gameplay-hud-description" picking-mode="Ignore" />
             </ui:VisualElement>
+            <ui:VisualElement class="gameplay-hud-row" picking-mode="Ignore">
+                <ui:Label text="M" class="gameplay-hud-key" picking-mode="Ignore" />
+                <ui:Label text="打开 NPC 资料库" class="gameplay-hud-description" picking-mode="Ignore" />
+            </ui:VisualElement>
         </ui:VisualElement>
     </ui:VisualElement>
 </ui:UXML>

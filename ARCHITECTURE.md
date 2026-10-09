@@ -568,6 +568,30 @@ Catalog 持有共享资产 lease 到应用退出，窗口仅同步克隆并在�
 触发 UIDocument 延迟重建根节点，因此 HUD 只在根节点稳定后挂载，并在根节点再次
 变化时重新挂载。历史地址与迁移证据归档在 `Docs/History/HotUpdate`。
 
+### 6.3 远端 NPC 目录、安装与动态生成
+
+Unity 在内容启动完成后创建唯一的 `NpcLibraryServices`，其目录客户端从当前
+Addressables 内容通道推导可信静态根，只读取 `npc/index.json`、该索引声明的头像和
+不可变 `npc.json`。目录和清单执行未知/重复字段、ID、版本、hash、相对路径、同源、
+大小与超时校验；目录失败时只回退到最后一次完整缓存。打开资料库只加载文本和头像，
+不会下载模型依赖，窗口关闭会释放头像纹理。
+
+`NpcContentInstaller` 在 `Application.persistentDataPath/NpcContent` 维护单一原子替换的
+安装索引和原始已验证清单。同一时刻只允许一个下载任务；Addressables 依赖地址完全来自
+清单，取消或失败不会写入安装成功。已安装内容在显示和生成前通过
+`GetDownloadSizeAsync` 检测缓存驱逐并转为修复状态。远端目录的
+`catalogContentVersion` 与本次启动内容版本不一致时只允许操作已有本地内容，新的远端
+安装要求重启。
+
+`NpcSpawnController` 为每个 `npcId` 保持一个实例和一个生成中标记。权威根由本地 AOT
+代码在 Player 下以未激活状态构造，并在 `(0,0,0)` 精确验证 NavMesh；随后绑定
+`NpcEntity`、库存身份和 `NpcContentBinding`，通过 `CharacterVisualController` 严格加载
+远端视觉和 Animator。动画 DLL 以清单长度、SHA-256、程序集名、入口类型及
+`INpcAnimationDriver` 契约校验后加载，只在 Unity 主线程 Bind/Tick/Dispose，不参加工具
+发现。所有准备完成后才激活权威根并加入 Player 可见 NPC 列表，因此既有
+`RuntimeAvailabilityChanged` 和完整 Manifest 发布仍是唯一运行时权威。任何失败都会
+释放实例、动画驱动、资源 lease 和生成中标记。
+
 ## 7. 代码地图
 
 ### 7.1 Go
