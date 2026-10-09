@@ -232,7 +232,7 @@ public sealed class NpcSpawnController : IDisposable
             }
 
             var driverHost = root.AddComponent<NpcAnimationDriverHost>();
-            driverHost.Initialize(driver, nav, assemblyLease);
+            driverHost.Initialize(driver, nav, entity, assemblyLease);
             token.ThrowIfCancellationRequested();
             root.SetActive(true);
             if (!nav.isOnNavMesh) throw new InvalidOperationException("NPC_SPAWN_ORIGIN_NOT_ON_NAVMESH");
@@ -344,11 +344,17 @@ internal sealed class NpcAnimationDriverHost : MonoBehaviour
     private NavMeshAgent _agent;
     private IDisposable _assemblyLease;
 
-    public void Initialize(INpcAnimationDriver driver, NavMeshAgent agent, IDisposable assemblyLease)
+    public void Initialize(
+        INpcAnimationDriver driver,
+        NavMeshAgent agent,
+        INpcAnimationEventSource eventSource,
+        IDisposable assemblyLease)
     {
         _driver = driver ?? throw new ArgumentNullException(nameof(driver));
         _agent = agent ?? throw new ArgumentNullException(nameof(agent));
         _assemblyLease = assemblyLease;
+        if (_driver is INpcEventDrivenAnimationDriver eventDriven)
+            eventDriven.BindEventSource(eventSource ?? throw new ArgumentNullException(nameof(eventSource)));
     }
 
     private void Update()

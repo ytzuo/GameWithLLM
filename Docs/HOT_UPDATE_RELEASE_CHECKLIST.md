@@ -12,6 +12,7 @@
 
 - [ ] `ContentValidationRunner` Candidate/Release Profile 通过且 JSON 报告已保存。
 - [ ] EditMode 全量测试通过。
+- [ ] NPC 事件契约测试覆盖移动成对结束、会话时序、仅最终回复、计时、取消和迟到事件。
 - [ ] UI/Inventory 与 Remote Scene Packed Play smoke 分别通过。
 - [ ] Tool Package Player smoke 输出 `TOOL_PACKAGE_SMOKE_SUCCESS`。
 - [ ] 动态 NPC Windows Player smoke 输出 `NPC_RUNTIME_SMOKE_SUCCESS`，八项场景全部通过。
@@ -33,6 +34,8 @@
 - [ ] 连续两个内容版本升级通过。
 - [ ] offline、cache-hit、low-disk、interrupted-retry 全部通过。
 - [ ] 普通对话、流式回复、warehouse/gate 移动、取消、Inventory、存档恢复通过。
+- [ ] Animator 的 Moving 可与 Thinking/Speaking 同时为 true；失败、取消、切场和销毁后无残留状态。
+- [ ] 活动 Merchant/Guide 均由 `NpcContentDefinition` 生成 schema v2/builtin，历史 v1/v2 文件未改写。
 - [ ] 坏 JSON、坏 DLL、缺失 Bundle 和超预算候选均未改变生产指针。
 - [ ] Event Viewer/Profiler 无未解释异常或 Addressables handle 泄漏。
 - [ ] `content-release-smoke.passed.json` 已生成且绑定候选 manifest SHA-256。

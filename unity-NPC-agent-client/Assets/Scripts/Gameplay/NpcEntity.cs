@@ -9,7 +9,7 @@ using UnityEngine;
 using UnityEngine.AI;
 
 [RequireComponent(typeof(NavMeshAgent))]
-public class NpcEntity : MonoBehaviour, IGameObjectAgentEntity, IGameplayWorldTarget
+public class NpcEntity : MonoBehaviour, IGameObjectAgentEntity, IGameplayWorldTarget, INpcAnimationEventSource
 {
     public static event Action<NpcEntity, bool> RuntimeAvailabilityChanged;
 
@@ -30,6 +30,11 @@ public class NpcEntity : MonoBehaviour, IGameObjectAgentEntity, IGameplayWorldTa
     [SerializeField, Min(0.1f)] private float dynamicTargetMoveThreshold = 0.5f;
     [SerializeField, Min(1f)] private float maximumMoveDuration = 45f;
 
+    [Header("Conversation presentation")]
+    [SerializeField, Min(0.1f)] private float speakingCharactersPerSecond = 12f;
+    [SerializeField, Min(0f)] private float minimumSpeakingSeconds = 0.8f;
+    [SerializeField, Min(0f)] private float maximumSpeakingSeconds = 8f;
+
     [Header("Inventory tools")]
     [SerializeField, Min(0f)] private float inventoryInteractionRange = 3f;
 
@@ -45,6 +50,8 @@ public class NpcEntity : MonoBehaviour, IGameObjectAgentEntity, IGameplayWorldTa
     private float _nextProgressTime;
     private float _activeApproachDistance;
     private Vector3 _lastMoveDestination;
+    private readonly NpcAnimationEventSource _animationEvents = new NpcAnimationEventSource();
+    private string _activeMovementOperationId;
     public enum NpcState { Idle, Talking, Operating }
 
     public string EntityId => npcId;
@@ -57,6 +64,12 @@ public class NpcEntity : MonoBehaviour, IGameObjectAgentEntity, IGameplayWorldTa
     public string WorldTargetDisplayName => string.IsNullOrWhiteSpace(npcId) ? gameObject.name : npcId.Trim();
     public string WorldTargetCategory => "npc";
     public bool IsDynamicWorldTarget => true;
+    public event Action<NpcAnimationEvent> AnimationEvent
+    {
+        add => _animationEvents.AnimationEvent += value;
+        remove => _animationEvents.AnimationEvent -= value;
+    }
+    public NpcAnimationSnapshot AnimationSnapshot => _animationEvents.AnimationSnapshot;
 
     // 按调用时刻读取实时世界状态，不把动态状态写入静态 NPC Profile。
     public JToken CreateRuntimeStateData()
@@ -150,6 +163,7 @@ public class NpcEntity : MonoBehaviour, IGameObjectAgentEntity, IGameplayWorldTa
     {
         if (_fsmState == NpcState.Operating)
             UpdateActiveMovement();
+        _animationEvents.Tick(Time.unscaledTime);
     }
 
     // 长时移动直到到达、失败或取消才完成对应 Runtime 工具调用。
@@ -211,6 +225,8 @@ public class NpcEntity : MonoBehaviour, IGameObjectAgentEntity, IGameplayWorldTa
         _movementStartedAt = Time.time;
         _nextProgressTime = Time.time;
         _fsmState = NpcState.Operating;
+        _activeMovementOperationId = Guid.NewGuid().ToString("N");
+        _animationEvents.StartMovement(_activeMovementOperationId);
     }
 
     private bool TrySetActiveDestination(out string errorCode, out string errorMessage)
@@ -248,7 +264,7 @@ public class NpcEntity : MonoBehaviour, IGameObjectAgentEntity, IGameplayWorldTa
         {
             FinishActiveMovement(AgentToolResult.Failure(
                 "MOVE_STATE_INVALID",
-                $"NPC '{npcId}' 的移动状态不完整。"));
+                $"NPC '{npcId}' 的移动状态不完整。"), NpcAnimationEndReason.Failed);
             return;
         }
         if (_activeMovementCancellation.IsCancellationRequested)
@@ -262,21 +278,21 @@ public class NpcEntity : MonoBehaviour, IGameObjectAgentEntity, IGameplayWorldTa
         {
             FinishActiveMovement(AgentToolResult.Failure(
                 "NAV_AGENT_MISSING",
-                $"NPC '{npcId}' 没有 NavMeshAgent。"));
+                $"NPC '{npcId}' 没有 NavMeshAgent。"), NpcAnimationEndReason.Failed);
             return;
         }
         if (!_navAgent.isOnNavMesh)
         {
             FinishActiveMovement(AgentToolResult.Failure(
                 "NPC_NOT_ON_NAVMESH",
-                $"NPC '{npcId}' 在移动过程中离开了 NavMesh。"));
+                $"NPC '{npcId}' 在移动过程中离开了 NavMesh。"), NpcAnimationEndReason.Failed);
             return;
         }
         if (_activeMoveTarget.GameObject == null)
         {
             FinishActiveMovement(AgentToolResult.Failure(
                 "TARGET_UNAVAILABLE",
-                "移动目标已销毁或离线。"));
+                "移动目标已销毁或离线。"), NpcAnimationEndReason.Failed);
             return;
         }
         if (Time.time >= _nextProgressTime)
@@ -291,7 +307,7 @@ public class NpcEntity : MonoBehaviour, IGameObjectAgentEntity, IGameplayWorldTa
         {
             FinishActiveMovement(AgentToolResult.Failure(
                 "MOVE_TIMEOUT",
-                $"NPC 未能在 {maximumMoveDuration:0.#} 秒内到达 '{_activeMoveTarget.TargetId}'。"));
+                $"NPC 未能在 {maximumMoveDuration:0.#} 秒内到达 '{_activeMoveTarget.TargetId}'。"), NpcAnimationEndReason.Failed);
             return;
         }
 
@@ -302,7 +318,7 @@ public class NpcEntity : MonoBehaviour, IGameObjectAgentEntity, IGameplayWorldTa
             if (Vector3.Distance(currentTargetPosition, _lastMoveDestination) >= dynamicTargetMoveThreshold &&
                 !TrySetActiveDestination(out string errorCode, out string errorMessage))
             {
-                FinishActiveMovement(AgentToolResult.Failure(errorCode, errorMessage));
+                FinishActiveMovement(AgentToolResult.Failure(errorCode, errorMessage), NpcAnimationEndReason.Failed);
                 return;
             }
         }
@@ -313,14 +329,14 @@ public class NpcEntity : MonoBehaviour, IGameObjectAgentEntity, IGameplayWorldTa
         {
             FinishActiveMovement(AgentToolResult.Failure(
                 "PATH_INVALID",
-                $"NPC '{npcId}' 无法到达目标 '{_activeMoveTarget.TargetId}'。"));
+                $"NPC '{npcId}' 无法到达目标 '{_activeMoveTarget.TargetId}'。"), NpcAnimationEndReason.Failed);
             return;
         }
         if (_navAgent.pathStatus == NavMeshPathStatus.PathPartial)
         {
             FinishActiveMovement(AgentToolResult.Failure(
                 "PATH_PARTIAL",
-                $"NPC '{npcId}' 只能部分接近目标 '{_activeMoveTarget.TargetId}'。"));
+                $"NPC '{npcId}' 只能部分接近目标 '{_activeMoveTarget.TargetId}'。"), NpcAnimationEndReason.Failed);
             return;
         }
         if (_navAgent.hasPath && _navAgent.remainingDistance > _navAgent.stoppingDistance)
@@ -337,12 +353,13 @@ public class NpcEntity : MonoBehaviour, IGameObjectAgentEntity, IGameplayWorldTa
                 targetId = arrivedTargetId,
                 approachDistance = System.Math.Round(_activeApproachDistance, 2),
                 elapsedSeconds = System.Math.Round(elapsed, 2)
-            }).ToString(Formatting.None)));
+            }).ToString(Formatting.None)), NpcAnimationEndReason.Completed);
     }
 
-    private void FinishActiveMovement(AgentToolResult result)
+    private void FinishActiveMovement(AgentToolResult result, NpcAnimationEndReason reason)
     {
         TaskCompletionSource<AgentToolResult> completion = _activeMovementCompletion;
+        EndMovementPresentation(reason);
         ClearActiveMovement();
         completion?.TrySetResult(result);
     }
@@ -350,6 +367,7 @@ public class NpcEntity : MonoBehaviour, IGameObjectAgentEntity, IGameplayWorldTa
     private void CancelActiveMovement()
     {
         TaskCompletionSource<AgentToolResult> completion = _activeMovementCompletion;
+        EndMovementPresentation(NpcAnimationEndReason.Cancelled);
         ClearActiveMovement();
         completion?.TrySetCanceled();
     }
@@ -368,6 +386,34 @@ public class NpcEntity : MonoBehaviour, IGameObjectAgentEntity, IGameplayWorldTa
         _lastMoveDestination = default;
         _fsmState = NpcState.Idle;
     }
+
+    private void EndMovementPresentation(NpcAnimationEndReason reason)
+    {
+        if (_activeMovementOperationId == null) return;
+        _animationEvents.EndMovement(_activeMovementOperationId, reason);
+        _activeMovementOperationId = null;
+    }
+
+    public void BeginResponsePresentation(string operationId) =>
+        _animationEvents.StartResponse(operationId);
+
+    public void ReceiveResponseText(string operationId, string text) =>
+        _animationEvents.ReceiveText(operationId, text, Time.unscaledTime);
+
+    public void CompleteResponsePresentation(string operationId, string finalText) =>
+        _animationEvents.CompleteResponse(
+            operationId,
+            finalText,
+            Time.unscaledTime,
+            speakingCharactersPerSecond,
+            minimumSpeakingSeconds,
+            maximumSpeakingSeconds);
+
+    public void EndResponsePresentation(string operationId, NpcAnimationEndReason reason) =>
+        _animationEvents.EndResponse(operationId, reason);
+
+    public void EndAllPresentation(NpcAnimationEndReason reason) =>
+        _animationEvents.EndAll(reason);
     /// <summary>存档加载专用：丢弃旧世界命令并把 NPC 放回保存位置。</summary>
     public void RestoreWorldTransform(Vector3 position, Quaternion rotation)
     {
@@ -377,12 +423,13 @@ public class NpcEntity : MonoBehaviour, IGameObjectAgentEntity, IGameplayWorldTa
         {
             FinishActiveMovement(AgentToolResult.Failure(
                 "WORLD_RESTORED",
-                "世界恢复中，当前 NPC 行为已终止。"));
+                "世界恢复中，当前 NPC 行为已终止。"), NpcAnimationEndReason.WorldRestored);
         }
         else
         {
             ClearActiveMovement();
         }
+        _animationEvents.EndAll(NpcAnimationEndReason.WorldRestored);
 
         transform.rotation = rotation;
         if (_navAgent != null && _navAgent.enabled && _navAgent.isOnNavMesh &&
@@ -401,7 +448,8 @@ public class NpcEntity : MonoBehaviour, IGameObjectAgentEntity, IGameplayWorldTa
         {
             FinishActiveMovement(AgentToolResult.Failure(
                 "NPC_DESTROYED",
-                $"NPC '{npcId}' 在移动完成前被销毁。"));
+                $"NPC '{npcId}' 在移动完成前被销毁。"), NpcAnimationEndReason.Destroyed);
         }
+        _animationEvents.EndAll(NpcAnimationEndReason.Destroyed);
     }
 }

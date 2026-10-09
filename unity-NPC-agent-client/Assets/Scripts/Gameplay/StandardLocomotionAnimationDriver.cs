@@ -1,10 +1,9 @@
 using System;
 using UnityEngine;
 
-// Stable AOT driver used by ordinary schema-v2 NPC Prefabs. Conversation-state
-// parameters are reserved here and become event-driven in iteration two.
+// Stable event-driven AOT driver used by ordinary schema-v2 NPC Prefabs.
 [UnityEngine.Scripting.Preserve]
-public sealed class StandardLocomotionAnimationDriver : INpcAnimationDriver
+public sealed class StandardLocomotionAnimationDriver : INpcAnimationDriver, INpcEventDrivenAnimationDriver
 {
     public const string DriverId = "standard-locomotion";
     private static readonly int SpeedParameter = Animator.StringToHash("Speed");
@@ -13,6 +12,7 @@ public sealed class StandardLocomotionAnimationDriver : INpcAnimationDriver
     private static readonly int SpeakingParameter = Animator.StringToHash("Speaking");
 
     private Animator _animator;
+    private INpcAnimationEventSource _eventSource;
 
     public static INpcAnimationDriver Create(string driverId)
     {
@@ -55,5 +55,32 @@ public sealed class StandardLocomotionAnimationDriver : INpcAnimationDriver
             _animator.SetFloat(SpeedParameter, Mathf.Max(0f, movementSpeed));
     }
 
-    public void Dispose() => _animator = null;
+    public void BindEventSource(INpcAnimationEventSource eventSource)
+    {
+        if (eventSource == null) throw new ArgumentNullException(nameof(eventSource));
+        if (_eventSource != null) _eventSource.AnimationEvent -= OnAnimationEvent;
+        _eventSource = eventSource;
+        _eventSource.AnimationEvent += OnAnimationEvent;
+        ApplySnapshot(_eventSource.AnimationSnapshot);
+    }
+
+    private void OnAnimationEvent(NpcAnimationEvent animationEvent)
+    {
+        if (_eventSource != null) ApplySnapshot(_eventSource.AnimationSnapshot);
+    }
+
+    private void ApplySnapshot(NpcAnimationSnapshot snapshot)
+    {
+        if (_animator == null) return;
+        _animator.SetBool(MovingParameter, snapshot.IsMoving);
+        _animator.SetBool(ThinkingParameter, snapshot.IsThinking);
+        _animator.SetBool(SpeakingParameter, snapshot.IsSpeaking);
+    }
+
+    public void Dispose()
+    {
+        if (_eventSource != null) _eventSource.AnimationEvent -= OnAnimationEvent;
+        _eventSource = null;
+        _animator = null;
+    }
 }

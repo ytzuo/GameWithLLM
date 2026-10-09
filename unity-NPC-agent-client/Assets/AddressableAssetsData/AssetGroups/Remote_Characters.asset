@@ -103,6 +103,12 @@ MonoBehaviour:
     - content.characters
     - content.characters.player
     FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 4f2704ed01e0b484b8133aee76e879d4
+    m_Address: npc/guide_001/3/visual
+    m_ReadOnly: 0
+    m_SerializedLabels:
+    - content.npc.guide_001
+    FlaggedDuringContentUpdateRestriction: 0
   - m_GUID: 5337538bf36faa449b6dc7b9148359af
     m_Address: character/alice/material/default-body
     m_ReadOnly: 0

@@ -245,12 +245,12 @@ RuntimeAnimatorController，且不能包含 Entity、NavMesh、Inventory、工�
 网络权威组件。视觉实例仍只挂在 AOT 权威实体的 `VisualRoot` 下。
 
 v2 `animationDriver` 显式选择 `builtin` 或 `hotUpdate`。内置
-`standard-locomotion` 位于稳定 Gameplay AOT 程序集，当前每帧写入 float `Speed`；
-`Moving/Thinking/Speaking` 参数已经作为下一迭代事件驱动契约的 Prefab 约定保留。
+`standard-locomotion` 位于稳定 Gameplay AOT 程序集，每帧写入 float `Speed`，并从
+`INpcAnimationEventSource` 快照和事件独立写入 bool `Moving/Thinking/Speaking`。
 `hotUpdate` 继续使用版本化 DLL Address、程序集、入口、长度和 SHA-256。未知 kind/ID
-直接拒绝，builtin 不下载或加载 NPC 专属 DLL。当前 Merchant v3 是 schema v2/builtin
-纵向切片，Guide v2 保持 schema v1/hot-update 作为兼容回归；既有版本目录和 Address
-不修改。
+直接拒绝，builtin 不下载或加载 NPC 专属 DLL。当前 Merchant v3 与 Guide v3 均为
+schema v2/builtin；Guide v2 及更早版本保留为 schema v1/hot-update 兼容回归，既有版本
+目录和 Address 不修改。
 
 公共 SDK `RuntimeManifest` 添加 `NpcContents`，线上 JSON 为可选 `npcContents`：
 每项只有 `entityId / contentVersion / manifestSha256`，原有 `entities/tools/revision`
@@ -274,11 +274,20 @@ restore 在替换当前 Context 前核对版本/hash并从当前绑定解析 Pro
 
 `INpcAnimationDriver` 位于稳定 Gameplay AOT 程序集，生命周期为
 `Bind(Animator) / Tick(deltaTime, movementSpeed) / Dispose`，只允许主线程调用。
-样例 Merchant/Guide V1 DLL 仅引用 Gameplay、标准库和 Unity 动画模块，入口明确实现
-该接口；不实现 IAgentTool、不改变 ToolSet、不执行工具发现。第一轮交付 C# 与 DLL、
-版本化模型/Controller/动画/材质/贴图及本地 Bundle；实际 DLL driver 加载接入属于第二轮。
-新增 AOT 接口要求第二轮首个兼容基础 Player 完成构建与裁剪验证，已发布旧 Player
-不能因版本字符串相同就被认为具有新契约；正式发布必须分配新的 Player 身份。生产输入门禁拒绝旧 0.1.0 身份，并校验目标 Gameplay AOT metadata 中的接口。
+事件能力通过旁路接口 `INpcEventDrivenAnimationDriver.BindEventSource` 增加，未实现该接口的
+已发布 v1 Driver 仍只走旧生命周期。事件源提供 `NpcAnimationSnapshot` 与带 operationId、
+结束原因的 `NpcAnimationEvent`；`NpcAnimationDriverHost` 在普通 `Bind` 后可选绑定事件源，
+`Dispose` 必须退订。样例旧 DLL 仍只引用 Gameplay、标准库和 Unity 动画模块，不实现
+IAgentTool、不改变 ToolSet、不执行工具发现。
+
+`NpcEntity` 在 `SetDestination` 成功后发布 `MovementStarted`，并在到达、失败、取消、
+存档恢复或销毁的集中退出路径恰好发布一次 `MovementEnded`。`AgentHostClient` 在取得发送锁
+后为每次响应生成独立 operationId，把 Thinking/Speaking 变更与 UI 一起投递主线程；首个
+非空 delta 结束 Thinking 并开始 Speaking，仅最终正文则在 completed 时切换。failed、
+cancelled、异常、切场和销毁立即收束，迟到事件因 operationId 不匹配被忽略。Speaking
+时长按最终可见字符数估算，流式阶段已经经过的时间会扣除。Movement 与 Conversation 是
+独立维度，可同时为 Moving + Thinking 或 Moving + Speaking，事件不进入网络协议、Profile、
+模型历史或世界存档。
 
 Editor-only `NpcContentDefinition` 是生产作者入口，包含稳定 ID/版本、完整视觉 Prefab、
 头像、Profile、Prompt 和 driver 选择。`NpcContentRelease.BuildDefinitions` 统一注册
@@ -624,10 +633,11 @@ Context。缓存缺失、未安装和版本冲突分别返回稳定错误并引�
 release 归档。发布仍按不可变 NPC 文件、release/Catalog、`current.json`、最后
 `npc/index.json` 的顺序执行，已发布版本永不覆盖。
 
-当前已建立的首个含该 AOT 契约的生产基线为 Player `0.2.0`、release
-`h8-production-2.0.0`、ToolSet `6.0.0`。样例 NPC 最新内容为 v2，v1 静态文件与 Address
-继续保留。共享 URP Shader 由 `Remote_Materials` 显式持有，避免场景和逐 NPC Bundle
-重复打包。
+现有已发布基线为 Player `0.2.0`、release `h8-production-2.0.0`、ToolSet `6.0.0`；它只
+保证旧 `INpcAnimationDriver` AOT 契约。事件接口扩展正式发布时必须分配新的 Player 身份，
+并由上述 metadata 门禁验证，不能覆盖或冒充 0.2.0。Merchant/Guide 当前索引都指向内容
+版本 3 的 schema v2 清单，历史静态文件与 Address 继续保留。共享 URP Shader 由
+`Remote_Materials` 显式持有，避免场景和逐 NPC Bundle 重复打包。
 
 ## 7. 代码地图
 

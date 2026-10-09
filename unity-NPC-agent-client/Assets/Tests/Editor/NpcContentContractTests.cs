@@ -9,6 +9,97 @@ using NUnit.Framework;
 public sealed class NpcContentContractTests
 {
     [Test]
+    public void AnimationEventsKeepMovementAndConversationIndependent()
+    {
+        var source = new NpcAnimationEventSource();
+        var events = new List<NpcAnimationEvent>();
+        source.AnimationEvent += events.Add;
+
+        Assert.IsTrue(source.StartMovement("move-1"));
+        Assert.IsTrue(source.StartResponse("response-1"));
+        Assert.That(source.AnimationSnapshot.IsMoving, Is.True);
+        Assert.That(source.AnimationSnapshot.IsThinking, Is.True);
+        Assert.That(source.AnimationSnapshot.IsSpeaking, Is.False);
+
+        Assert.IsTrue(source.ReceiveText("response-1", "你好", 2f));
+        Assert.That(source.AnimationSnapshot.IsMoving, Is.True);
+        Assert.That(source.AnimationSnapshot.IsThinking, Is.False);
+        Assert.That(source.AnimationSnapshot.IsSpeaking, Is.True);
+        Assert.IsTrue(source.EndMovement("move-1", NpcAnimationEndReason.Completed));
+        Assert.IsFalse(source.EndMovement("move-1", NpcAnimationEndReason.Failed));
+        Assert.That(source.AnimationSnapshot.IsSpeaking, Is.True);
+
+        CollectionAssert.AreEqual(
+            new[]
+            {
+                NpcAnimationEventType.MovementStarted,
+                NpcAnimationEventType.ThinkingStarted,
+                NpcAnimationEventType.ThinkingEnded,
+                NpcAnimationEventType.SpeakingStarted,
+                NpcAnimationEventType.MovementEnded
+            },
+            events.ConvertAll(value => value.Type));
+    }
+
+    [Test]
+    public void StreamingSpeakingTimerCountsElapsedTimeAndIgnoresLateEvents()
+    {
+        var source = new NpcAnimationEventSource();
+        var events = new List<NpcAnimationEvent>();
+        source.AnimationEvent += events.Add;
+
+        source.StartResponse("response-1");
+        source.ReceiveText("response-1", "第一段", 10f);
+        source.CompleteResponse("response-1", "一二三四五六", 12f, 2f, 0.5f, 10f);
+        source.Tick(12.9f);
+        Assert.That(source.AnimationSnapshot.IsSpeaking, Is.True);
+        source.Tick(13f);
+        Assert.That(source.AnimationSnapshot.IsSpeaking, Is.False);
+
+        Assert.IsFalse(source.ReceiveText("response-1", "迟到文本", 14f));
+        Assert.IsFalse(source.CompleteResponse("response-1", "迟到完成", 14f, 2f, 0.5f, 10f));
+        Assert.That(events.FindAll(value => value.Type == NpcAnimationEventType.SpeakingEnded).Count, Is.EqualTo(1));
+        Assert.That(events[events.Count - 1].EndReason, Is.EqualTo(NpcAnimationEndReason.Completed));
+    }
+
+    [Test]
+    public void FinalOnlyResponseStartsSpeakingAndCancellationClosesStateOnce()
+    {
+        var source = new NpcAnimationEventSource();
+        var events = new List<NpcAnimationEvent>();
+        source.AnimationEvent += events.Add;
+
+        source.StartResponse("response-1");
+        Assert.IsTrue(source.CompleteResponse("response-1", "最终正文", 5f, 10f, 1f, 8f));
+        Assert.That(source.AnimationSnapshot.IsThinking, Is.False);
+        Assert.That(source.AnimationSnapshot.IsSpeaking, Is.True);
+        Assert.IsTrue(source.EndResponse("response-1", NpcAnimationEndReason.Cancelled));
+        Assert.IsFalse(source.EndResponse("response-1", NpcAnimationEndReason.Failed));
+        Assert.That(source.AnimationSnapshot.IsSpeaking, Is.False);
+        Assert.That(events.FindAll(value => value.Type == NpcAnimationEventType.SpeakingEnded).Count, Is.EqualTo(1));
+    }
+
+    [Test]
+    public void NewResponseSupersedesEstimatedSpeakingWithoutAcceptingLateCompletion()
+    {
+        var source = new NpcAnimationEventSource();
+        var events = new List<NpcAnimationEvent>();
+        source.AnimationEvent += events.Add;
+
+        source.StartResponse("response-1");
+        source.CompleteResponse("response-1", "一段仍在播放的较长正文", 1f, 2f, 0.5f, 10f);
+        Assert.That(source.AnimationSnapshot.IsSpeaking, Is.True);
+
+        Assert.IsTrue(source.StartResponse("response-2"));
+        Assert.That(source.AnimationSnapshot.IsSpeaking, Is.False);
+        Assert.That(source.AnimationSnapshot.IsThinking, Is.True);
+        Assert.IsFalse(source.CompleteResponse("response-1", "迟到完成", 2f, 2f, 0.5f, 10f));
+        Assert.That(events.Find(value =>
+            value.Type == NpcAnimationEventType.SpeakingEnded &&
+            value.OperationId == "response-1").EndReason, Is.EqualTo(NpcAnimationEndReason.Superseded));
+    }
+
+    [Test]
     public void RuntimeWireManifestPreservesContentBindingAndLegacyFields()
     {
         var binding = new NpcContentBinding("merchant_001", "1", new string('a', 64));

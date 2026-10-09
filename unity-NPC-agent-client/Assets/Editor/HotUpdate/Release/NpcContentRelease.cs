@@ -32,9 +32,6 @@ public static class NpcContentRelease
         Debug.Log("NPC_LOCAL_CONTENT_BUILD_SUCCESS");
     });
 
-    // Compatibility entry point; it now delegates to the generic production path.
-    public static void BuildSamplesFromCommandLine() => BuildDefinitionsFromCommandLine();
-
     [MenuItem("GameWithLLM/Content/Build NPC Definitions")]
     public static void BuildDefinitions()
     {
@@ -285,7 +282,17 @@ public static class NpcContentRelease
             throw new InvalidDataException("NPC animation changes the AOT contract: assign a new Player version before production publishing.");
         string metadata = "Assets/Content/HotUpdate/Metadata/GameWithLLM.Client.Gameplay.dll.bytes";
         using AssemblyDefinition assembly = AssemblyDefinition.ReadAssembly(metadata);
-        if (!assembly.MainModule.Types.Any(type => type.FullName == "INpcAnimationDriver" && type.IsInterface))
-            throw new InvalidDataException("Target Player AOT metadata does not contain INpcAnimationDriver.");
+        string[] requiredTypes =
+        {
+            "INpcAnimationDriver",
+            "INpcAnimationEventSource",
+            "INpcEventDrivenAnimationDriver",
+            "NpcAnimationEvent",
+            "NpcAnimationSnapshot"
+        };
+        string missing = requiredTypes.FirstOrDefault(name =>
+            !assembly.MainModule.Types.Any(type => type.FullName == name));
+        if (missing != null)
+            throw new InvalidDataException($"Target Player AOT metadata does not contain {missing}.");
     }
 }

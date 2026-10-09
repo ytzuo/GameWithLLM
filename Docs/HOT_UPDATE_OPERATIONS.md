@@ -17,6 +17,11 @@ Scripts/Build-ContentRelease.ps1
 `GameWithLLM/Content`；`Project Setup/Repair Configuration` 仅用于显式迁移或修复，
 不会被验证器和生产 Pipeline 隐式调用。
 
+NPC 作者只维护版本化目录中的 `NpcContentDefinition`、完整视觉 Prefab、头像、Profile 与
+Prompt。使用 `NpcContentRelease.BuildDefinitionsFromCommandLine` 或菜单
+`GameWithLLM/Content/Build NPC Definitions` 生成严格 v2 清单和索引；不存在样例复制或
+`BuildSamples` 生产入口。已发布 NPC 版本目录不得复用或覆盖。
+
 ## 2. 本地验证
 
 在仓库根目录执行发布事务测试：
@@ -69,6 +74,8 @@ ContentSmokeRunner.RunFromCommandLine
 - Full：fresh-install、offline、cache-hit、low-disk、interrupted-retry。
 - ContentUpdate：existing-install-upgrade、offline、cache-hit、low-disk、interrupted-retry。
 - Windows Player：普通对话、流式回复、移动、取消、Inventory、存档恢复。
+- NPC 表现：移动与 Thinking/Speaking 可叠加；delta、仅最终回复、失败、取消、切场和销毁
+  均按 operationId 收束，迟到 SSE 不改变新请求状态。
 - Event Viewer/Profiler：无未解释异常和 Addressables handle 泄漏。
 
 通过后在候选目录写入 `content-release-smoke.passed.json`。其 `releaseId`、候选 manifest

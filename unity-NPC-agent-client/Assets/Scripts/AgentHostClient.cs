@@ -26,6 +26,7 @@ public class AgentHostClient : Singleton<AgentHostClient>, ISceneTransitionParti
     private readonly ConcurrentQueue<Action> _mainThread = new ConcurrentQueue<Action>();
     private readonly SemaphoreSlim _sendLock = new SemaphoreSlim(1, 1);
     private readonly object _manifestLock = new object();
+    private readonly object _responseLock = new object();
     private readonly Dictionary<NpcEntity, List<string>> _npcCapabilities =
         new Dictionary<NpcEntity, List<string>>();
     private A2AClientAdapter _a2a;
@@ -59,6 +60,8 @@ public class AgentHostClient : Singleton<AgentHostClient>, ISceneTransitionParti
     private NpcLibraryServices _npcLibraryServices;
     private volatile bool _sceneTransitionBusy;
     private bool _sceneTransitionOwnsSendLock;
+    private string _activeResponseNpcId;
+    private string _activeResponseOperationId;
 
     public bool IsContentReady => _contentReady;
     public ClientContentBootstrapState ContentBootstrapState =>
@@ -421,8 +424,15 @@ public class AgentHostClient : Singleton<AgentHostClient>, ISceneTransitionParti
     private async Task SubmitAsync(string npcId, string text)
     {
         await _sendLock.WaitAsync(_appCts.Token);
+        string operationId = Guid.NewGuid().ToString("N");
         try
         {
+            lock (_responseLock)
+            {
+                _activeResponseNpcId = npcId;
+                _activeResponseOperationId = operationId;
+            }
+            QueueNpcPresentation(npcId, npc => npc.BeginResponsePresentation(operationId));
             _contexts.TryGetValue(npcId, out string contextId);
             ResponseCompleted completed = await _a2a.SendStreamingAsync(
                 contextId,
@@ -431,7 +441,7 @@ public class AgentHostClient : Singleton<AgentHostClient>, ISceneTransitionParti
                 npcId,
                 sceneId,
                 text,
-                responseEvent => HandleResponseEvent(npcId, responseEvent),
+                responseEvent => HandleResponseEvent(npcId, operationId, responseEvent),
                 _appCts.Token);
             if (!string.IsNullOrWhiteSpace(completed?.ContextId))
                 _contexts[npcId] = completed.ContextId;
@@ -439,20 +449,51 @@ public class AgentHostClient : Singleton<AgentHostClient>, ISceneTransitionParti
         catch (OperationCanceledException) when (_appCts.IsCancellationRequested) { }
         catch (Exception ex)
         {
+            QueueNpcPresentation(npcId, npc =>
+                npc.EndResponsePresentation(operationId, NpcAnimationEndReason.Failed));
             CancelStream(npcId);
             SystemMessage(npcId, $"对话请求失败：{ex.Message}");
         }
-        finally { _sendLock.Release(); }
+        finally
+        {
+            lock (_responseLock)
+            {
+                if (string.Equals(_activeResponseOperationId, operationId, StringComparison.Ordinal))
+                {
+                    _activeResponseNpcId = null;
+                    _activeResponseOperationId = null;
+                }
+            }
+            _sendLock.Release();
+        }
     }
 
-    public Task CancelActiveResponseAsync() =>
-        _a2a == null ? Task.CompletedTask : _a2a.CancelActiveTaskAsync(_appCts.Token);
+    public Task CancelActiveResponseAsync()
+    {
+        string npcId;
+        string operationId;
+        lock (_responseLock)
+        {
+            npcId = _activeResponseNpcId;
+            operationId = _activeResponseOperationId;
+        }
+        if (npcId != null && operationId != null)
+            QueueNpcPresentation(npcId, npc =>
+                npc.EndResponsePresentation(operationId, NpcAnimationEndReason.Cancelled));
+        return _a2a == null ? Task.CompletedTask : _a2a.CancelActiveTaskAsync(_appCts.Token);
+    }
 
     // 网络线程只转换事件并投递 UI 回调，实际 Unity API 在 Update 中执行。
-    private void HandleResponseEvent(string npcId, AgentResponseEvent responseEvent)
+    private void HandleResponseEvent(
+        string npcId,
+        string operationId,
+        AgentResponseEvent responseEvent)
     {
         if (responseEvent is TextDelta delta)
         {
+            if (!string.IsNullOrEmpty(delta.Text))
+                QueueNpcPresentation(npcId, npc =>
+                    npc.ReceiveResponseText(operationId, delta.Text));
             if (delta.Reset) CancelStream(npcId);
             else if (!string.IsNullOrEmpty(delta.Text))
                 _mainThread.Enqueue(
@@ -463,12 +504,21 @@ public class AgentHostClient : Singleton<AgentHostClient>, ISceneTransitionParti
             if (!string.IsNullOrWhiteSpace(completed.ContextId))
                 _contexts[npcId] = completed.ContextId;
             _mainThread.Enqueue(
-                () => ChatViewModel.Instance.CompleteOpponentMessageStream(
-                    npcId,
-                    completed.FinalText));
+                () =>
+                {
+                    FindNpc(npcId)?.CompleteResponsePresentation(operationId, completed.FinalText);
+                    ChatViewModel.Instance.CompleteOpponentMessageStream(npcId, completed.FinalText);
+                });
         }
         else if (responseEvent is ResponseFailed failed)
         {
+            NpcAnimationEndReason reason = string.Equals(
+                failed.Code,
+                "CANCELLED",
+                StringComparison.OrdinalIgnoreCase)
+                ? NpcAnimationEndReason.Cancelled
+                : NpcAnimationEndReason.Failed;
+            QueueNpcPresentation(npcId, npc => npc.EndResponsePresentation(operationId, reason));
             CancelStream(npcId);
             SystemMessage(npcId, $"Agent 请求失败 ({failed.Code})：{failed.Message}");
         }
@@ -686,6 +736,7 @@ public class AgentHostClient : Singleton<AgentHostClient>, ISceneTransitionParti
             // 并在切换结束前阻止新的临界区进入。
             await _sendLock.WaitAsync(cancellationToken);
             _sceneTransitionOwnsSendLock = true;
+            EndAllNpcPresentations(NpcAnimationEndReason.SceneChanged);
 
             while (!_runtimeInvocations.IsEmpty)
             {
@@ -869,12 +920,32 @@ public class AgentHostClient : Singleton<AgentHostClient>, ISceneTransitionParti
     }
     private void CancelStream(string npcId) =>
         _mainThread.Enqueue(() => ChatViewModel.Instance.CancelOpponentMessageStream(npcId));
+
+    private void QueueNpcPresentation(string npcId, Action<NpcEntity> action) =>
+        _mainThread.Enqueue(() =>
+        {
+            NpcEntity npc = FindNpc(npcId);
+            if (npc != null) action(npc);
+        });
+
+    private NpcEntity FindNpc(string npcId) =>
+        _npcCapabilities.Keys.FirstOrDefault(npc =>
+            npc != null && npc.isActiveAndEnabled &&
+            string.Equals(npc.npcId, npcId, StringComparison.Ordinal));
+
+    private void EndAllNpcPresentations(NpcAnimationEndReason reason)
+    {
+        foreach (NpcEntity npc in _npcCapabilities.Keys.ToArray())
+            if (npc != null) npc.EndAllPresentation(reason);
+    }
+
     private void SystemMessage(string text) => SystemMessage(_activeNpcId, text);
     private void SystemMessage(string npcId, string text) =>
         _mainThread.Enqueue(() => ChatViewModel.Instance.AddSystemMessage(npcId, text));
 
     private void OnDestroy()
     {
+        EndAllNpcPresentations(NpcAnimationEndReason.Destroyed);
         if (_dispatcher != null)
         {
             _dispatcher.EntityChanged -= OnRuntimeChanged;
