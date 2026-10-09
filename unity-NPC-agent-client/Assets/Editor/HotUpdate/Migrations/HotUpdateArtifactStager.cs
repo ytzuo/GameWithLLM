@@ -17,7 +17,7 @@ public static class HotUpdateArtifactStager
     private const string StagingRoot = "Assets/Content/HotUpdate";
     private const string LocalRoot = "Assets/StreamingAssets/HotUpdate";
     private const string ManifestPath = StagingRoot + "/release-manifest.json";
-    private const string ContentVersion = "2026.09.001";
+    public const string ContentVersion = "2026.10.001";
 
     public static void StageAndConfigure()
     {

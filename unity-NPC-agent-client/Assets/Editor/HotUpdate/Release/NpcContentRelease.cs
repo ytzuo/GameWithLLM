@@ -37,21 +37,36 @@ public static class NpcContentRelease
         var settings = AddressableAssetSettingsDefaultObject.Settings;
         var group = settings.FindGroup("Remote_Characters");
         JObject index = Read(Path.Combine(StaticRoot, "npc", "index.json"));
+        const string contentVersion = "2";
         string[] ids = { "merchant_001", "guide_001" };
         string[] characters = { "ryan", "alice" };
+        string[] animationAssemblies =
+        {
+            "GameWithLLM.NpcAnimation.Merchant_001.V2",
+            "GameWithLLM.NpcAnimation.Guide_001.V2"
+        };
         for (int i = 0; i < ids.Length; i++)
         {
-            string directory = Path.Combine(StaticRoot, "npc", ids[i], "1");
+            string directory = Path.Combine(StaticRoot, "npc", ids[i], contentVersion);
+            Directory.CreateDirectory(directory);
             string manifestPath = Path.Combine(directory, "npc.json");
-            JObject manifest = Read(manifestPath);
+            string sourceManifestPath = Path.Combine(StaticRoot, "npc", ids[i], "1", "npc.json");
+            JObject manifest = Read(sourceManifestPath);
+            manifest["contentVersion"] = contentVersion;
             manifest["playerBuildId"] = "windows-x64-" + Application.version;
+            ((JObject)manifest["systemPrompt"])["contentVersion"] = contentVersion;
             JObject script = (JObject)manifest["animationScript"];
-            string assembly = (string)script["assemblyName"];
+            string assembly = animationAssemblies[i];
+            script["assemblyName"] = assembly;
+            foreach (JValue address in manifest.SelectTokens("$..*").OfType<JValue>()
+                         .Where(value => value.Type == JTokenType.String &&
+                                         ((string)value).Contains("/1/", StringComparison.Ordinal)))
+                address.Value = ((string)address.Value).Replace("/1/", "/" + contentVersion + "/");
             string dll = Path.Combine(SettingsUtil.GetHotUpdateDllsOutputDirByTarget(BuildTarget.StandaloneWindows64), assembly + ".dll");
             File.Copy(dll, Path.Combine(directory, "animation.dll.bytes"), true);
             script["length"] = new FileInfo(dll).Length;
             script["sha256"] = ArtifactHash.Sha256File(dll);
-            string assetRoot = "Assets/Content/Npcs/" + ids[i] + "/1";
+            string assetRoot = "Assets/Content/Npcs/" + ids[i] + "/" + contentVersion;
             Directory.CreateDirectory(assetRoot);
             // Copy all five assets together, remapping internal GUIDs to the versioned copies.
             string[] suffixes = { "default.prefab", "default.controller", "idle.anim", "default.mat", "default-texture.asset" };
@@ -77,8 +92,17 @@ public static class NpcContentRelease
             File.Copy(dll, scriptPath, true);
             AssetDatabase.Refresh();
             for (int n = 0; n < names.Length; n++)
-                AddEntry(settings, group, assetRoot + "/" + names[n], "npc/" + ids[i] + "/1/" + addresses[n]);
+                AddEntry(settings, group, assetRoot + "/" + names[n],
+                    "npc/" + ids[i] + "/" + contentVersion + "/" + addresses[n]);
             AddEntry(settings, group, scriptPath, (string)script["address"]);
+            // The shared Catalog retains old immutable addresses even though the
+            // mutable index exposes only the latest compatible version.
+            string retainedAssetRoot = "Assets/Content/Npcs/" + ids[i] + "/1";
+            for (int n = 0; n < names.Length; n++)
+                AddEntry(settings, group, retainedAssetRoot + "/" + names[n],
+                    "npc/" + ids[i] + "/1/" + addresses[n]);
+            AddEntry(settings, group, retainedAssetRoot + "/animation.dll.bytes",
+                "npc/" + ids[i] + "/1/animation-script");
             // Ordinary small PNGs, independent of model downloads.
             var texture = new Texture2D(32, 32);
             Color color = i == 0 ? new Color(0.8f, 0.55f, 0.2f) : new Color(0.2f, 0.6f, 0.8f);
@@ -87,11 +111,14 @@ public static class NpcContentRelease
             UnityEngine.Object.DestroyImmediate(texture);
             File.WriteAllText(manifestPath, manifest.ToString(Formatting.Indented) + "\n");
             JObject entry = index["npcs"].Children<JObject>().Single(x => (string)x["npcId"] == ids[i]);
+            entry["contentVersion"] = contentVersion;
+            entry["avatarPath"] = "npc/" + ids[i] + "/" + contentVersion + "/avatar.png";
+            entry["manifestPath"] = "npc/" + ids[i] + "/" + contentVersion + "/npc.json";
             entry["manifestSha256"] = ArtifactHash.Sha256File(manifestPath);
             entry["minPlayerVersion"] = Application.version;
             entry["maxPlayerVersion"] = Application.version;
         }
-        index["catalogContentVersion"] = Read("Assets/Content/HotUpdate/release-manifest.json")["contentVersion"];
+        index["catalogContentVersion"] = HotUpdateArtifactStager.ContentVersion;
         File.WriteAllText(Path.Combine(StaticRoot, "npc", "index.json"), index.ToString(Formatting.Indented) + "\n");
         AssetDatabase.SaveAssets(); AssetDatabase.Refresh();
         Validate();
@@ -100,8 +127,13 @@ public static class NpcContentRelease
 
     private static void AddEntry(AddressableAssetSettings settings, AddressableAssetGroup group, string path, string address)
     {
-        var entry = settings.CreateOrMoveEntry(AssetDatabase.AssetPathToGUID(path), group);
-        entry.address = address;
+        string guid = AssetDatabase.AssetPathToGUID(path);
+        if (string.IsNullOrWhiteSpace(guid))
+            throw new InvalidDataException("NPC asset is not imported: " + path);
+        var entry = settings.CreateOrMoveEntry(guid, group);
+        if (entry == null)
+            throw new InvalidDataException("NPC Addressable entry could not be created: " + path);
+        entry.SetAddress(address, true);
         string label = "content.npc." + address.Split('/')[1];
         settings.AddLabel(label); entry.SetLabel(label, true);
     }

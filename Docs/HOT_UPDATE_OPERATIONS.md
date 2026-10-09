@@ -74,6 +74,13 @@ ContentSmokeRunner.RunFromCommandLine
 通过后在候选目录写入 `content-release-smoke.passed.json`。其 `releaseId`、候选 manifest
 SHA-256、`CONTENT_RELEASE_SMOKE_SUCCESS` 标记和场景结果必须与候选一致。
 
+包含 NPC 内容的候选还必须由 Windows IL2CPP Player 测试流程生成
+`npc-runtime-smoke.passed.json`，并以同一个 candidate manifest SHA-256 绑定候选。证据的
+`successMarker` 必须为 `NPC_RUNTIME_SMOKE_SUCCESS`，且以下场景全部为 passed：
+`dynamic-download`、`animation-driver`、`save-restore`、`version-conflict`、`cache-repair`、
+`catalog-restart-required`、`scene-cancel`、`manifest-reregister`。不得手工补写通过证据；
+缺少或过期时发布脚本会在写入任何生产文件前拒绝候选。
+
 ## 5. 发布与回滚
 
 发布：
@@ -84,8 +91,9 @@ SHA-256、`CONTENT_RELEASE_SMOKE_SUCCESS` 标记和场景结果必须与候选�
   -PublishRoot '<publish-root>'
 ```
 
-脚本重新校验候选、工具包证据及全部文件 hash/length，先写不可变 release 目录，最后
-原子替换 `current.json`。同一 releaseId 的内容不可覆盖。
+脚本重新校验候选、工具包证据、通用环境证据、动态 NPC 证据及全部文件 hash/length，
+先写不可变 release 与 NPC 版本文件，再原子替换 `current.json`，最后切换
+`npc/index.json`。同一 releaseId 或已发布 NPC 版本的内容不可覆盖。
 
 回滚只允许指向发布根目录中仍保留的 release：
 

@@ -31,16 +31,18 @@ public sealed class RemoteNpcRoundTwoTests
     public void CatalogRejectsUnknownDuplicateAndTraversalFields()
     {
         string valid = Fixture("npc", "index.json");
+        RemoteNpcSummary merchant = RemoteNpcContract.ParseCatalog(valid).Npcs[0];
+        string avatar = merchant.AvatarPath;
         Assert.Throws<InvalidDataException>(() => RemoteNpcContract.ParseCatalog(
             valid.Replace("\"schemaVersion\": 1", "\"schemaVersion\": 1, \"unknown\": true")));
         Assert.Throws<InvalidDataException>(() => RemoteNpcContract.ParseCatalog(
             valid.Replace("\"schemaVersion\": 1", "\"schemaVersion\": 1, \"schemaVersion\": 1")));
         Assert.Throws<InvalidDataException>(() => RemoteNpcContract.ParseCatalog(
-            valid.Replace("npc/merchant_001/1/avatar.png", "npc/merchant_001/1/../../avatar.png")));
+            valid.Replace(avatar, $"npc/{merchant.NpcId}/{merchant.ContentVersion}/../../avatar.png")));
         Assert.Throws<InvalidDataException>(() => RemoteNpcContract.ParseCatalog(
-            valid.Replace("\"contentVersion\": \"1\"", "\"contentVersion\": \"1.1\"")));
+            valid.Replace($"\"contentVersion\": \"{merchant.ContentVersion}\"", "\"contentVersion\": \"1.1\"")));
         Assert.Throws<InvalidDataException>(() => RemoteNpcContract.ParseCatalog(
-            valid.Replace("npc/merchant_001/1/avatar.png", "npc/merchant_001/1/nested/avatar.png")));
+            valid.Replace(avatar, $"npc/{merchant.NpcId}/{merchant.ContentVersion}/nested/avatar.png")));
         Assert.Throws<InvalidDataException>(() => RemoteNpcContract.ParseCatalog(
             valid.Replace(
                 "已下载 {downloaded} / {total} 字节",

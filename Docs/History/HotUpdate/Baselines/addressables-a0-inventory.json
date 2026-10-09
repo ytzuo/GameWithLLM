@@ -112,14 +112,16 @@
         "Assets/Art/UI/ItemDispenserView.uxml",
         "Assets/Art/UI/ItemDispenserStyle.uss",
         "Assets/Art/UI/SaveGameView.uxml",
-        "Assets/Art/UI/SaveGameStyle.uss"
+        "Assets/Art/UI/SaveGameStyle.uss",
+        "Assets/Art/UI/NpcLibraryWindow.uxml",
+        "Assets/Art/UI/NpcLibraryStyle.uss"
       ],
       "sourceState": "existing",
       "location": "Remote",
       "ownerGroup": "Remote_UI",
       "addressPattern": "ui/window/{window-id}",
       "labels": ["content.ui"],
-      "businessIds": ["chat", "inventory", "inventory-list", "inventory-interact", "item-dispenser", "save-game"],
+      "businessIds": ["chat", "inventory", "inventory-list", "inventory-interact", "item-dispenser", "save-game", "npc-library"],
       "dependencies": ["ui-panel-settings", "ui-templates"],
       "loadPoint": "A3 UiContentCatalog preload before UI enable",
       "releaseOwner": "UiContentCatalog and owning BasicWindow",

@@ -30,10 +30,78 @@ public sealed class NpcLibraryServices : IDisposable
 
     public void Dispose()
     {
+        Installer.Cancel();
         CatalogClient.Dispose();
         Spawner.Dispose();
         if (ReferenceEquals(Current, this)) Current = null;
     }
+
+    public async Task PrepareRestoreAsync(
+        IReadOnlyList<SaveGameNpcContentState> requirements,
+        CancellationToken token)
+    {
+        requirements ??= Array.Empty<SaveGameNpcContentState>();
+        ValidateRestoreRequirements(requirements);
+
+        // Finish every non-mutating prerequisite before creating any entity. Missing
+        // content therefore cannot leave a partially restored dynamic world.
+        foreach (SaveGameNpcContentState requirement in requirements)
+        {
+            if (!Installer.TryGet(requirement.EntityId, out InstalledNpcRecord installed))
+                throw new InvalidOperationException($"NPC_CONTENT_NOT_INSTALLED:{requirement.EntityId}");
+            if (!string.Equals(installed.ContentVersion, requirement.ContentVersion, StringComparison.Ordinal) ||
+                !string.Equals(installed.ManifestSha256, requirement.ManifestSha256, StringComparison.Ordinal))
+                throw new InvalidOperationException($"NPC_CONTENT_VERSION_CONFLICT:{requirement.EntityId}");
+            if (await Installer.IsCacheMissingAsync(requirement.EntityId, token))
+                throw new InvalidOperationException($"NPC_CONTENT_CACHE_MISSING:{requirement.EntityId}");
+            Spawner.ValidateExistingBinding(requirement);
+        }
+
+        var created = new List<string>();
+        try
+        {
+            foreach (SaveGameNpcContentState requirement in requirements)
+            {
+                if (Spawner.IsSpawned(requirement.EntityId)) continue;
+                Installer.TryGet(requirement.EntityId, out InstalledNpcRecord installed);
+                await Spawner.SpawnAsync(installed, token);
+                created.Add(requirement.EntityId);
+            }
+            Spawner.DespawnRemoteExcept(new HashSet<string>(
+                requirements.Select(item => item.EntityId), StringComparer.Ordinal));
+        }
+        catch
+        {
+            foreach (string npcId in created) Spawner.Despawn(npcId);
+            throw;
+        }
+    }
+
+    public async Task BeginSceneTransitionAsync()
+    {
+        await Installer.CancelAndWaitAsync();
+        await Spawner.CancelPendingAsync();
+    }
+
+    public static void ValidateRestoreRequirements(IReadOnlyList<SaveGameNpcContentState> requirements)
+    {
+        var ids = new HashSet<string>(StringComparer.Ordinal);
+        foreach (SaveGameNpcContentState item in requirements ?? Array.Empty<SaveGameNpcContentState>())
+        {
+            if (item == null || string.IsNullOrWhiteSpace(item.EntityId) ||
+                !IsDigits(item.ContentVersion) ||
+                !IsLowerHexSha256(item.ManifestSha256) || !ids.Add(item.EntityId))
+                throw new InvalidDataException("NPC_CONTENT_SAVE_BINDING_INVALID");
+        }
+    }
+
+    private static bool IsDigits(string value) =>
+        !string.IsNullOrEmpty(value) && value.All(character => character >= '0' && character <= '9');
+
+    private static bool IsLowerHexSha256(string value) =>
+        value != null && value.Length == 64 &&
+        value.All(character => (character >= '0' && character <= '9') ||
+                               (character >= 'a' && character <= 'f'));
 }
 
 public sealed class NpcSpawnController : IDisposable
@@ -42,6 +110,9 @@ public sealed class NpcSpawnController : IDisposable
     private readonly Dictionary<string, GameObject> _instances =
         new Dictionary<string, GameObject>(StringComparer.Ordinal);
     private readonly HashSet<string> _spawning = new HashSet<string>(StringComparer.Ordinal);
+    private readonly Dictionary<string, Task<NpcEntity>> _spawnTasks =
+        new Dictionary<string, Task<NpcEntity>>(StringComparer.Ordinal);
+    private CancellationTokenSource _sceneCts = new CancellationTokenSource();
 
     public NpcSpawnController(IContentAssetProvider provider)
     {
@@ -52,13 +123,36 @@ public sealed class NpcSpawnController : IDisposable
             if (npc != null && !string.IsNullOrWhiteSpace(npc.npcId)) _instances[npc.npcId] = npc.gameObject;
     }
 
-    public bool IsSpawned(string npcId) =>
-        !string.IsNullOrWhiteSpace(npcId) && _instances.TryGetValue(npcId, out GameObject instance) && instance != null;
+    public bool IsSpawned(string npcId)
+    {
+        if (string.IsNullOrWhiteSpace(npcId)) return false;
+        if (_instances.TryGetValue(npcId, out GameObject instance))
+        {
+            if (instance != null) return true;
+            _instances.Remove(npcId);
+        }
+        NpcEntity existing = UnityEngine.Object.FindObjectsByType<NpcEntity>(
+                FindObjectsInactive.Exclude, FindObjectsSortMode.None)
+            .FirstOrDefault(value => string.Equals(value.npcId, npcId, StringComparison.Ordinal));
+        if (existing == null) return false;
+        _instances[npcId] = existing.gameObject;
+        return true;
+    }
     public bool IsSpawning(string npcId) => _spawning.Contains(npcId);
 
-    public async Task<NpcEntity> SpawnAsync(InstalledNpcRecord record, CancellationToken token)
+    public Task<NpcEntity> SpawnAsync(InstalledNpcRecord record, CancellationToken token)
     {
         if (record == null) throw new ArgumentNullException(nameof(record));
+        if (_spawnTasks.TryGetValue(record.NpcId, out Task<NpcEntity> active)) return active;
+        CancellationTokenSource linked = CancellationTokenSource.CreateLinkedTokenSource(token, _sceneCts.Token);
+        Task<NpcEntity> task = SpawnCoreAsync(record, linked.Token);
+        _spawnTasks[record.NpcId] = task;
+        _ = ObserveSpawnAsync(record.NpcId, task, linked);
+        return task;
+    }
+
+    private async Task<NpcEntity> SpawnCoreAsync(InstalledNpcRecord record, CancellationToken token)
+    {
         NpcEntity existing = UnityEngine.Object.FindObjectsByType<NpcEntity>(
                 FindObjectsInactive.Exclude,
                 FindObjectsSortMode.None)
@@ -149,8 +243,76 @@ public sealed class NpcSpawnController : IDisposable
         finally { _spawning.Remove(record.NpcId); }
     }
 
+    private async Task ObserveSpawnAsync(
+        string npcId,
+        Task<NpcEntity> task,
+        CancellationTokenSource linked)
+    {
+        try { await task; }
+        catch { }
+        finally
+        {
+            linked.Dispose();
+            if (_spawnTasks.TryGetValue(npcId, out Task<NpcEntity> current) && ReferenceEquals(current, task))
+                _spawnTasks.Remove(npcId);
+        }
+    }
+
+    public async Task CancelPendingAsync()
+    {
+        CancellationTokenSource cancelled = _sceneCts;
+        _sceneCts = new CancellationTokenSource();
+        cancelled.Cancel();
+        Task[] tasks = _spawnTasks.Values.Cast<Task>().ToArray();
+        if (tasks.Length > 0)
+        {
+            try { await Task.WhenAll(tasks); }
+            catch { }
+        }
+        cancelled.Dispose();
+    }
+
+    public void ValidateExistingBinding(SaveGameNpcContentState requirement)
+    {
+        NpcEntity entity = UnityEngine.Object.FindObjectsByType<NpcEntity>(
+                FindObjectsInactive.Exclude, FindObjectsSortMode.None)
+            .FirstOrDefault(value => string.Equals(value.npcId, requirement.EntityId, StringComparison.Ordinal));
+        if (entity == null) return;
+        NpcContentBinding binding = entity.ContentBinding;
+        if (binding == null ||
+            !string.Equals(binding.ContentVersion, requirement.ContentVersion, StringComparison.Ordinal) ||
+            !string.Equals(binding.ManifestSha256, requirement.ManifestSha256, StringComparison.Ordinal))
+            throw new InvalidOperationException($"NPC_CONTENT_VERSION_CONFLICT:{requirement.EntityId}");
+    }
+
+    public void Despawn(string npcId)
+    {
+        if (!_instances.TryGetValue(npcId, out GameObject instance)) return;
+        _instances.Remove(npcId);
+        if (instance == null) return;
+        NpcEntity entity = instance.GetComponent<NpcEntity>();
+        foreach (PlayerMock player in UnityEngine.Object.FindObjectsByType<PlayerMock>(
+                     FindObjectsInactive.Include, FindObjectsSortMode.None))
+            player.npcEntities.Remove(entity);
+        instance.SetActive(false);
+        UnityEngine.Object.Destroy(instance);
+    }
+
+    public void DespawnRemoteExcept(ISet<string> retainedNpcIds)
+    {
+        foreach (NpcEntity entity in UnityEngine.Object.FindObjectsByType<NpcEntity>(
+                     FindObjectsInactive.Exclude, FindObjectsSortMode.None))
+        {
+            if (entity?.ContentBinding == null || retainedNpcIds.Contains(entity.npcId)) continue;
+            _instances[entity.npcId] = entity.gameObject;
+            Despawn(entity.npcId);
+        }
+    }
+
     public void Dispose()
     {
+        _sceneCts.Cancel();
+        _sceneCts.Dispose();
         _spawning.Clear();
         foreach (GameObject instance in _instances.Values)
             if (instance != null && instance.GetComponent<NpcEntity>()?.ContentBinding != null)

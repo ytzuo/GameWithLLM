@@ -558,6 +558,7 @@ public class AgentHostClient : Singleton<AgentHostClient>, ISceneTransitionParti
             _contexts.Clear();
             ChatViewModel.Instance.ClearAllHistory();
             applyWorldState?.Invoke();
+            await PublishManifestAndWaitAsync(_appCts.Token);
             AgentSnapshotLoadResult result = await _saveCoordinator.RestoreAsync(
                 saveId,
                 Guid.NewGuid().ToString(),
@@ -679,6 +680,8 @@ public class AgentHostClient : Singleton<AgentHostClient>, ISceneTransitionParti
         GateGameplay(false);
         try
         {
+            if (_npcLibraryServices != null)
+                await _npcLibraryServices.BeginSceneTransitionAsync();
             // 对话、存档协调和模型 tool loop 共用此锁。拿到锁即表示这些临界区已完成，
             // 并在切换结束前阻止新的临界区进入。
             await _sendLock.WaitAsync(cancellationToken);
@@ -827,6 +830,13 @@ public class AgentHostClient : Singleton<AgentHostClient>, ISceneTransitionParti
             _ = _runtimeTransport.UpdateManifestAsync(
                 GetManifest(),
                 _appCts.Token);
+    }
+
+    private async Task PublishManifestAndWaitAsync(CancellationToken cancellationToken)
+    {
+        RefreshManifest();
+        if (_runtimeTransport != null)
+            await _runtimeTransport.UpdateManifestAsync(GetManifest(), cancellationToken);
     }
     private void RefreshManifest()
     {

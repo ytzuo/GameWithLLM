@@ -49,6 +49,40 @@ public static class ContentDeliveryProjectSetup
         "content.scenes"
     };
 
+    private static readonly (string Path, string Address)[] SharedShaderDependencies =
+    {
+        ("Packages/com.unity.render-pipelines.universal/Shaders/Lit.shader", "shader/shared/urp/lit"),
+        ("Packages/com.unity.render-pipelines.core/Runtime/RenderPipelineResources/FallbackShader.shader", "shader/shared/core/fallback"),
+        ("Packages/com.unity.render-pipelines.universal/Shaders/Utils/FallbackError.shader", "shader/shared/urp/fallback-error")
+    };
+
+    public static void ConfigureSharedShaderDependenciesFromCommandLine() =>
+        HotUpdateEditorCommand.Run(ConfigureSharedShaderDependencies);
+
+    public static void ConfigureSharedShaderDependencies()
+    {
+        AddressableAssetSettings settings = AddressableAssetSettingsDefaultObject.Settings ??
+                                            throw new InvalidOperationException(
+                                                "AddressableAssetSettings is not configured.");
+        AddressableAssetGroup group = settings.FindGroup("Remote_Materials") ??
+                                      throw new InvalidOperationException("Remote_Materials is missing.");
+        foreach ((string path, string address) in SharedShaderDependencies)
+        {
+            string guid = AssetDatabase.AssetPathToGUID(path);
+            if (string.IsNullOrWhiteSpace(guid))
+                throw new InvalidOperationException("Shared shader is not imported: " + path);
+            AddressableAssetEntry entry = settings.CreateOrMoveEntry(guid, group);
+            entry.SetAddress(address, true);
+        }
+        settings.SetDirty(
+            AddressableAssetSettings.ModificationEvent.BatchModification,
+            null,
+            true,
+            true);
+        AssetDatabase.SaveAssets();
+        Debug.Log("[Content] Shared URP shader dependencies assigned to Remote_Materials.");
+    }
+
     public static void Configure()
     {
         AddressableAssetSettings settings = AddressableAssetSettingsDefaultObject.Settings ??

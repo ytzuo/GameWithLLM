@@ -592,6 +592,28 @@ Addressables 内容通道推导可信静态根，只读取 `npc/index.json`、�
 `RuntimeAvailabilityChanged` 和完整 Manifest 发布仍是唯一运行时权威。任何失败都会
 释放实例、动画驱动、资源 lease 和生成中标记。
 
+世界存档格式版本为 2，并为每个远端 NPC 保存 `entityId / contentVersion /
+manifestSha256`；版本 1 的无远端 NPC 存档继续可读。恢复先完整校验所有安装记录、版本、
+hash 与 Addressables 缓存，再通过唯一生成入口补齐实体；任一前置条件失败时不生成任何
+缺失实体。生成失败会回收本轮已创建实体。全部实体就绪后才恢复 Transform/Inventory、
+同步发送完整 Runtime Manifest，最后调用 Go 的 Context restore，因此版本冲突不会混用旧
+Context。缓存缺失、未安装和版本冲突分别返回稳定错误并引导补下载或安装存档版本。
+
+切场开始时 `AgentHostClient` 在取得对话/工具临界区锁前先取消并等待当前 NPC 安装与生成；
+取消后的任务不得提交安装记录或激活实体。旧场景卸载后，生成器会清理失效 Unity 引用，
+同一 npcId 在新场景仍可通过同一唯一入口重新生成。
+
+含 `npcContentRoot` 的生产候选除通用环境 smoke 外，还必须提供与候选 manifest SHA-256
+绑定的 `npc-runtime-smoke.passed.json`。发布脚本硬性要求动态下载、动画 driver、存档恢复、
+版本冲突、缓存修复、Catalog 重启提示、切场取消和重连 Manifest 八项均通过；证据随不可变
+release 归档。发布仍按不可变 NPC 文件、release/Catalog、`current.json`、最后
+`npc/index.json` 的顺序执行，已发布版本永不覆盖。
+
+当前已建立的首个含该 AOT 契约的生产基线为 Player `0.2.0`、release
+`h8-production-2.0.0`、ToolSet `6.0.0`。样例 NPC 最新内容为 v2，v1 静态文件与 Address
+继续保留。共享 URP Shader 由 `Remote_Materials` 显式持有，避免场景和逐 NPC Bundle
+重复打包。
+
 ## 7. 代码地图
 
 ### 7.1 Go

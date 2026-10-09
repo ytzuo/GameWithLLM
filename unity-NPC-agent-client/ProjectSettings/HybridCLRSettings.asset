@@ -21,6 +21,8 @@ MonoBehaviour:
   - GameWithLLM.Tools.Pack.SmokeTest
   - GameWithLLM.NpcAnimation.Merchant_001.V1
   - GameWithLLM.NpcAnimation.Guide_001.V1
+  - GameWithLLM.NpcAnimation.Merchant_001.V2
+  - GameWithLLM.NpcAnimation.Guide_001.V2
   preserveHotUpdateAssemblies: []
   hotUpdateDllCompileOutputRootDir: HybridCLRData/HotUpdateDlls
   externalHotUpdateAssembliyDirs: []

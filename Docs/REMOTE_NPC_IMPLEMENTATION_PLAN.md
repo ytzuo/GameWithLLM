@@ -1,9 +1,9 @@
 # 远端 NPC 下载、安装与生成实现方案
 
 日期：2026-10-08  
-状态：第一轮已完成；第二轮代码已实施并通过本地 Editor/内容构建验证，Windows
-IL2CPP 硬门禁因已提交的工具历史台账与重新生成的工具包 hash 不一致而未完成；第三轮待实施。目标方案和已实现
-内容由文末记录区分，当前实现事实仍以 `ARCHITECTURE.md` 为准。
+状态：三轮代码与本地生产候选构建已完成；受保护环境的动态 NPC Player smoke、真实远端
+部署和 1280×720 人工 UI 验收待执行。目标方案和已实现内容由文末记录区分，当前实现事实
+仍以 `ARCHITECTURE.md` 为准。
 
 ## 1. 目标与范围
 
@@ -343,3 +343,47 @@ Artifacts 和 Unity Logs，源测试入口只在 Editor 编译。
 2. 在 1280×720 Player 实际渲染中补截图和长文本/键盘交互证据；源码评估不能替代此项。
 3. 第三轮继续接入动态 NPC 存档/restore、切场取消和生产发布门禁；不得把当前未完成的
    Player 硬门禁标记为已通过。
+
+## 12. 第三轮交接记录（2026-10-09）
+
+已完成：
+
+- 世界存档升级为版本 2，为动态 NPC 保存 `entityId / contentVersion /
+  manifestSha256`，并保持版本 1 的旧场景存档可读。恢复先预检全部安装记录、不可变版本、
+  hash 和缓存，再共用唯一生成入口补齐实体；前置失败不生成半套世界，生成中途失败回收
+  本轮实体，额外动态实体按存档集合移除。
+- 缓存缺失、未安装、版本冲突和无效绑定使用稳定错误码并显示可操作提示。世界状态应用后
+  会等待完整 Manifest 写入已连接 Gateway，再发起 Go Context restore，避免新实体绑定与旧
+  Context 串用。
+- 切场开始会取消并等待单任务安装及全部在途生成；取消路径不提交安装记录、不激活实体。
+  生成器清理已销毁 Unity 对象的陈旧引用，允许新场景再次生成同一 npcId。
+- 生产发布新增 `npc-runtime-smoke.passed.json` 硬门禁，绑定候选 manifest hash，并要求
+  下载、driver、存档、版本冲突、缓存修复、Catalog 重启、切场取消和重连 Manifest 八项
+  Windows Player 场景。证据随不可变 release 归档；缺失或过期时在生产写入前拒绝。
+- 发布事务测试新增缺少 NPC runtime 证据的拒绝路径；ARCHITECTURE、运维手册和发布检查
+  清单已同步最终实现。
+- 正式提升 Player `0.2.0`、release `h8-production-2.0.0`、ToolSet `6.0.0` 和 Smoke Tool
+  Pack `1.5.0`；历史台账按新版本追加当前 hash，未覆盖旧版本。两名样例 NPC 发布内容
+  v2 与独立 V2 动画程序集，同时保留 v1 静态目录和共享 Catalog 地址供旧安装/存档引用。
+- 修复第二轮遗漏的 NPC Library 内容所有权，并把三个重复的 URP Shader 显式归入
+  `Remote_Materials` 共享 Bundle；最终 Production candidate 的重复隐式依赖数为 0。
+
+验证结果：
+
+| 检查 | 结果与证据 |
+|---|---|
+| Unity C# 编译与 EditMode | 42/42 通过；`Artifacts/NpcRound3/editmode-results-final.xml`、`unity-NPC-agent-client/Logs/npc-round3-editmode-final.log` |
+| Candidate 静态门禁 | 全部通过；`Artifacts/NpcRound3/content-validation.json`、`unity-NPC-agent-client/Logs/npc-round3-content-validation.log` |
+| Windows IL2CPP / Tool Package | Player 0.2.0 构建成功，实际运行输出 `TOOL_PACKAGE_SMOKE_SUCCESS`；`unity-NPC-agent-client/Logs/npc-round3-il2cpp-build.log`、`npc-round3-player-smoke.log` |
+| Production full candidate | `FULL_CANDIDATE_READY`；`Artifacts/Content/h8-production-2.0.0/candidate-manifest.json`，62 Bundles、3,205,358 remote bytes、0 duplicate implicit assets |
+| 发布事务 | 通过；包含证据缺失拒绝、篡改拒绝、不可变 NPC、pointer-last 与索引回滚 |
+| go test ./... / go vet ./... | 通过 |
+| go test -race ./... | Windows 仍在测试进程启动时返回 `0xc0000139`，未进入用例；当前 WSL 无 Go，未能复现第一轮 WSL 替代运行 |
+| SampleScene 七项最终回归（2026-10-10） | 全部通过：Runtime 注册、普通/流式对话、warehouse/gate 移动、取消 Task/移动、Inventory、世界与对话恢复、Go 重启重连/Manifest、Console/Missing Script；`Artifacts/NpcRound1/scene-report.json`、`Artifacts/NpcRound1/go-scene.log`、`unity-NPC-agent-client/Logs/npc-round3-samplescene.log` |
+| 动态 NPC 受保护环境 / 1280×720 UI | 尚未执行；未生成或伪造 `npc-runtime-smoke.passed.json` / `content-release-smoke.passed.json`，候选不能发布 |
+
+剩余生产动作：在受保护环境用已生成的 0.2.0 Production Player 执行动态下载、V2 driver、
+存档/冲突/缓存/切场/重连和 1280×720 UI 验收，由测试流程生成
+`npc-runtime-smoke.passed.json` 与 `content-release-smoke.passed.json` 后方可发布。SampleScene
+七项本地最终回归已通过，但不能替代上述受保护环境证据；当前候选缺少这些证据，发布脚本
+会明确拒绝，未把未执行的环境验收标记为通过。

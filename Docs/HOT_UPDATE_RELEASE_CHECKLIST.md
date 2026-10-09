@@ -14,6 +14,7 @@
 - [ ] EditMode 全量测试通过。
 - [ ] UI/Inventory 与 Remote Scene Packed Play smoke 分别通过。
 - [ ] Tool Package Player smoke 输出 `TOOL_PACKAGE_SMOKE_SUCCESS`。
+- [ ] 动态 NPC Windows Player smoke 输出 `NPC_RUNTIME_SMOKE_SUCCESS`，八项场景全部通过。
 - [ ] 工具 Schema、ToolSet 原子性、Catalog、tombstone、DLL/AOT hash 全部通过。
 - [ ] Build Layout 的 Bundle、体积、重复依赖和估算峰值内存未超预算。
 - [ ] `Scripts/Test-ContentReleaseTransaction.ps1` 通过。
@@ -35,6 +36,7 @@
 - [ ] 坏 JSON、坏 DLL、缺失 Bundle 和超预算候选均未改变生产指针。
 - [ ] Event Viewer/Profiler 无未解释异常或 Addressables handle 泄漏。
 - [ ] `content-release-smoke.passed.json` 已生成且绑定候选 manifest SHA-256。
+- [ ] `npc-runtime-smoke.passed.json` 已生成且绑定同一候选 manifest SHA-256；覆盖 dynamic-download、animation-driver、save-restore、version-conflict、cache-repair、catalog-restart-required、scene-cancel、manifest-reregister。
 
 ## 发布与回滚准备
 
@@ -48,5 +50,5 @@
 - [ ] `current.json` 最后更新，releaseId、previousReleaseId、manifest hash 正确。
 - [ ] CDN/源站 Catalog 与版本化 Bundle/DLL 可访问且 hash 正确。
 - [ ] 线上 fresh/upgrade、cache-hit 和核心游戏流程抽样通过。
-- [ ] 构建日志、验证报告、两个 smoke 证据、候选 manifest 和 content state 已归档。
+- [ ] 构建日志、验证报告、三个 smoke 证据、候选 manifest 和 content state 已归档。
 - [ ] 本地生成目录只在证据归档后清理；已发布 release 与历史文档未改写。

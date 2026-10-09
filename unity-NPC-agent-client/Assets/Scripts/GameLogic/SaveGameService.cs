@@ -9,7 +9,7 @@ using UnityEngine.SceneManagement;
 [Serializable]
 public sealed class SaveGameFile
 {
-    [JsonProperty("version")] public int Version = 1;
+    [JsonProperty("version")] public int Version = 2;
     [JsonProperty("saveId")] public string SaveId;
     [JsonProperty("displayName")] public string DisplayName;
     [JsonProperty("savedAt")] public DateTime SavedAt;
@@ -19,6 +19,15 @@ public sealed class SaveGameFile
     [JsonProperty("sceneName")] public string SceneName;
     [JsonProperty("entities")] public List<SaveGameEntityState> Entities = new List<SaveGameEntityState>();
     [JsonProperty("inventories")] public List<SaveGameInventoryState> Inventories = new List<SaveGameInventoryState>();
+    [JsonProperty("npcContents")] public List<SaveGameNpcContentState> NpcContents = new List<SaveGameNpcContentState>();
+}
+
+[Serializable]
+public sealed class SaveGameNpcContentState
+{
+    [JsonProperty("entityId")] public string EntityId;
+    [JsonProperty("contentVersion")] public string ContentVersion;
+    [JsonProperty("manifestSha256")] public string ManifestSha256;
 }
 
 [Serializable]
@@ -136,7 +145,7 @@ public sealed class SaveGameService
         if (!IsCanonicalUuid(saveId))
             throw new InvalidDataException("saveId 不是 canonical UUID。");
         SaveGameFile file = ReadFile(GetPath(saveId));
-        ValidateWorld(file);
+        ValidateForLoad(file);
         return file;
     }
 
@@ -201,6 +210,15 @@ public sealed class SaveGameService
             string entityId = npc.npcId.Trim();
             if (!npcIds.Add(entityId)) throw new InvalidOperationException($"场景中存在重复 npcId: {entityId}");
             file.Entities.Add(CaptureEntity(entityId, npc.transform));
+            if (npc.ContentBinding != null)
+            {
+                file.NpcContents.Add(new SaveGameNpcContentState
+                {
+                    EntityId = npc.ContentBinding.EntityId,
+                    ContentVersion = npc.ContentBinding.ContentVersion,
+                    ManifestSha256 = npc.ContentBinding.ManifestSha256
+                });
+            }
         }
 
         InventoryComponent[] inventories = UnityEngine.Object.FindObjectsByType<InventoryComponent>(
@@ -208,6 +226,8 @@ public sealed class SaveGameService
         var containerIds = new HashSet<string>(StringComparer.Ordinal);
         foreach (InventoryComponent inventory in inventories.OrderBy(value => value.ContainerId, StringComparer.Ordinal))
         {
+            NpcEntity npcOwner = inventory.GetComponent<NpcEntity>();
+            if (npcOwner != null && !npcOwner.isActiveAndEnabled) continue;
             string containerId = inventory.ContainerId;
             if (string.IsNullOrWhiteSpace(containerId)) throw new InvalidOperationException($"容器 '{inventory.name}' 缺少稳定 containerId。");
             if (!containerIds.Add(containerId)) throw new InvalidOperationException($"场景中存在重复 containerId: {containerId}");
@@ -227,9 +247,7 @@ public sealed class SaveGameService
 
     private ValidatedWorld ValidateWorld(SaveGameFile file)
     {
-        ValidateIdentity(file);
-        if (!string.Equals(file.SceneName, SceneManager.GetActiveScene().name, StringComparison.Ordinal))
-            throw new InvalidDataException($"存档场景 '{file.SceneName}' 与当前场景不一致。");
+        ValidateForLoad(file);
         var world = new ValidatedWorld();
         foreach (NpcEntity npc in _player.NpcEntities)
         {
@@ -239,6 +257,8 @@ public sealed class SaveGameService
         world.Items = BuildItemMap();
         foreach (InventoryComponent inventory in UnityEngine.Object.FindObjectsByType<InventoryComponent>(FindObjectsInactive.Include, FindObjectsSortMode.None))
         {
+            NpcEntity npcOwner = inventory.GetComponent<NpcEntity>();
+            if (npcOwner != null && !npcOwner.isActiveAndEnabled) continue;
             if (!string.IsNullOrWhiteSpace(inventory.ContainerId)) world.Inventories.Add(inventory.ContainerId, inventory);
         }
         var entityIds = new HashSet<string>(StringComparer.Ordinal);
@@ -280,12 +300,42 @@ public sealed class SaveGameService
 
     private void ValidateIdentity(SaveGameFile file)
     {
-        if (file == null || file.Version != 1) throw new InvalidDataException("世界存档版本不受支持。");
+        if (file == null || (file.Version != 1 && file.Version != 2)) throw new InvalidDataException("世界存档版本不受支持。");
         if (!IsCanonicalUuid(file.SaveId) || !IsCanonicalUuid(file.OperationId)) throw new InvalidDataException("世界存档标识无效。");
         if (string.IsNullOrWhiteSpace(file.DisplayName) || file.SavedAt == default || string.IsNullOrWhiteSpace(file.SceneName))
             throw new InvalidDataException("世界存档元数据不完整。");
         if (file.PendingConversationMode != "create" && file.PendingConversationMode != "overwrite")
             throw new InvalidDataException("世界存档对话同步模式无效。");
+    }
+
+    private void ValidateForLoad(SaveGameFile file)
+    {
+        ValidateIdentity(file);
+        if (!string.Equals(file.SceneName, SceneManager.GetActiveScene().name, StringComparison.Ordinal))
+            throw new InvalidDataException($"存档场景 '{file.SceneName}' 与当前场景不一致。");
+
+        var entityIds = new HashSet<string>(StringComparer.Ordinal);
+        foreach (SaveGameEntityState entity in file.Entities ?? new List<SaveGameEntityState>())
+        {
+            if (entity == null || string.IsNullOrWhiteSpace(entity.EntityId) || !entityIds.Add(entity.EntityId))
+                throw new InvalidDataException("存档包含空或重复的 entityId。");
+        }
+        if (!entityIds.Contains(_player.WorldTargetId))
+            throw new InvalidDataException("存档缺少玩家实体。");
+
+        var bindingIds = new HashSet<string>(StringComparer.Ordinal);
+        foreach (SaveGameNpcContentState binding in file.NpcContents ?? new List<SaveGameNpcContentState>())
+        {
+            if (binding == null || string.IsNullOrWhiteSpace(binding.EntityId) ||
+                string.IsNullOrWhiteSpace(binding.ContentVersion) ||
+                string.IsNullOrWhiteSpace(binding.ManifestSha256) ||
+                !bindingIds.Add(binding.EntityId))
+                throw new InvalidDataException("存档包含无效或重复的远端 NPC 内容绑定。");
+            if (binding.EntityId == _player.WorldTargetId || !entityIds.Contains(binding.EntityId))
+                throw new InvalidDataException($"远端 NPC 内容绑定未指向存档实体: {binding.EntityId}");
+        }
+        if (file.Version == 1 && bindingIds.Count != 0)
+            throw new InvalidDataException("版本 1 存档不能包含远端 NPC 内容绑定。");
     }
 
     private Dictionary<string, ItemData> BuildItemMap()

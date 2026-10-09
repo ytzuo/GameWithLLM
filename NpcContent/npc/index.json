@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "catalogContentVersion": "2026.09.001",
+  "catalogContentVersion": "2026.10.001",
   "texts": {
     "remoteTab": "可下载 NPC",
     "localTab": "本地 NPC",
@@ -28,25 +28,25 @@
   "npcs": [
     {
       "npcId": "merchant_001",
-      "contentVersion": "1",
+      "contentVersion": "2",
       "displayName": "旅行商人",
       "description": "旅行商人，可以交流并使用现有游戏工具。",
-      "avatarPath": "npc/merchant_001/1/avatar.png",
-      "manifestPath": "npc/merchant_001/1/npc.json",
-      "manifestSha256": "30da5a57da4124e60410d7adb6efabfae73e15352f0e8f7205e23ba457f69df7",
-      "minPlayerVersion": "0.1.0",
-      "maxPlayerVersion": "0.1.0"
+      "avatarPath": "npc/merchant_001/2/avatar.png",
+      "manifestPath": "npc/merchant_001/2/npc.json",
+      "manifestSha256": "b93d723207e421d925b709a656fd1d883e7d75d9b1f6187eeb38efd722a2d47e",
+      "minPlayerVersion": "0.2.0",
+      "maxPlayerVersion": "0.2.0"
     },
     {
       "npcId": "guide_001",
-      "contentVersion": "1",
+      "contentVersion": "2",
       "displayName": "仓库向导",
       "description": "仓库向导，可以交流并使用现有游戏工具。",
-      "avatarPath": "npc/guide_001/1/avatar.png",
-      "manifestPath": "npc/guide_001/1/npc.json",
-      "manifestSha256": "e3b35639ae004ad424ccab0828c4824f46f65f2302127b94a656abcf94f111b4",
-      "minPlayerVersion": "0.1.0",
-      "maxPlayerVersion": "0.1.0"
+      "avatarPath": "npc/guide_001/2/avatar.png",
+      "manifestPath": "npc/guide_001/2/npc.json",
+      "manifestSha256": "148f48a9562ee01f7e04688048399ee570e76de0933d7a6b5c98154f6fa5b74f",
+      "minPlayerVersion": "0.2.0",
+      "maxPlayerVersion": "0.2.0"
     }
   ]
 }

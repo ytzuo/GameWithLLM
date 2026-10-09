@@ -61,6 +61,18 @@ function New-Candidate {
     }
     $evidence | ConvertTo-Json -Depth 8 |
         Set-Content -LiteralPath (Join-Path $candidate 'content-release-smoke.passed.json') -Encoding utf8
+    if ($NpcPayload) {
+        [ordered]@{
+            schemaVersion = 1
+            releaseId = $ReleaseId
+            candidateManifestSha256 = (Get-FileHash -Algorithm SHA256 -LiteralPath $manifestPath).Hash.ToLowerInvariant()
+            successMarker = 'NPC_RUNTIME_SMOKE_SUCCESS'
+            scenarios = @('dynamic-download','animation-driver','save-restore','version-conflict',
+                'cache-repair','catalog-restart-required','scene-cancel','manifest-reregister') |
+                ForEach-Object { [ordered]@{ name = $_; passed = $true } }
+        } | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath `
+            (Join-Path $candidate 'npc-runtime-smoke.passed.json') -Encoding utf8
+    }
     return [pscustomobject]@{ Candidate = $candidate; Payload = $payload }
 }
 
@@ -89,6 +101,12 @@ try {
     $npcV1 = New-Candidate 'npc-test-v1' 'base' 'immutable-npc-v1'
     & $promote -CandidateDirectory $npcV1.Candidate -PublishRoot $publish -Confirm:$false | Out-Null
     if ((Get-Content -Raw (Join-Path $publish 'npc/index.json')) -ne 'npc-test-v1') { throw 'NPC index was not switched.' }
+    $missingNpcEvidence = New-Candidate 'npc-test-missing-evidence' 'base' 'immutable-npc-v1'
+    Remove-Item -LiteralPath (Join-Path $missingNpcEvidence.Candidate 'npc-runtime-smoke.passed.json')
+    $rejected = $false
+    try { & $promote -CandidateDirectory $missingNpcEvidence.Candidate -PublishRoot $publish -Confirm:$false | Out-Null }
+    catch { $rejected = $true }
+    if (-not $rejected) { throw 'NPC content was promoted without runtime smoke evidence.' }
     $npcV2 = New-Candidate 'npc-test-v2' 'base' 'immutable-npc-v1'
     & $promote -CandidateDirectory $npcV2.Candidate -PublishRoot $publish -Confirm:$false | Out-Null
     $npcBad = New-Candidate 'npc-test-conflict' 'base' 'modified-same-version'

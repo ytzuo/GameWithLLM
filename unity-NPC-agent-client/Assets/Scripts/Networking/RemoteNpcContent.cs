@@ -332,6 +332,7 @@ public sealed class NpcContentInstaller
     private readonly Dictionary<string, InstalledNpcRecord> _installed = new Dictionary<string, InstalledNpcRecord>(StringComparer.Ordinal);
     private readonly object _gate = new object();
     private CancellationTokenSource _active;
+    private TaskCompletionSource<bool> _activeCompletion;
     public event Action Changed;
     public event Action<string, ContentDownloadProgress> ProgressChanged;
     public IReadOnlyCollection<InstalledNpcRecord> Installed => _installed.Values;
@@ -351,6 +352,19 @@ public sealed class NpcContentInstaller
     public bool TryGet(string npcId, out InstalledNpcRecord record) => _installed.TryGetValue(npcId, out record);
     public void Cancel() { lock (_gate) _active?.Cancel(); }
 
+    public async Task CancelAndWaitAsync()
+    {
+        Task completion;
+        lock (_gate)
+        {
+            _active?.Cancel();
+            completion = _activeCompletion?.Task;
+        }
+        if (completion == null) return;
+        try { await completion; }
+        catch { }
+    }
+
     public async Task<InstalledNpcRecord> InstallAsync(RemoteNpcSummary summary, CancellationToken token)
     {
         if (summary == null)
@@ -361,7 +375,9 @@ public sealed class NpcContentInstaller
         lock (_gate)
         {
             if (_active != null) throw new InvalidOperationException("NPC_INSTALL_BUSY");
-            _active = linked = CancellationTokenSource.CreateLinkedTokenSource(token); ActiveNpcId = summary.NpcId;
+            _active = linked = CancellationTokenSource.CreateLinkedTokenSource(token);
+            _activeCompletion = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+            ActiveNpcId = summary.NpcId;
         }
         Changed?.Invoke();
         try
@@ -390,7 +406,17 @@ public sealed class NpcContentInstaller
         }
         finally
         {
-            lock (_gate) { if (ReferenceEquals(_active, linked)) { _active.Dispose(); _active = null; ActiveNpcId = null; } }
+            lock (_gate)
+            {
+                if (ReferenceEquals(_active, linked))
+                {
+                    _active.Dispose();
+                    _active = null;
+                    ActiveNpcId = null;
+                    _activeCompletion?.TrySetResult(true);
+                    _activeCompletion = null;
+                }
+            }
             Changed?.Invoke();
         }
     }

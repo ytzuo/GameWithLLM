@@ -348,6 +348,7 @@ public static class ContentReleasePipeline
             ["estimatedPeakMemoryBytes"] = estimatedPeakMemory,
             ["duplicateImplicitAssets"] = duplicateImplicitAssets,
             ["npcContentRoot"] = "NpcContent",
+            ["npcRuntimeSmokeEvidence"] = "npc-runtime-smoke.passed.json",
             ["files"] = ArtifactFileManifest.Create(root, roots, new[] { archivedState })
         };
         File.WriteAllText(Path.Combine(candidateDirectory, "candidate-manifest.json"),

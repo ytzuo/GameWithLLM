@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Threading.Tasks;
 using UnityEngine;
 using UnityEngine.InputSystem;
@@ -464,12 +465,16 @@ public class PlayerMock : MonoBehaviour, IGameplayWorldTarget
         try
         {
             SaveGameFile file = _saveGameService.Load(saveId);
-            var npcIds = new List<string>();
-            foreach (NpcEntity npc in npcEntities)
-            {
-                if (npc != null && !string.IsNullOrWhiteSpace(npc.npcId))
-                    npcIds.Add(npc.npcId.Trim());
-            }
+            if (NpcLibraryServices.Current == null)
+                throw new InvalidOperationException("NPC_CONTENT_SERVICES_UNAVAILABLE");
+            _saveGameWindow.SetStatus("正在校验并生成存档所需的远端 NPC……");
+            await NpcLibraryServices.Current.PrepareRestoreAsync(
+                file.NpcContents,
+                destroyCancellationToken);
+            var npcIds = (file.Entities ?? new List<SaveGameEntityState>())
+                .Where(entity => entity != null && entity.EntityId != WorldTargetId)
+                .Select(entity => entity.EntityId)
+                .ToList();
             AgentSnapshotLoadResult result = await AgentHostClient.Instance.LoadConversationsForSaveGameAsync(
                 file.SaveId, npcIds, () => _saveGameService.Apply(file));
             if (result == null || !result.Ok)
@@ -481,12 +486,26 @@ public class PlayerMock : MonoBehaviour, IGameplayWorldTarget
         }
         catch (Exception ex)
         {
-            _saveGameWindow.SetStatus($"加载失败：{ex.Message}", true);
+            _saveGameWindow.SetStatus("加载失败：" + FormatRestoreFailure(ex), true);
         }
         finally
         {
             _saveGameWindow?.SetBusy(false);
         }
+    }
+
+    private static string FormatRestoreFailure(Exception error)
+    {
+        string message = error?.GetBaseException().Message ?? "UNKNOWN";
+        if (message.StartsWith("NPC_CONTENT_NOT_INSTALLED:", StringComparison.Ordinal))
+            return "存档所需 NPC 尚未安装，请先下载对应版本后重试。";
+        if (message.StartsWith("NPC_CONTENT_CACHE_MISSING:", StringComparison.Ordinal))
+            return "存档所需 NPC 资源缓存已被清除，请在本地 NPC 列表补下载后重试。";
+        if (message.StartsWith("NPC_CONTENT_VERSION_CONFLICT:", StringComparison.Ordinal))
+            return "本地 NPC 版本与存档不一致，请安装存档记录的不可变版本后重试。";
+        if (message == "NPC_CONTENT_SAVE_BINDING_INVALID")
+            return "存档中的 NPC 内容绑定无效。";
+        return message;
     }
 
     private void RefreshSaveEntries()

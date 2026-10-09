@@ -53,6 +53,30 @@ foreach ($scenario in $requiredScenarios) {
     if ($passed -notcontains $scenario) { throw "Content release smoke scenario '$scenario' did not pass." }
 }
 
+$npcRuntimeEvidencePath = $null
+if ($manifest.npcContentRoot) {
+    $npcRuntimeEvidencePath = Join-Path $candidate 'npc-runtime-smoke.passed.json'
+    if (-not (Test-Path -LiteralPath $npcRuntimeEvidencePath -PathType Leaf)) {
+        throw 'NPC runtime smoke evidence is required for a candidate containing NPC content.'
+    }
+    $npcRuntimeEvidence = Get-Content -Raw -LiteralPath $npcRuntimeEvidencePath | ConvertFrom-Json
+    if ($npcRuntimeEvidence.schemaVersion -ne 1 -or
+        $npcRuntimeEvidence.releaseId -ne $manifest.releaseId -or
+        $npcRuntimeEvidence.candidateManifestSha256 -ne $manifestHash -or
+        $npcRuntimeEvidence.successMarker -ne 'NPC_RUNTIME_SMOKE_SUCCESS') {
+        throw 'NPC runtime smoke evidence is stale or does not describe this successful candidate.'
+    }
+    $requiredNpcScenarios = @('dynamic-download','animation-driver','save-restore',
+        'version-conflict','cache-repair','catalog-restart-required','scene-cancel','manifest-reregister')
+    $passedNpcScenarios = @($npcRuntimeEvidence.scenarios | Where-Object { $_.passed } |
+        ForEach-Object { $_.name })
+    foreach ($scenario in $requiredNpcScenarios) {
+        if ($passedNpcScenarios -notcontains $scenario) {
+            throw "NPC runtime smoke scenario '$scenario' did not pass."
+        }
+    }
+}
+
 $publish = [IO.Path]::GetFullPath($PublishRoot)
 $releases = Join-Path $publish 'releases'
 $releaseDirectory = Join-Path $releases $manifest.releaseId
@@ -103,6 +127,10 @@ if (-not $Rollback -and -not $releaseAlreadyPresent) {
         Copy-Item -LiteralPath $evidencePath -Destination (Join-Path $staging 'content-release-smoke.passed.json')
         Copy-Item -LiteralPath $toolEvidencePath -Destination `
             (Join-Path $staging $manifest.toolPackageSmokeEvidence)
+        if ($npcRuntimeEvidencePath) {
+            Copy-Item -LiteralPath $npcRuntimeEvidencePath -Destination `
+                (Join-Path $staging 'npc-runtime-smoke.passed.json')
+        }
         Move-Item -LiteralPath $staging -Destination $releaseDirectory
     }
     catch {
