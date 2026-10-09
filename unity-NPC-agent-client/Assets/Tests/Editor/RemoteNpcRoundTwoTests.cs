@@ -25,6 +25,46 @@ public sealed class RemoteNpcRoundTwoTests
             Assert.AreEqual(summary.NpcId, manifest.NpcId);
             CollectionAssert.Contains(manifest.DownloadAddresses, manifest.PrefabAddress);
         }
+        RemoteNpcManifest merchant = RemoteNpcContract.ParseManifest(
+            Fixture("npc", "merchant_001", "3", "npc.json"));
+        Assert.AreEqual(2, merchant.SchemaVersion);
+        Assert.True(merchant.UsesBuiltinAnimationDriver);
+        Assert.AreEqual("standard-locomotion", merchant.BuiltinAnimationDriverId);
+        CollectionAssert.AreEqual(new[] { merchant.PrefabAddress }, merchant.DownloadAddresses);
+        RemoteNpcManifest guide = RemoteNpcContract.ParseManifest(
+            Fixture("npc", "guide_001", "2", "npc.json"));
+        Assert.AreEqual(1, guide.SchemaVersion);
+        Assert.False(guide.UsesBuiltinAnimationDriver);
+        CollectionAssert.Contains(guide.DownloadAddresses, guide.AnimationScriptAddress);
+    }
+
+    [Test]
+    public void VersionTwoRejectsLegacyVisualFieldsAndUnknownDrivers()
+    {
+        string valid = Fixture("npc", "merchant_001", "3", "npc.json");
+        Assert.Throws<InvalidDataException>(() => RemoteNpcContract.ParseManifest(
+            valid.Replace(
+                "\"prefabAddress\": \"npc/merchant_001/3/visual\"",
+                "\"prefabAddress\": \"npc/merchant_001/3/visual\", \"materialAddresses\": []")));
+        Assert.Throws<InvalidDataException>(() => RemoteNpcContract.ParseManifest(
+            valid.Replace("\"standard-locomotion\"", "\"unknown\"")));
+        Assert.Throws<InvalidDataException>(() => RemoteNpcContract.ParseManifest(
+            valid.Replace("\"schemaVersion\": 2", "\"schemaVersion\": 3")));
+    }
+
+    [Test]
+    public void VersionTwoPrefabOwnsItsCompleteTransitiveVisualGraph()
+    {
+        const string prefabPath = "Assets/Content/Npcs/merchant_001/3/visual.prefab";
+        var prefab = AssetDatabase.LoadAssetAtPath<UnityEngine.GameObject>(prefabPath);
+        Assert.NotNull(prefab);
+        Assert.DoesNotThrow(() => CharacterVisualController.ValidateVisualInstance(prefab, true));
+        string[] dependencies = AssetDatabase.GetDependencies(prefabPath, true);
+        CollectionAssert.Contains(dependencies, "Assets/Content/Npcs/merchant_001/3/controller.controller");
+        CollectionAssert.Contains(dependencies, "Assets/Content/Npcs/merchant_001/3/idle.anim");
+        CollectionAssert.Contains(dependencies, "Assets/Content/Npcs/merchant_001/3/material.mat");
+        CollectionAssert.Contains(dependencies, "Assets/Content/Npcs/merchant_001/3/texture.asset");
+        CollectionAssert.Contains(dependencies, "Assets/Content/Npcs/merchant_001/3/visual-avatar.asset");
     }
 
     [Test]

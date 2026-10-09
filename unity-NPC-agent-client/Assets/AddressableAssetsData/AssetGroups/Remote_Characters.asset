@@ -40,6 +40,12 @@ MonoBehaviour:
     - content.characters
     - content.characters.player
     FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 25cbefa25050b4b4da67b060f87ca04a
+    m_Address: npc/merchant_001/3/visual
+    m_ReadOnly: 0
+    m_SerializedLabels:
+    - content.npc.merchant_001
+    FlaggedDuringContentUpdateRestriction: 0
   - m_GUID: 297ae5714847efd4f9e1df60808cc813
     m_Address: character/player/animator/default
     m_ReadOnly: 0

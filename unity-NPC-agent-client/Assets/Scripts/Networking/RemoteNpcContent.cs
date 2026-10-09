@@ -66,11 +66,20 @@ public sealed class RemoteNpcManifest
     public string AnimationEntryType { get; internal set; }
     public long AnimationLength { get; internal set; }
     public string AnimationSha256 { get; internal set; }
+    public string AnimationDriverKind { get; internal set; }
+    public string BuiltinAnimationDriverId { get; internal set; }
     public string RawJson { get; internal set; }
 
-    public IReadOnlyList<string> DownloadAddresses => new[] { PrefabAddress, AnimatorControllerAddress }
-        .Concat(AnimationAddresses).Concat(MaterialAddresses).Concat(TextureAddresses)
-        .Append(AnimationScriptAddress).Distinct(StringComparer.Ordinal).ToArray();
+    public bool UsesBuiltinAnimationDriver =>
+        string.Equals(AnimationDriverKind, "builtin", StringComparison.Ordinal);
+
+    public IReadOnlyList<string> DownloadAddresses => SchemaVersion == 1
+        ? new[] { PrefabAddress, AnimatorControllerAddress }
+            .Concat(AnimationAddresses).Concat(MaterialAddresses).Concat(TextureAddresses)
+            .Append(AnimationScriptAddress).Distinct(StringComparer.Ordinal).ToArray()
+        : new[] { PrefabAddress }
+            .Concat(UsesBuiltinAnimationDriver ? Array.Empty<string>() : new[] { AnimationScriptAddress })
+            .Distinct(StringComparer.Ordinal).ToArray();
 }
 
 public static class RemoteNpcContract
@@ -140,18 +149,18 @@ public static class RemoteNpcContract
     public static RemoteNpcManifest ParseManifest(string json, RemoteNpcSummary expected = null)
     {
         JObject root = ParseObject(json, 256 * 1024);
-        Exact(root, "schemaVersion", "npcId", "contentVersion", "playerBuildId", "visual", "animationScript", "profile", "systemPrompt");
-        RequireInt(root, "schemaVersion", 1);
+        int schemaVersion = checked((int)Long(root, "schemaVersion", 1, 2));
+        if (schemaVersion == 1)
+            Exact(root, "schemaVersion", "npcId", "contentVersion", "playerBuildId", "visual", "animationScript", "profile", "systemPrompt");
+        else
+            Exact(root, "schemaVersion", "npcId", "contentVersion", "playerBuildId", "visual", "animationDriver", "profile", "systemPrompt");
         string npcId = Stable(String(root, "npcId", 1, 64), StableId, "npcId");
         string version = Stable(String(root, "contentVersion", 1, 64), ContentVersion, "contentVersion");
         if (expected != null && (npcId != expected.NpcId || version != expected.ContentVersion))
             throw new InvalidDataException("NPC manifest identity does not match its catalog entry.");
 
         JObject visual = Object(root, "visual");
-        Exact(visual, "prefabAddress", "animatorControllerAddress", "animationAddresses", "materialAddresses", "textureAddresses");
         string prefix = $"npc/{npcId}/{version}/";
-        JObject script = Object(root, "animationScript");
-        Exact(script, "address", "assemblyName", "entryType", "length", "sha256");
         JObject profile = Object(root, "profile");
         Exact(profile, "npcId", "displayName", "personality", "speakingStyle", "identity", "responsibilities", "worldKnowledge", "forbiddenTopics");
         if (String(profile, "npcId", 1, 64) != npcId) throw new InvalidDataException("Profile npcId mismatch.");
@@ -167,22 +176,59 @@ public static class RemoteNpcContract
             throw new InvalidDataException("System prompt identity is invalid.");
         String(prompt, "template", 1, 64 * 1024);
 
-        return new RemoteNpcManifest
+        var result = new RemoteNpcManifest
         {
-            SchemaVersion = 1, NpcId = npcId, ContentVersion = version,
+            SchemaVersion = schemaVersion, NpcId = npcId, ContentVersion = version,
             PlayerBuildId = String(root, "playerBuildId", 1, 128),
             PrefabAddress = Address(visual, "prefabAddress", prefix),
-            AnimatorControllerAddress = Address(visual, "animatorControllerAddress", prefix),
-            AnimationAddresses = AddressArray(visual, "animationAddresses", prefix),
-            MaterialAddresses = AddressArray(visual, "materialAddresses", prefix),
-            TextureAddresses = AddressArray(visual, "textureAddresses", prefix),
-            AnimationScriptAddress = Address(script, "address", prefix),
-            AnimationAssemblyName = String(script, "assemblyName", 1, 160),
-            AnimationEntryType = String(script, "entryType", 1, 240),
-            AnimationLength = Long(script, "length", 1, 16 * 1024 * 1024),
-            AnimationSha256 = Stable(String(script, "sha256", 64, 64), Sha256, "animation sha256"),
+            AnimationAddresses = System.Array.Empty<string>(),
+            MaterialAddresses = System.Array.Empty<string>(),
+            TextureAddresses = System.Array.Empty<string>(),
             RawJson = root.ToString(Formatting.None)
         };
+        if (schemaVersion == 1)
+        {
+            Exact(visual, "prefabAddress", "animatorControllerAddress", "animationAddresses", "materialAddresses", "textureAddresses");
+            JObject script = Object(root, "animationScript");
+            Exact(script, "address", "assemblyName", "entryType", "length", "sha256");
+            result.AnimatorControllerAddress = Address(visual, "animatorControllerAddress", prefix);
+            result.AnimationAddresses = AddressArray(visual, "animationAddresses", prefix);
+            result.MaterialAddresses = AddressArray(visual, "materialAddresses", prefix);
+            result.TextureAddresses = AddressArray(visual, "textureAddresses", prefix);
+            ReadHotUpdateDriver(script, prefix, result);
+        }
+        else
+        {
+            Exact(visual, "prefabAddress");
+            JObject driver = Object(root, "animationDriver");
+            string kind = String(driver, "kind", 1, 32);
+            if (kind == "builtin")
+            {
+                Exact(driver, "kind", "driverId");
+                string driverId = String(driver, "driverId", 1, 64);
+                if (!string.Equals(driverId, StandardLocomotionAnimationDriver.DriverId, StringComparison.Ordinal))
+                    throw new InvalidDataException("Unknown builtin NPC animation driver.");
+                result.AnimationDriverKind = kind;
+                result.BuiltinAnimationDriverId = driverId;
+            }
+            else if (kind == "hotUpdate")
+            {
+                Exact(driver, "kind", "address", "assemblyName", "entryType", "length", "sha256");
+                ReadHotUpdateDriver(driver, prefix, result);
+            }
+            else throw new InvalidDataException("Unknown NPC animation driver kind.");
+        }
+        return result;
+    }
+
+    private static void ReadHotUpdateDriver(JObject script, string prefix, RemoteNpcManifest result)
+    {
+        result.AnimationDriverKind = "hotUpdate";
+        result.AnimationScriptAddress = Address(script, "address", prefix);
+        result.AnimationAssemblyName = String(script, "assemblyName", 1, 160);
+        result.AnimationEntryType = String(script, "entryType", 1, 240);
+        result.AnimationLength = Long(script, "length", 1, 16 * 1024 * 1024);
+        result.AnimationSha256 = Stable(String(script, "sha256", 64, 64), Sha256, "animation sha256");
     }
 
     public static string ComputeSha256(byte[] bytes)
@@ -454,30 +500,35 @@ public sealed class NpcContentInstaller
         RemoteNpcManifest manifest,
         CancellationToken token)
     {
-        using ContentAssetLease<TextAsset> dll = await _provider.LoadAssetAsync<TextAsset>(
-            manifest.AnimationScriptAddress,
-            token);
-        byte[] bytes = dll.Asset?.bytes;
-        if (bytes == null || bytes.LongLength != manifest.AnimationLength ||
-            !string.Equals(
-                RemoteNpcContract.ComputeSha256(bytes),
-                manifest.AnimationSha256,
-                StringComparison.Ordinal))
-            throw new InvalidDataException("NPC animation assembly integrity check failed.");
+        if (!manifest.UsesBuiltinAnimationDriver)
+        {
+            using ContentAssetLease<TextAsset> dll = await _provider.LoadAssetAsync<TextAsset>(
+                manifest.AnimationScriptAddress,
+                token);
+            byte[] bytes = dll.Asset?.bytes;
+            if (bytes == null || bytes.LongLength != manifest.AnimationLength ||
+                !string.Equals(
+                    RemoteNpcContract.ComputeSha256(bytes),
+                    manifest.AnimationSha256,
+                    StringComparison.Ordinal))
+                throw new InvalidDataException("NPC animation assembly integrity check failed.");
+        }
 
         using ContentAssetLease<GameObject> visual = await _provider.LoadAssetAsync<GameObject>(
             manifest.PrefabAddress,
             token);
-        CharacterVisualController.ValidateVisualInstance(visual.Asset);
-        if (visual.Asset.GetComponentInChildren<Animator>(true) == null)
-            throw new InvalidDataException("NPC visual does not contain an Animator.");
-
-        using ContentAssetLease<RuntimeAnimatorController> controller =
-            await _provider.LoadAssetAsync<RuntimeAnimatorController>(
-                manifest.AnimatorControllerAddress,
-                token);
-        if (controller.Asset == null)
-            throw new InvalidDataException("NPC animator controller resolved to null.");
+        CharacterVisualController.ValidateVisualInstance(visual.Asset, manifest.SchemaVersion >= 2);
+        if (manifest.SchemaVersion == 1)
+        {
+            if (visual.Asset.GetComponentInChildren<Animator>(true) == null)
+                throw new InvalidDataException("NPC visual does not contain an Animator.");
+            using ContentAssetLease<RuntimeAnimatorController> controller =
+                await _provider.LoadAssetAsync<RuntimeAnimatorController>(
+                    manifest.AnimatorControllerAddress,
+                    token);
+            if (controller.Asset == null)
+                throw new InvalidDataException("NPC animator controller resolved to null.");
+        }
     }
 
     public static bool IsCompatiblePlayerVersion(RemoteNpcSummary summary, string playerVersion)

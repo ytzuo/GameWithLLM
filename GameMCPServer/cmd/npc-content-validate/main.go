@@ -39,13 +39,15 @@ func run() error {
 			return err
 		}
 		directory := filepath.Dir(filepath.Join(root, filepath.FromSlash(entry.ManifestPath)))
-		dll, err := os.ReadFile(filepath.Join(directory, "animation.dll.bytes"))
-		if err != nil {
-			return err
-		}
-		sum := sha256.Sum256(dll)
-		if int64(len(dll)) != d.AnimationScript.Length || hex.EncodeToString(sum[:]) != d.AnimationScript.SHA256 {
-			return fmt.Errorf("NPC animation hash/length mismatch")
+		if d.AnimationDriver.Kind == "hotUpdate" {
+			dll, err := os.ReadFile(filepath.Join(directory, "animation.dll.bytes"))
+			if err != nil {
+				return err
+			}
+			sum := sha256.Sum256(dll)
+			if int64(len(dll)) != d.AnimationDriver.Length || hex.EncodeToString(sum[:]) != d.AnimationDriver.SHA256 {
+				return fmt.Errorf("NPC animation hash/length mismatch")
+			}
 		}
 		avatar, err := os.ReadFile(filepath.Join(directory, "avatar.png"))
 		if err != nil {

@@ -232,13 +232,25 @@ System Prompt 由 Go 启动时严格加载 `config/system_prompt.zh-CN.json`，�
 之后创建或恢复出的 Context；已有 Context 保留创建时的 Prompt 字符串。日志只可
 记录版本和加载结果，不记录 Prompt 正文。
 
-### 2.7 远端 NPC 内容契约（第一轮已实现）
+### 2.7 远端 NPC 内容契约与 Prefab 接入
 
 内容源为仓库 `NpcContent/npc/index.json` 与 `npc/{npcId}/{contentVersion}/`。
-索引可变，版本目录不可变；当前已实现的 v1 JSON 字段、文本键和两名测试 NPC 见
-`Docs/History/RemoteNpc/REMOTE_NPC_CONTENT_CONTRACT_V1.md` 与真实测试夹具。Unity 使用共享 Catalog，
-启动 Catalog 的版本取当前 release `contentVersion`；UI 刷新列表不切换 Catalog。
-本轮不提供下载 UI、安装记录或动态生成流程。
+索引可变，版本目录不可变；已发布 v1 JSON 字段和文本键见
+`Docs/History/RemoteNpc/REMOTE_NPC_CONTENT_CONTRACT_V1.md`。解析器按显式
+`schemaVersion` 严格区分 v1/v2，并拒绝未知、重复或跨版本字段。v1 保留手写
+Controller/动画/材质/贴图 Address 与必需动画 DLL；v2 的 `visual` 只有
+`prefabAddress`，Addressables 从 Prefab 引用图下载模型、Mesh、Avatar、材质、贴图、
+Controller 和 AnimationClip 传递依赖。v2 Prefab 必须自带有效 Animator、Avatar 和
+RuntimeAnimatorController，且不能包含 Entity、NavMesh、Inventory、工具、Registry 或
+网络权威组件。视觉实例仍只挂在 AOT 权威实体的 `VisualRoot` 下。
+
+v2 `animationDriver` 显式选择 `builtin` 或 `hotUpdate`。内置
+`standard-locomotion` 位于稳定 Gameplay AOT 程序集，当前每帧写入 float `Speed`；
+`Moving/Thinking/Speaking` 参数已经作为下一迭代事件驱动契约的 Prefab 约定保留。
+`hotUpdate` 继续使用版本化 DLL Address、程序集、入口、长度和 SHA-256。未知 kind/ID
+直接拒绝，builtin 不下载或加载 NPC 专属 DLL。当前 Merchant v3 是 schema v2/builtin
+纵向切片，Guide v2 保持 schema v1/hot-update 作为兼容回归；既有版本目录和 Address
+不修改。
 
 公共 SDK `RuntimeManifest` 添加 `NpcContents`，线上 JSON 为可选 `npcContents`：
 每项只有 `entityId / contentVersion / manifestSha256`，原有 `entities/tools/revision`
@@ -268,8 +280,11 @@ restore 在替换当前 Context 前核对版本/hash并从当前绑定解析 Pro
 新增 AOT 接口要求第二轮首个兼容基础 Player 完成构建与裁剪验证，已发布旧 Player
 不能因版本字符串相同就被认为具有新契约；正式发布必须分配新的 Player 身份。生产输入门禁拒绝旧 0.1.0 身份，并校验目标 Gameplay AOT metadata 中的接口。
 
-`NpcContentRelease.BuildSamples` 是显式样例 staging，生产流水线不会隐式改写样例。
-`NpcContent` 模块在统一验证器检查程序集引用、入口、hash、版本地址与视觉依赖；
+Editor-only `NpcContentDefinition` 是生产作者入口，包含稳定 ID/版本、完整视觉 Prefab、
+头像、Profile、Prompt 和 driver 选择。`NpcContentRelease.BuildDefinitions` 统一注册
+版本化 Prefab Address/Label、生成严格 v2 `npc.json`、复制头像原始字节、更新索引并
+执行内容验证；生产路径不再复制固定 Merchant/Guide 文件或维护 GUID 重映射表。
+`NpcContent` 模块在统一验证器检查 Prefab 完整性及依赖、程序集引用、入口、hash 与版本地址；
 `Build-ContentRelease.ps1` 使用 Go 同一个解析器校验静态索引/Profile/Prompt。
 候选文件台账追加 `npcContentRoot` 和静态 NPC 文件，原有 release 字段不改变含义。
 提升脚本拒绝覆盖已发布版本，先交付不可变文件，最后切换 `npc/index.json`，回滚

@@ -196,33 +196,43 @@ public sealed class NpcSpawnController : IDisposable
             var visuals = root.AddComponent<CharacterVisualController>();
             visuals.ConfigureDynamic(record.NpcId, visualRoot);
             Animator animator = await visuals.LoadStrictAsync(
-                _provider, manifest.PrefabAddress, manifest.AnimatorControllerAddress, token);
+                _provider, manifest, token);
 
-            ContentAssetLease<TextAsset> dllLease = await _provider.LoadAssetAsync<TextAsset>(
-                manifest.AnimationScriptAddress, token);
             INpcAnimationDriver driver;
-            try
+            IDisposable assemblyLease = null;
+            if (manifest.UsesBuiltinAnimationDriver)
             {
-                byte[] dll = dllLease.Asset?.bytes;
-                if (dll == null || dll.LongLength != manifest.AnimationLength ||
-                    !string.Equals(RemoteNpcContract.ComputeSha256(dll), manifest.AnimationSha256, StringComparison.Ordinal))
-                    throw new InvalidDataException("NPC animation assembly integrity check failed.");
-                Assembly assembly = AppDomain.CurrentDomain.GetAssemblies().FirstOrDefault(
-                    x => string.Equals(x.GetName().Name, manifest.AnimationAssemblyName, StringComparison.Ordinal)) ??
-                    Assembly.Load(dll);
-                if (!string.Equals(assembly.GetName().Name, manifest.AnimationAssemblyName, StringComparison.Ordinal))
-                    throw new InvalidDataException("NPC animation assembly name mismatch.");
-                Type type = assembly.GetType(manifest.AnimationEntryType, true, false);
-                if (type.IsAbstract || !typeof(INpcAnimationDriver).IsAssignableFrom(type) ||
-                    type.GetConstructor(Type.EmptyTypes) == null)
-                    throw new InvalidDataException("NPC animation entry contract is invalid.");
-                driver = (INpcAnimationDriver)Activator.CreateInstance(type);
+                driver = StandardLocomotionAnimationDriver.Create(manifest.BuiltinAnimationDriverId);
                 driver.Bind(animator);
             }
-            catch { dllLease.Dispose(); throw; }
+            else
+            {
+                ContentAssetLease<TextAsset> dllLease = await _provider.LoadAssetAsync<TextAsset>(
+                    manifest.AnimationScriptAddress, token);
+                assemblyLease = dllLease;
+                try
+                {
+                    byte[] dll = dllLease.Asset?.bytes;
+                    if (dll == null || dll.LongLength != manifest.AnimationLength ||
+                        !string.Equals(RemoteNpcContract.ComputeSha256(dll), manifest.AnimationSha256, StringComparison.Ordinal))
+                        throw new InvalidDataException("NPC animation assembly integrity check failed.");
+                    Assembly assembly = AppDomain.CurrentDomain.GetAssemblies().FirstOrDefault(
+                        x => string.Equals(x.GetName().Name, manifest.AnimationAssemblyName, StringComparison.Ordinal)) ??
+                        Assembly.Load(dll);
+                    if (!string.Equals(assembly.GetName().Name, manifest.AnimationAssemblyName, StringComparison.Ordinal))
+                        throw new InvalidDataException("NPC animation assembly name mismatch.");
+                    Type type = assembly.GetType(manifest.AnimationEntryType, true, false);
+                    if (type.IsAbstract || !typeof(INpcAnimationDriver).IsAssignableFrom(type) ||
+                        type.GetConstructor(Type.EmptyTypes) == null)
+                        throw new InvalidDataException("NPC animation entry contract is invalid.");
+                    driver = (INpcAnimationDriver)Activator.CreateInstance(type);
+                    driver.Bind(animator);
+                }
+                catch { dllLease.Dispose(); throw; }
+            }
 
             var driverHost = root.AddComponent<NpcAnimationDriverHost>();
-            driverHost.Initialize(driver, nav, dllLease);
+            driverHost.Initialize(driver, nav, assemblyLease);
             token.ThrowIfCancellationRequested();
             root.SetActive(true);
             if (!nav.isOnNavMesh) throw new InvalidOperationException("NPC_SPAWN_ORIGIN_NOT_ON_NAVMESH");
@@ -338,7 +348,7 @@ internal sealed class NpcAnimationDriverHost : MonoBehaviour
     {
         _driver = driver ?? throw new ArgumentNullException(nameof(driver));
         _agent = agent ?? throw new ArgumentNullException(nameof(agent));
-        _assemblyLease = assemblyLease ?? throw new ArgumentNullException(nameof(assemblyLease));
+        _assemblyLease = assemblyLease;
     }
 
     private void Update()

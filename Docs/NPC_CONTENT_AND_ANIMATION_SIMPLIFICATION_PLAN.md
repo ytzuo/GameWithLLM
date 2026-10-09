@@ -1,6 +1,6 @@
 # NPC 资产接入与动画事件简化计划
 
-> 状态：待实施  
+> 状态：迭代一已完成，迭代二待实施
 > 日期：2026-10-10  
 > 当前事实源：`ARCHITECTURE.md`  
 > 已实现基线：`History/RemoteNpc/REMOTE_NPC_CONTENT_CONTRACT_V1.md`  

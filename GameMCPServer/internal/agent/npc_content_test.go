@@ -192,10 +192,18 @@ func TestRepositoryNPCStaticContract(t *testing.T) {
 	index, err := ParseNPCIndex(raw)
 	require.NoError(t, err)
 	require.Len(t, index.NPCs, 2)
+	schemas := make(map[string]int)
 	for _, entry := range index.NPCs {
 		data, err := os.ReadFile(filepath.Join(root, filepath.FromSlash(entry.ManifestPath)))
 		require.NoError(t, err)
-		_, err = ParseNPCContent(data, NPCContentBinding{entry.NPCID, entry.ContentVersion, entry.ManifestSHA256})
+		definition, err := ParseNPCContent(data, NPCContentBinding{entry.NPCID, entry.ContentVersion, entry.ManifestSHA256})
 		require.NoError(t, err)
+		schemas[entry.NPCID] = definition.SchemaVersion
+		if entry.NPCID == "merchant_001" {
+			assert.Equal(t, "builtin", definition.AnimationDriver.Kind)
+			assert.Equal(t, "standard-locomotion", definition.AnimationDriver.DriverID)
+		}
 	}
+	assert.Equal(t, 2, schemas["merchant_001"])
+	assert.Equal(t, 1, schemas["guide_001"])
 }

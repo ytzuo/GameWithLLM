@@ -1,8 +1,7 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using HybridCLR.Editor;
-using HybridCLR.Editor.Commands;
 using Mono.Cecil;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
@@ -11,130 +10,186 @@ using UnityEditor.AddressableAssets;
 using UnityEditor.AddressableAssets.Settings;
 using UnityEngine;
 
-// Explicit sample staging, then read-only validation from the existing release pipeline.
+// Definition-driven NPC publisher. Production consumes author-owned definitions;
+// it never clones named sample assets or remaps GUIDs.
 public static class NpcContentRelease
 {
-    public static string StaticRoot => Path.GetFullPath(Path.Combine(Application.dataPath, "..", "..", "NpcContent"));
-    public static void BuildSamplesFromCommandLine() => HotUpdateEditorCommand.Run(BuildSamples);
+    public static string StaticRoot => Path.GetFullPath(
+        Path.Combine(Application.dataPath, "..", "..", "NpcContent"));
+
+    public static void BuildDefinitionsFromCommandLine() => HotUpdateEditorCommand.Run(BuildDefinitions);
     public static void ValidateFromCommandLine() => HotUpdateEditorCommand.Run(Validate);
     public static void BuildLocalContentFromCommandLine() => HotUpdateEditorCommand.Run(() =>
     {
-        BuildSamples();
+        BuildDefinitions();
         var settings = AddressableAssetSettingsDefaultObject.Settings;
         using (new AddressablesProfileScope(settings, "LocalDevelopment"))
         {
-            AddressableAssetSettings.BuildPlayerContent(out UnityEditor.AddressableAssets.Build.AddressablesPlayerBuildResult result);
+            AddressableAssetSettings.BuildPlayerContent(
+                out UnityEditor.AddressableAssets.Build.AddressablesPlayerBuildResult result);
             if (!string.IsNullOrEmpty(result.Error)) throw new InvalidDataException(result.Error);
         }
         Debug.Log("NPC_LOCAL_CONTENT_BUILD_SUCCESS");
     });
 
-    [MenuItem("GameWithLLM/Content/Build NPC Samples")]
-    public static void BuildSamples()
+    // Compatibility entry point; it now delegates to the generic production path.
+    public static void BuildSamplesFromCommandLine() => BuildDefinitionsFromCommandLine();
+
+    [MenuItem("GameWithLLM/Content/Build NPC Definitions")]
+    public static void BuildDefinitions()
     {
-        HybridClrProjectSetup.Configure();
-        CompileDllCommand.CompileDll(BuildTarget.StandaloneWindows64, false);
-        var settings = AddressableAssetSettingsDefaultObject.Settings;
-        var group = settings.FindGroup("Remote_Characters");
+        NpcContentDefinition[] definitions = AssetDatabase.FindAssets("t:NpcContentDefinition")
+            .Select(AssetDatabase.GUIDToAssetPath)
+            .Select(AssetDatabase.LoadAssetAtPath<NpcContentDefinition>)
+            .Where(value => value != null)
+            .OrderBy(value => value.npcId, StringComparer.Ordinal)
+            .ToArray();
+        if (definitions.Length == 0)
+            throw new InvalidDataException("No NpcContentDefinition assets were found.");
+
+        AddressableAssetSettings settings = AddressableAssetSettingsDefaultObject.Settings;
+        AddressableAssetGroup group = settings.FindGroup("Remote_Characters") ??
+                                      throw new InvalidDataException("Remote_Characters Addressables group is missing.");
         JObject index = Read(Path.Combine(StaticRoot, "npc", "index.json"));
-        const string contentVersion = "2";
-        string[] ids = { "merchant_001", "guide_001" };
-        string[] characters = { "ryan", "alice" };
-        string[] animationAssemblies =
+        JArray entries = (JArray)index["npcs"];
+        var ids = new HashSet<string>(StringComparer.Ordinal);
+        foreach (NpcContentDefinition definition in definitions)
         {
-            "GameWithLLM.NpcAnimation.Merchant_001.V2",
-            "GameWithLLM.NpcAnimation.Guide_001.V2"
-        };
-        for (int i = 0; i < ids.Length; i++)
-        {
-            string directory = Path.Combine(StaticRoot, "npc", ids[i], contentVersion);
-            Directory.CreateDirectory(directory);
-            string manifestPath = Path.Combine(directory, "npc.json");
-            string sourceManifestPath = Path.Combine(StaticRoot, "npc", ids[i], "1", "npc.json");
-            JObject manifest = Read(sourceManifestPath);
-            manifest["contentVersion"] = contentVersion;
-            manifest["playerBuildId"] = "windows-x64-" + Application.version;
-            ((JObject)manifest["systemPrompt"])["contentVersion"] = contentVersion;
-            JObject script = (JObject)manifest["animationScript"];
-            string assembly = animationAssemblies[i];
-            script["assemblyName"] = assembly;
-            foreach (JValue address in manifest.SelectTokens("$..*").OfType<JValue>()
-                         .Where(value => value.Type == JTokenType.String &&
-                                         ((string)value).Contains("/1/", StringComparison.Ordinal)))
-                address.Value = ((string)address.Value).Replace("/1/", "/" + contentVersion + "/");
-            string dll = Path.Combine(SettingsUtil.GetHotUpdateDllsOutputDirByTarget(BuildTarget.StandaloneWindows64), assembly + ".dll");
-            File.Copy(dll, Path.Combine(directory, "animation.dll.bytes"), true);
-            script["length"] = new FileInfo(dll).Length;
-            script["sha256"] = ArtifactHash.Sha256File(dll);
-            string assetRoot = "Assets/Content/Npcs/" + ids[i] + "/" + contentVersion;
-            Directory.CreateDirectory(assetRoot);
-            // Copy all five assets together, remapping internal GUIDs to the versioned copies.
-            string[] suffixes = { "default.prefab", "default.controller", "idle.anim", "default.mat", "default-texture.asset" };
-            string[] names = { "visual.prefab", "controller.controller", "idle.anim", "material.mat", "texture.asset" };
-            string[] addresses = { "visual", "controller", "idle", "material", "texture" };
-            var remap = new System.Collections.Generic.Dictionary<string, string>();
-            for (int n = 0; n < suffixes.Length; n++)
-            {
-                string source = "Assets/Art/Characters/" + characters[i] + "/" + characters[i] + "-" + suffixes[n];
-                string target = assetRoot + "/" + names[n];
-                if (!File.Exists(target) && !AssetDatabase.CopyAsset(source, target))
-                    throw new IOException("Could not copy NPC visual asset.");
-                remap[AssetDatabase.AssetPathToGUID(source)] = AssetDatabase.AssetPathToGUID(target);
-            }
-            for (int n = 0; n < names.Length; n++)
-            {
-                string target = assetRoot + "/" + names[n];
-                string text = File.ReadAllText(target);
-                foreach (var pair in remap) text = text.Replace(pair.Key, pair.Value);
-                File.WriteAllText(target, text);
-            }
-            string scriptPath = assetRoot + "/animation.dll.bytes";
-            File.Copy(dll, scriptPath, true);
-            AssetDatabase.Refresh();
-            for (int n = 0; n < names.Length; n++)
-                AddEntry(settings, group, assetRoot + "/" + names[n],
-                    "npc/" + ids[i] + "/" + contentVersion + "/" + addresses[n]);
-            AddEntry(settings, group, scriptPath, (string)script["address"]);
-            // The shared Catalog retains old immutable addresses even though the
-            // mutable index exposes only the latest compatible version.
-            string retainedAssetRoot = "Assets/Content/Npcs/" + ids[i] + "/1";
-            for (int n = 0; n < names.Length; n++)
-                AddEntry(settings, group, retainedAssetRoot + "/" + names[n],
-                    "npc/" + ids[i] + "/1/" + addresses[n]);
-            AddEntry(settings, group, retainedAssetRoot + "/animation.dll.bytes",
-                "npc/" + ids[i] + "/1/animation-script");
-            // Ordinary small PNGs, independent of model downloads.
-            var texture = new Texture2D(32, 32);
-            Color color = i == 0 ? new Color(0.8f, 0.55f, 0.2f) : new Color(0.2f, 0.6f, 0.8f);
-            texture.SetPixels(Enumerable.Repeat(color, 1024).ToArray()); texture.Apply();
-            File.WriteAllBytes(Path.Combine(directory, "avatar.png"), texture.EncodeToPNG());
-            UnityEngine.Object.DestroyImmediate(texture);
-            File.WriteAllText(manifestPath, manifest.ToString(Formatting.Indented) + "\n");
-            JObject entry = index["npcs"].Children<JObject>().Single(x => (string)x["npcId"] == ids[i]);
-            entry["contentVersion"] = contentVersion;
-            entry["avatarPath"] = "npc/" + ids[i] + "/" + contentVersion + "/avatar.png";
-            entry["manifestPath"] = "npc/" + ids[i] + "/" + contentVersion + "/npc.json";
-            entry["manifestSha256"] = ArtifactHash.Sha256File(manifestPath);
-            entry["minPlayerVersion"] = Application.version;
-            entry["maxPlayerVersion"] = Application.version;
+            ValidateDefinition(definition);
+            if (!ids.Add(definition.npcId))
+                throw new InvalidDataException($"Duplicate NPC content definition '{definition.npcId}'.");
+            BuildDefinition(definition, settings, group, entries);
         }
-        index["catalogContentVersion"] = HotUpdateArtifactStager.ContentVersion;
-        File.WriteAllText(Path.Combine(StaticRoot, "npc", "index.json"), index.ToString(Formatting.Indented) + "\n");
-        AssetDatabase.SaveAssets(); AssetDatabase.Refresh();
+
+        JObject release = Read("Assets/Content/HotUpdate/release-manifest.json");
+        index["catalogContentVersion"] = (string)release["contentVersion"];
+        WriteJson(Path.Combine(StaticRoot, "npc", "index.json"), index, false);
+        AssetDatabase.SaveAssets();
+        AssetDatabase.Refresh();
         Validate();
-        Debug.Log("NPC_SAMPLE_BUILD_SUCCESS");
+        Debug.Log("NPC_DEFINITION_BUILD_SUCCESS");
     }
 
-    private static void AddEntry(AddressableAssetSettings settings, AddressableAssetGroup group, string path, string address)
+    private static void BuildDefinition(
+        NpcContentDefinition definition,
+        AddressableAssetSettings settings,
+        AddressableAssetGroup group,
+        JArray entries)
+    {
+        string prefix = $"npc/{definition.npcId}/{definition.contentVersion}/";
+        AddEntry(settings, group, AssetDatabase.GetAssetPath(definition.visualPrefab),
+            prefix + "visual", definition.npcId);
+        var manifest = new JObject
+        {
+            ["schemaVersion"] = 2,
+            ["npcId"] = definition.npcId,
+            ["contentVersion"] = definition.contentVersion,
+            ["playerBuildId"] = "windows-x64-" + Application.version,
+            ["visual"] = new JObject { ["prefabAddress"] = prefix + "visual" },
+            ["animationDriver"] = BuildAnimationDriver(definition, settings, group, prefix),
+            ["profile"] = new JObject
+            {
+                ["npcId"] = definition.npcId,
+                ["displayName"] = definition.profile.displayName,
+                ["personality"] = JArray.FromObject(definition.profile.personality),
+                ["speakingStyle"] = definition.profile.speakingStyle,
+                ["identity"] = definition.profile.identity,
+                ["responsibilities"] = JArray.FromObject(definition.profile.responsibilities),
+                ["worldKnowledge"] = JArray.FromObject(definition.profile.worldKnowledge),
+                ["forbiddenTopics"] = JArray.FromObject(definition.profile.forbiddenTopics)
+            },
+            ["systemPrompt"] = new JObject
+            {
+                ["schemaVersion"] = 1,
+                ["contentVersion"] = definition.contentVersion,
+                ["locale"] = "zh-CN",
+                ["template"] = definition.systemPromptTemplate
+            }
+        };
+
+        string directory = Path.Combine(StaticRoot, "npc", definition.npcId, definition.contentVersion);
+        Directory.CreateDirectory(directory);
+        string manifestPath = Path.Combine(directory, "npc.json");
+        WriteJson(manifestPath, manifest, true);
+        WriteAvatar(definition.avatar, Path.Combine(directory, "avatar.png"));
+
+        JObject entry = entries.Children<JObject>().SingleOrDefault(
+            value => (string)value["npcId"] == definition.npcId);
+        if (entry == null) { entry = new JObject(); entries.Add(entry); }
+        entry["npcId"] = definition.npcId;
+        entry["contentVersion"] = definition.contentVersion;
+        entry["displayName"] = definition.displayName;
+        entry["description"] = definition.description;
+        entry["avatarPath"] = prefix + "avatar.png";
+        entry["manifestPath"] = prefix + "npc.json";
+        entry["manifestSha256"] = ArtifactHash.Sha256File(manifestPath);
+        entry["minPlayerVersion"] = definition.minPlayerVersion;
+        entry["maxPlayerVersion"] = definition.maxPlayerVersion;
+    }
+
+    private static JObject BuildAnimationDriver(
+        NpcContentDefinition definition,
+        AddressableAssetSettings settings,
+        AddressableAssetGroup group,
+        string prefix)
+    {
+        if (definition.animationDriverKind == NpcAnimationDriverKind.Builtin)
+            return new JObject { ["kind"] = "builtin", ["driverId"] = definition.builtinDriverId };
+
+        string path = AssetDatabase.GetAssetPath(definition.hotUpdateDriver.assemblyBytes);
+        string address = prefix + "animation-script";
+        AddEntry(settings, group, path, address, definition.npcId);
+        byte[] bytes = definition.hotUpdateDriver.assemblyBytes.bytes;
+        return new JObject
+        {
+            ["kind"] = "hotUpdate",
+            ["address"] = address,
+            ["assemblyName"] = definition.hotUpdateDriver.assemblyName,
+            ["entryType"] = definition.hotUpdateDriver.entryType,
+            ["length"] = bytes.LongLength,
+            ["sha256"] = RemoteNpcContract.ComputeSha256(bytes)
+        };
+    }
+
+    private static void ValidateDefinition(NpcContentDefinition definition)
+    {
+        string prefix = $"Assets/Content/Npcs/{definition.npcId}/{definition.contentVersion}/";
+        string prefabPath = AssetDatabase.GetAssetPath(definition.visualPrefab);
+        const string stable = "^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$";
+        if (!System.Text.RegularExpressions.Regex.IsMatch(definition.npcId ?? string.Empty, stable) ||
+            !System.Text.RegularExpressions.Regex.IsMatch(definition.contentVersion ?? string.Empty, stable) ||
+            definition.visualPrefab == null || definition.avatar == null ||
+            !prefabPath.StartsWith(prefix, StringComparison.Ordinal))
+            throw new InvalidDataException($"NPC definition '{definition.name}' has invalid identity or versioned assets.");
+        CharacterVisualController.ValidateVisualInstance(definition.visualPrefab, true);
+        if (definition.animationDriverKind == NpcAnimationDriverKind.Builtin)
+        {
+            using var driver = StandardLocomotionAnimationDriver.Create(definition.builtinDriverId);
+            driver.Bind(definition.visualPrefab.GetComponentInChildren<Animator>(true));
+        }
+        else
+        {
+            if (definition.hotUpdateDriver?.assemblyBytes == null ||
+                string.IsNullOrWhiteSpace(definition.hotUpdateDriver.assemblyName) ||
+                string.IsNullOrWhiteSpace(definition.hotUpdateDriver.entryType))
+                throw new InvalidDataException("Hot-update NPC animation driver is incomplete.");
+            ValidateAnimationAssembly(definition.hotUpdateDriver.assemblyBytes.bytes,
+                definition.hotUpdateDriver.assemblyName, definition.hotUpdateDriver.entryType);
+        }
+        string[] dependencies = AssetDatabase.GetDependencies(prefabPath, true);
+        if (dependencies.Length == 0 || dependencies.Any(path => !File.Exists(path)))
+            throw new InvalidDataException("NPC visual Prefab has a missing dependency.");
+    }
+
+    private static void AddEntry(AddressableAssetSettings settings, AddressableAssetGroup group,
+        string path, string address, string npcId)
     {
         string guid = AssetDatabase.AssetPathToGUID(path);
-        if (string.IsNullOrWhiteSpace(guid))
-            throw new InvalidDataException("NPC asset is not imported: " + path);
-        var entry = settings.CreateOrMoveEntry(guid, group);
-        if (entry == null)
-            throw new InvalidDataException("NPC Addressable entry could not be created: " + path);
+        if (string.IsNullOrWhiteSpace(guid)) throw new InvalidDataException("NPC asset is not imported: " + path);
+        AddressableAssetEntry entry = settings.CreateOrMoveEntry(guid, group) ??
+                                      throw new InvalidDataException("NPC Addressable entry could not be created: " + path);
         entry.SetAddress(address, true);
-        string label = "content.npc." + address.Split('/')[1];
+        string label = "content.npc." + npcId;
         settings.AddLabel(label); entry.SetLabel(label, true);
     }
 
@@ -144,66 +199,93 @@ public static class NpcContentRelease
         JObject release = Read("Assets/Content/HotUpdate/release-manifest.json");
         if ((string)index["catalogContentVersion"] != (string)release["contentVersion"])
             throw new InvalidDataException("NPC index must describe the startup content version.");
-        var settings = AddressableAssetSettingsDefaultObject.Settings;
+        AddressableAssetSettings settings = AddressableAssetSettingsDefaultObject.Settings;
         foreach (JObject entry in index["npcs"].Children<JObject>())
         {
-            string id = (string)entry["npcId"];
-            string version = (string)entry["contentVersion"];
-            const string segment = @"^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$";
-            if (!System.Text.RegularExpressions.Regex.IsMatch(id ?? string.Empty, segment) ||
-                !System.Text.RegularExpressions.Regex.IsMatch(version ?? string.Empty, segment) ||
-                (string)entry["manifestPath"] != "npc/" + id + "/" + version + "/npc.json")
-                throw new InvalidDataException("NPC manifest path is invalid.");
             string manifestPath = Path.Combine(StaticRoot, (string)entry["manifestPath"]);
             if (ArtifactHash.Sha256File(manifestPath) != (string)entry["manifestSha256"])
                 throw new InvalidDataException("NPC manifest hash mismatch.");
-            JObject manifest = Read(manifestPath);
-            if ((string)manifest["playerBuildId"] != (string)release["playerBuildId"])
+            RemoteNpcManifest manifest = RemoteNpcContract.ParseManifest(File.ReadAllText(manifestPath));
+            if (manifest.NpcId != (string)entry["npcId"] ||
+                manifest.ContentVersion != (string)entry["contentVersion"])
+                throw new InvalidDataException("NPC manifest identity does not match its catalog entry.");
+            if (manifest.PlayerBuildId != (string)release["playerBuildId"])
                 throw new InvalidDataException("NPC Player build mismatch.");
-            JObject script = (JObject)manifest["animationScript"];
-            string dll = Path.Combine(Path.GetDirectoryName(manifestPath), "animation.dll.bytes");
-            if (new FileInfo(dll).Length != (long)script["length"] || ArtifactHash.Sha256File(dll) != (string)script["sha256"])
-                throw new InvalidDataException("NPC DLL hash/length mismatch.");
-            using (AssemblyDefinition assembly = AssemblyDefinition.ReadAssembly(dll))
+            foreach (string address in manifest.DownloadAddresses)
             {
-                string[] allowed = { "mscorlib", "System", "System.Core", "netstandard", "UnityEngine.CoreModule", "UnityEngine.AnimationModule", "GameWithLLM.Client.Gameplay" };
-                if (assembly.Name.Name != (string)script["assemblyName"] ||
-                    assembly.MainModule.AssemblyReferences.Any(x => !allowed.Contains(x.Name)))
-                    throw new InvalidDataException("NPC DLL dependency or identity is invalid.");
-                TypeDefinition type = assembly.MainModule.Types.SingleOrDefault(x => x.FullName == (string)script["entryType"]);
-                if (type == null || type.IsAbstract || !type.IsPublic ||
-                    !type.Interfaces.Any(x => x.InterfaceType.FullName == "INpcAnimationDriver") ||
-                    !type.Methods.Any(x => x.IsConstructor && x.IsPublic && !x.HasParameters))
-                    throw new InvalidDataException("NPC DLL entry must implement INpcAnimationDriver.");
-            }
-            var visual = (JObject)manifest["visual"];
-            var addresses = visual.Properties().SelectMany(x => x.Value is JArray a ? a.Values<string>() : new[] { (string)x.Value })
-                .Concat(new[] { (string)script["address"] });
-            foreach (string address in addresses)
-            {
-                var matches = settings.groups.Where(x => x != null).SelectMany(x => x.entries).Where(x => x.address == address).ToArray();
+                AddressableAssetEntry[] matches = Entries(settings).Where(x => x.address == address).ToArray();
                 if (matches.Length != 1 || !File.Exists(matches[0].AssetPath))
                     throw new InvalidDataException("NPC Address is absent or ambiguous: " + address);
-                foreach (string dependency in AssetDatabase.GetDependencies(matches[0].AssetPath, true))
-                    if (dependency.StartsWith("Assets/Art/Characters/", StringComparison.Ordinal))
-                        throw new InvalidDataException("NPC visual references unversioned character assets.");
+            }
+            AddressableAssetEntry prefabEntry = Entries(settings).Single(x => x.address == manifest.PrefabAddress);
+            GameObject prefab = AssetDatabase.LoadAssetAtPath<GameObject>(prefabEntry.AssetPath);
+            CharacterVisualController.ValidateVisualInstance(prefab, manifest.SchemaVersion >= 2);
+            if (!manifest.UsesBuiltinAnimationDriver)
+            {
+                AddressableAssetEntry scriptEntry = Entries(settings).Single(x => x.address == manifest.AnimationScriptAddress);
+                byte[] bytes = File.ReadAllBytes(scriptEntry.AssetPath);
+                if (bytes.LongLength != manifest.AnimationLength ||
+                    RemoteNpcContract.ComputeSha256(bytes) != manifest.AnimationSha256)
+                    throw new InvalidDataException("NPC DLL hash/length mismatch.");
+                ValidateAnimationAssembly(bytes, manifest.AnimationAssemblyName, manifest.AnimationEntryType);
             }
         }
         Debug.Log("NPC_CONTENT_RELEASE_VALIDATED");
     }
 
+    private static IEnumerable<AddressableAssetEntry> Entries(AddressableAssetSettings settings) =>
+        settings.groups.Where(x => x != null).SelectMany(x => x.entries);
+
+    private static void ValidateAnimationAssembly(byte[] bytes, string assemblyName, string entryType)
+    {
+        using var stream = new MemoryStream(bytes, false);
+        using AssemblyDefinition assembly = AssemblyDefinition.ReadAssembly(stream);
+        string[] allowed = { "mscorlib", "System", "System.Core", "netstandard", "UnityEngine.CoreModule",
+            "UnityEngine.AnimationModule", "GameWithLLM.Client.Gameplay" };
+        if (assembly.Name.Name != assemblyName || assembly.MainModule.AssemblyReferences.Any(x => !allowed.Contains(x.Name)))
+            throw new InvalidDataException("NPC DLL dependency or identity is invalid.");
+        TypeDefinition type = assembly.MainModule.Types.SingleOrDefault(x => x.FullName == entryType);
+        if (type == null || type.IsAbstract || !type.IsPublic ||
+            !type.Interfaces.Any(x => x.InterfaceType.FullName == "INpcAnimationDriver") ||
+            !type.Methods.Any(x => x.IsConstructor && x.IsPublic && !x.HasParameters))
+            throw new InvalidDataException("NPC DLL entry must implement INpcAnimationDriver.");
+    }
+
+    private static void WriteAvatar(Texture2D avatar, string target)
+    {
+        string source = AssetDatabase.GetAssetPath(avatar);
+        byte[] bytes = string.Equals(Path.GetExtension(source), ".png", StringComparison.OrdinalIgnoreCase)
+            ? File.ReadAllBytes(source) : avatar.EncodeToPNG();
+        WriteImmutable(target, bytes);
+    }
+
+    private static void WriteJson(string path, JObject value, bool immutable)
+    {
+        byte[] bytes = new System.Text.UTF8Encoding(false).GetBytes(value.ToString(Formatting.Indented) + "\n");
+        if (immutable) WriteImmutable(path, bytes); else File.WriteAllBytes(path, bytes);
+    }
+
+    private static void WriteImmutable(string path, byte[] bytes)
+    {
+        if (File.Exists(path))
+        {
+            if (!File.ReadAllBytes(path).SequenceEqual(bytes))
+                throw new InvalidDataException("Immutable NPC version already exists with different bytes: " + path);
+            return;
+        }
+        File.WriteAllBytes(path, bytes);
+    }
+
     private static JObject Read(string path) => JObject.Parse(File.ReadAllText(path),
         new JsonLoadSettings { DuplicatePropertyNameHandling = DuplicatePropertyNameHandling.Error });
 
-    // 0.1.0 is the existing published AOT baseline, before the animation contract.
-    // Sample staging may use it in Editor; production must establish a new Player.
     public static void ValidateProductionPlayerContract()
     {
         if (Application.version == "0.1.0")
             throw new InvalidDataException("NPC animation changes the AOT contract: assign a new Player version before production publishing.");
         string metadata = "Assets/Content/HotUpdate/Metadata/GameWithLLM.Client.Gameplay.dll.bytes";
-        using (AssemblyDefinition assembly = AssemblyDefinition.ReadAssembly(metadata))
-            if (!assembly.MainModule.Types.Any(type => type.FullName == "INpcAnimationDriver" && type.IsInterface))
-                throw new InvalidDataException("Target Player AOT metadata does not contain INpcAnimationDriver.");
+        using AssemblyDefinition assembly = AssemblyDefinition.ReadAssembly(metadata);
+        if (!assembly.MainModule.Types.Any(type => type.FullName == "INpcAnimationDriver" && type.IsInterface))
+            throw new InvalidDataException("Target Player AOT metadata does not contain INpcAnimationDriver.");
     }
 }

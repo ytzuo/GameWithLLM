@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using UnityEngine;
@@ -36,8 +37,7 @@ public sealed class CharacterVisualController : MonoBehaviour
 
     public async Task<Animator> LoadStrictAsync(
         IContentAssetProvider provider,
-        string prefabAddress,
-        string animatorControllerAddress,
+        RemoteNpcManifest manifest,
         CancellationToken cancellationToken)
     {
         if (_loadAttempted)
@@ -50,18 +50,23 @@ public sealed class CharacterVisualController : MonoBehaviour
         ContentAssetLease<RuntimeAnimatorController> controller = null;
         try
         {
-            candidate = await provider.InstantiateAsync(prefabAddress, visualRoot, cancellationToken);
+            if (manifest == null)
+                throw new ArgumentNullException(nameof(manifest));
+            candidate = await provider.InstantiateAsync(manifest.PrefabAddress, visualRoot, cancellationToken);
             GameObject instance = candidate.Instance;
-            ValidateVisualInstance(instance);
-            Animator animator = instance.GetComponentInChildren<Animator>(true);
+            ValidateVisualInstance(instance, manifest.SchemaVersion >= 2);
+            Animator animator = FindVisualAnimator(instance, manifest.SchemaVersion >= 2);
             if (animator == null)
                 throw new InvalidOperationException("Remote NPC visual does not contain an Animator.");
-            controller = await provider.LoadAssetAsync<RuntimeAnimatorController>(
-                animatorControllerAddress,
-                cancellationToken);
-            if (controller.Asset == null)
-                throw new InvalidOperationException("Remote NPC animator controller resolved to null.");
-            animator.runtimeAnimatorController = controller.Asset;
+            if (manifest.SchemaVersion == 1)
+            {
+                controller = await provider.LoadAssetAsync<RuntimeAnimatorController>(
+                    manifest.AnimatorControllerAddress,
+                    cancellationToken);
+                if (controller.Asset == null)
+                    throw new InvalidOperationException("Remote NPC animator controller resolved to null.");
+                animator.runtimeAnimatorController = controller.Asset;
+            }
             instance.transform.SetLocalPositionAndRotation(Vector3.zero, Quaternion.identity);
             instance.transform.localScale = Vector3.one;
             _instanceLease = candidate;
@@ -133,7 +138,7 @@ public sealed class CharacterVisualController : MonoBehaviour
             fallbackVisual.SetActive(true);
     }
 
-    public static void ValidateVisualInstance(GameObject instance)
+    public static void ValidateVisualInstance(GameObject instance, bool requireCompleteAnimator = false)
     {
         if (instance == null)
             throw new InvalidOperationException("Character visual Prefab resolved to null.");
@@ -147,11 +152,27 @@ public sealed class CharacterVisualController : MonoBehaviour
             string typeName = behaviour.GetType().Name;
             if (typeName.Contains("Registry", StringComparison.Ordinal) ||
                 typeName.Contains("Tool", StringComparison.Ordinal) ||
-                typeName.Contains("Network", StringComparison.Ordinal))
+                typeName.Contains("Network", StringComparison.Ordinal) ||
+                string.Equals(typeName, "AgentHostClient", StringComparison.Ordinal) ||
+                string.Equals(typeName, "CommandDispatcher", StringComparison.Ordinal))
                 throw new InvalidOperationException(
                     $"Character visual Prefab contains forbidden behaviour '{typeName}'.");
         }
+        if (!requireCompleteAnimator) return;
+        Animator[] animators = instance.GetComponentsInChildren<Animator>(true);
+        if (animators.Length == 0)
+            throw new InvalidOperationException("NPC visual Prefab does not contain an Animator.");
+        if (!animators.Any(animator => animator.avatar != null && animator.avatar.isValid))
+            throw new InvalidOperationException("NPC visual Prefab Animator does not contain a valid Avatar.");
+        if (!animators.Any(animator => animator.avatar != null && animator.avatar.isValid &&
+                                      animator.runtimeAnimatorController != null))
+            throw new InvalidOperationException("NPC visual Prefab Animator does not contain a RuntimeAnimatorController.");
     }
+
+    private static Animator FindVisualAnimator(GameObject instance, bool requireCompleteAnimator) =>
+        instance.GetComponentsInChildren<Animator>(true).FirstOrDefault(animator =>
+            !requireCompleteAnimator || animator.avatar != null && animator.avatar.isValid &&
+            animator.runtimeAnimatorController != null);
 
     private void EnsureLocalContract()
     {

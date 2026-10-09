@@ -28,12 +28,12 @@
   "npcs": [
     {
       "npcId": "merchant_001",
-      "contentVersion": "2",
+      "contentVersion": "3",
       "displayName": "旅行商人",
       "description": "旅行商人，可以交流并使用现有游戏工具。",
-      "avatarPath": "npc/merchant_001/2/avatar.png",
-      "manifestPath": "npc/merchant_001/2/npc.json",
-      "manifestSha256": "b93d723207e421d925b709a656fd1d883e7d75d9b1f6187eeb38efd722a2d47e",
+      "avatarPath": "npc/merchant_001/3/avatar.png",
+      "manifestPath": "npc/merchant_001/3/npc.json",
+      "manifestSha256": "4aa4bdb17d74d5c9b67f24a14a0a9c39304ca2a5af3a8d3b7cf43dd83f2342c3",
       "minPlayerVersion": "0.2.0",
       "maxPlayerVersion": "0.2.0"
     },

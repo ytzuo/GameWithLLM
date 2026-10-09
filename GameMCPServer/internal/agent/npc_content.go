@@ -63,6 +63,15 @@ type NPCAnimationScript struct {
 	Length       int64  `json:"length"`
 	SHA256       string `json:"sha256"`
 }
+type NPCAnimationDriver struct {
+	Kind         string `json:"kind"`
+	DriverID     string `json:"driverId,omitempty"`
+	Address      string `json:"address,omitempty"`
+	AssemblyName string `json:"assemblyName,omitempty"`
+	EntryType    string `json:"entryType,omitempty"`
+	Length       int64  `json:"length,omitempty"`
+	SHA256       string `json:"sha256,omitempty"`
+}
 type NPCContentDefinition struct {
 	SchemaVersion   int                 `json:"schemaVersion"`
 	NPCID           string              `json:"npcId"`
@@ -70,6 +79,20 @@ type NPCContentDefinition struct {
 	PlayerBuildID   string              `json:"playerBuildId"`
 	Visual          NPCVisual           `json:"visual"`
 	AnimationScript NPCAnimationScript  `json:"animationScript"`
+	Profile         NPCProfile          `json:"profile"`
+	SystemPrompt    SystemPromptCatalog `json:"systemPrompt"`
+	AnimationDriver NPCAnimationDriver  `json:"-"`
+}
+
+type npcContentV2 struct {
+	SchemaVersion  int    `json:"schemaVersion"`
+	NPCID          string `json:"npcId"`
+	ContentVersion string `json:"contentVersion"`
+	PlayerBuildID  string `json:"playerBuildId"`
+	Visual         struct {
+		PrefabAddress string `json:"prefabAddress"`
+	} `json:"visual"`
+	AnimationDriver NPCAnimationDriver  `json:"animationDriver"`
 	Profile         NPCProfile          `json:"profile"`
 	SystemPrompt    SystemPromptCatalog `json:"systemPrompt"`
 }
@@ -85,25 +108,73 @@ func ParseNPCContent(data []byte, binding NPCContentBinding) (*NPCContentDefinit
 	if rejectDuplicateJSONProperties(data) != nil {
 		return nil, errors.New("NPC_CONTENT_JSON_INVALID")
 	}
-	var d NPCContentDefinition
-	decoder := json.NewDecoder(bytes.NewReader(data))
-	decoder.DisallowUnknownFields()
-	if decoder.Decode(&d) != nil {
+	var envelope struct {
+		SchemaVersion int `json:"schemaVersion"`
+	}
+	if json.Unmarshal(data, &envelope) != nil {
 		return nil, errors.New("NPC_CONTENT_JSON_INVALID")
 	}
-	if d.SchemaVersion != 1 || d.NPCID != binding.EntityID || d.ContentVersion != binding.ContentVersion || d.Profile.NPCID != d.NPCID || d.SystemPrompt.ContentVersion != d.ContentVersion || d.PlayerBuildID == "" || validateNPCProfile(d.Profile) != nil || d.SystemPrompt.Validate() != nil {
+	var d NPCContentDefinition
+	switch envelope.SchemaVersion {
+	case 1:
+		decoder := json.NewDecoder(bytes.NewReader(data))
+		decoder.DisallowUnknownFields()
+		if decoder.Decode(&d) != nil {
+			return nil, errors.New("NPC_CONTENT_JSON_INVALID")
+		}
+		d.AnimationDriver = NPCAnimationDriver{
+			Kind: "hotUpdate", Address: d.AnimationScript.Address,
+			AssemblyName: d.AnimationScript.AssemblyName,
+			EntryType:    d.AnimationScript.EntryType, Length: d.AnimationScript.Length,
+			SHA256: d.AnimationScript.SHA256,
+		}
+	case 2:
+		var wire npcContentV2
+		decoder := json.NewDecoder(bytes.NewReader(data))
+		decoder.DisallowUnknownFields()
+		if decoder.Decode(&wire) != nil {
+			return nil, errors.New("NPC_CONTENT_JSON_INVALID")
+		}
+		d = NPCContentDefinition{
+			SchemaVersion: wire.SchemaVersion, NPCID: wire.NPCID,
+			ContentVersion: wire.ContentVersion, PlayerBuildID: wire.PlayerBuildID,
+			Visual:  NPCVisual{PrefabAddress: wire.Visual.PrefabAddress},
+			Profile: wire.Profile, SystemPrompt: wire.SystemPrompt,
+			AnimationDriver: wire.AnimationDriver,
+		}
+	default:
+		return nil, errors.New("NPC_CONTENT_DEFINITION_INVALID")
+	}
+	if d.NPCID != binding.EntityID || d.ContentVersion != binding.ContentVersion || d.Profile.NPCID != d.NPCID || d.SystemPrompt.ContentVersion != d.ContentVersion || d.PlayerBuildID == "" || validateNPCProfile(d.Profile) != nil || d.SystemPrompt.Validate() != nil {
 		return nil, errors.New("NPC_CONTENT_DEFINITION_INVALID")
 	}
 	prefix := "npc/" + d.NPCID + "/" + d.ContentVersion + "/"
-	addresses := append([]string{d.Visual.PrefabAddress, d.Visual.AnimatorControllerAddress, d.AnimationScript.Address}, d.Visual.AnimationAddresses...)
-	addresses = append(addresses, d.Visual.MaterialAddresses...)
-	addresses = append(addresses, d.Visual.TextureAddresses...)
+	addresses := []string{d.Visual.PrefabAddress}
+	if d.SchemaVersion == 1 {
+		addresses = append(addresses, d.Visual.AnimatorControllerAddress)
+		addresses = append(addresses, d.Visual.AnimationAddresses...)
+		addresses = append(addresses, d.Visual.MaterialAddresses...)
+		addresses = append(addresses, d.Visual.TextureAddresses...)
+	}
+	if d.AnimationDriver.Kind == "hotUpdate" {
+		addresses = append(addresses, d.AnimationDriver.Address)
+	}
 	for _, address := range addresses {
-		if !strings.HasPrefix(address, prefix) || strings.Contains(address, "..") || strings.ContainsAny(address, "\\:%?#") {
+		if address == prefix || !strings.HasPrefix(address, prefix) || strings.Contains(address, "..") || strings.ContainsAny(address, "\\:%?#") {
 			return nil, errors.New("NPC_CONTENT_ADDRESS_INVALID")
 		}
 	}
-	if d.AnimationScript.Length <= 0 || d.AnimationScript.Length > 16*1024*1024 || !contentHash.MatchString(d.AnimationScript.SHA256) || d.AnimationScript.AssemblyName == "" || d.AnimationScript.EntryType == "" {
+	if d.AnimationDriver.Kind == "builtin" {
+		if d.SchemaVersion != 2 || d.AnimationDriver.DriverID != "standard-locomotion" ||
+			d.AnimationDriver.Address != "" || d.AnimationDriver.AssemblyName != "" ||
+			d.AnimationDriver.EntryType != "" || d.AnimationDriver.Length != 0 ||
+			d.AnimationDriver.SHA256 != "" {
+			return nil, errors.New("NPC_CONTENT_SCRIPT_INVALID")
+		}
+	} else if d.AnimationDriver.Kind != "hotUpdate" || d.AnimationDriver.DriverID != "" ||
+		d.AnimationDriver.Length <= 0 || d.AnimationDriver.Length > 16*1024*1024 ||
+		!contentHash.MatchString(d.AnimationDriver.SHA256) ||
+		d.AnimationDriver.AssemblyName == "" || d.AnimationDriver.EntryType == "" {
 		return nil, errors.New("NPC_CONTENT_SCRIPT_INVALID")
 	}
 	return &d, nil
