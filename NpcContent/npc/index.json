@@ -1,0 +1,52 @@
+{
+  "schemaVersion": 1,
+  "catalogContentVersion": "2026.09.001",
+  "texts": {
+    "remoteTab": "可下载 NPC",
+    "localTab": "本地 NPC",
+    "download": "下载并生成",
+    "spawn": "生成",
+    "cancel": "取消",
+    "retry": "重试",
+    "close": "关闭",
+    "refresh": "刷新",
+    "alreadySpawned": "已在场景中",
+    "restartRequired": "重启游戏后可下载此版本",
+    "progressFormat": "已下载 {downloaded} / {total} 字节",
+    "downloading": "下载中",
+    "installed": "已安装",
+    "remoteEmpty": "暂无可下载 NPC",
+    "localEmpty": "暂无本地 NPC",
+    "errorFetch": "无法读取 NPC 列表，请重试",
+    "errorContent": "NPC 内容校验失败",
+    "errorCompatibility": "NPC 与当前 Player 不兼容",
+    "errorDownload": "下载失败，请重试",
+    "errorCancelled": "下载已取消",
+    "errorSpawn": "生成失败，请重试",
+    "errorBusy": "已有下载任务，请稍后重试"
+  },
+  "npcs": [
+    {
+      "npcId": "merchant_001",
+      "contentVersion": "1",
+      "displayName": "旅行商人",
+      "description": "旅行商人，可以交流并使用现有游戏工具。",
+      "avatarPath": "npc/merchant_001/1/avatar.png",
+      "manifestPath": "npc/merchant_001/1/npc.json",
+      "manifestSha256": "30da5a57da4124e60410d7adb6efabfae73e15352f0e8f7205e23ba457f69df7",
+      "minPlayerVersion": "0.1.0",
+      "maxPlayerVersion": "0.1.0"
+    },
+    {
+      "npcId": "guide_001",
+      "contentVersion": "1",
+      "displayName": "仓库向导",
+      "description": "仓库向导，可以交流并使用现有游戏工具。",
+      "avatarPath": "npc/guide_001/1/avatar.png",
+      "manifestPath": "npc/guide_001/1/npc.json",
+      "manifestSha256": "e3b35639ae004ad424ccab0828c4824f46f65f2302127b94a656abcf94f111b4",
+      "minPlayerVersion": "0.1.0",
+      "maxPlayerVersion": "0.1.0"
+    }
+  ]
+}

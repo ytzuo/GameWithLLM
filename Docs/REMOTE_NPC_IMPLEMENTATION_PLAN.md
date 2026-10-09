@@ -1,7 +1,7 @@
 # 远端 NPC 下载、安装与生成实现方案
 
 日期：2026-10-08  
-状态：待实施；本文描述目标方案，不代表已有功能。当前实现事实仍以 `ARCHITECTURE.md` 为准。
+状态：第一轮已实施并完成本地验证；第二、三轮待实施。目标方案和已实现内容由文末记录区分，当前实现事实仍以 `ARCHITECTURE.md` 为准。
 
 ## 1. 目标与范围
 
@@ -233,3 +233,66 @@ Go 运行 `go test ./...`、`go vet ./...`、`go test -race ./...`；完成 Unit
 每轮优先使用约 70% 上下文完成实现、20% 验证修复、10% 文档与交接；比例是执行建议。首轮若发现必须重做发布平台或动态工具体系，先退回本方案边界，不能带着未解决的框架建设进入第二轮。
 
 不以“以后可能需要”为由增加数据库、NPC 类型层、通用安装图、跨端激活事务、DLL 卸载、独立 Catalog 或完整插件 SDK。唯一允许扩大范围的条件是已证明某项首版验收无法通过，并在本文记录具体原因与最小修正。
+
+## 10. 第一轮交接记录（2026-10-09）
+
+已完成：
+
+- 核对 Host 对 instanceId 添加运行期后缀、注册/完整 Manifest 快照与重连、release
+  contentVersion 来源、共享 Catalog 以及 snapshotVersion=1 格式。契约冻结在
+  `Docs/REMOTE_NPC_CONTENT_CONTRACT.md`，真实夹具在 `NpcContent/npc/`。
+- SDK 增加可选 NpcContents，Unity Host/Transport 全链路保留，inactive Entity
+  绑定入口拒绝错 ID；Go 拒绝非法/重复/不存在的绑定、未知或重复绑定字段。
+- 新增 NPC_CONTENT_BASE_URL、Go Resolver、按绑定创建 Context 和 restore。
+  Go 独立验证原始清单 hash、严格 JSON/Profile/模板/固定版本地址；成功缓存、失败
+  可重试、HTTP 不持有生命周期/Registry 锁。原场景 NPC 配置路径和旧归档保留。
+- 归档可选记录版本/hash，冲突拒绝且不替换现有 Context；已有 Context 保留 Prompt，
+  跨重连内容身份变化拒绝复用。完整 Manifest 更新禁止仍在线实体换内容。
+- 两名 NPC 使用不同 Prompt 和不同真实动画 DLL。新增窄动画 AOT 接口，样例 DLL
+  构建、程序集/入口/视觉依赖校验、版本化角色资产和 LocalDevelopment Bundle。
+  DLL 仅用基础 AOT/Unity 动画能力，不加入工具包或 ToolSet。
+- 统一验证器增加 NpcContent 模块，Go CLI 复用服务端严格解析器。原生产候选台账
+  扩展静态 NPC 文件；同一提升脚本先交付不可变内容、最后切换索引并支持索引回滚。
+  同版本改写会拒绝且保留原 release pointer/index。
+- ARCHITECTURE 同步 Unity 可保存原始清单、Go 独立加载与执行模型的边界。
+
+验证结果：
+
+| 检查 | 结果与证据 |
+|---|---|
+| go test ./... | 全部通过；Artifacts/NpcRound1/go-test.log |
+| go vet ./... | 通过，无输出；Artifacts/NpcRound1/go-vet.log |
+| go test -race ./... | Windows 测试进程启动返回 0xc0000139，未进入测试；相同 Go 1.26.5 在已有 Ubuntu WSL 下全部通过，Artifacts/NpcRound1/go-race-wsl.log |
+| 网络定义解析 | httptest HTTP 验证两名 Prompt、hash、非法路径、未知/损坏定义、重定向、取消、失败重试、缓存独立副本、存档冲突和旧场景路径 |
+| Go 静态产物校验 | go run ./cmd/npc-content-validate ../NpcContent 通过，两名 NPC |
+| C# 与样例 DLL/Bundle | Unity 6000.3.19f1 编译及构建通过；Logs/npc-round1-build.log、Logs/npc-round1-content-build.log，NPC_LOCAL_CONTENT_BUILD_SUCCESS |
+| Unity EditMode | 35/35 通过；Artifacts/NpcRound1/editmode-results.xml |
+| NPC 内容模块 | 通过；Artifacts/NpcRound1/content-validation.json 与 Logs/npc-round1-validation.log |
+| SampleScene 七项基线 | 注册、普通/流式对话、warehouse/gate 移动、取消 Task/移动、Go 重启重连/Manifest、Inventory/世界及对话恢复、无 Console 错误/Missing Script 全部通过；Artifacts/NpcRound1/scene-report.json、go-scene.log、Logs/npc-round1-scene.log |
+| 发布事务 | Scripts/Test-ContentReleaseTransaction.ps1 通过：原链路、篡改拒绝、NPC 版本不可变、指针保留与索引回滚 |
+
+场景回归由 `Scripts/Test-NpcRoundOne.py` 配合 Editor 入口
+`NpcRoundOneSceneSmoke.RunFromCommandLine` 完成。测试先启动本地 HTTP 内容托管、
+固定响应的 OpenAI 兼容测试服务和真实 Go 进程，写 runtime-env.json；以该测试环境
+启动 Unity 入口后，协调脚本驱动真实 A2A/MCP/Save API，并在主线程观测移动和保存/
+恢复世界。完成后停止自建服务/Editor。模型正确性由本地 fixture 验证，不依赖外部
+LLM；真实游戏行为由 Unity SampleScene 执行。测试生成的运行期证据位于忽略目录
+Artifacts 和 Unity Logs，源测试入口只在 Editor 编译。
+
+尚未执行：真实远端生产提升、基础 IL2CPP Player 裁剪与动画 driver 下载执行。
+这些属于第二/三轮，本轮没有将它们标记为通过。开发样例沿用旧 0.1.0 release 身份，
+不代表旧已发布 Player 包含新 AOT 接口；生产输入门禁拒绝用旧 0.1.0 身份发布，且
+要求目标 Gameplay AOT metadata 包含 INpcAnimationDriver。
+
+下一轮入口：
+
+1. 先建立具有新 Player 身份的动画 AOT 基线，运行现有 HybridCLR 生成链，显式重新
+   staging 样例以更新 playerBuildId、min/maxPlayerVersion、hash，再验证新 Player
+   裁剪和之后的新 NPC 不需重建 Player。
+2. 按冻结契约实现 catalog client、installer、spawn controller 和 UI；复用现有
+   ContentAssetProvider、CharacterVisualController 和完整 Manifest 发布。
+3. 使用 inactive 根设置 npcId 与 BindContent，在全部视觉/脚本成功后激活；Animator
+   driver 在主线程 Bind/Tick/Dispose，不参与工具发现。当前只有绑定入口，尚无安装
+   UI 或动态生成流程。
+4. 正式发布前保留所有已发布旧版本的 Address/Bundle/静态目录，并补 Unity 与 Go
+   从真实受信任端点读取的发布证据。不要用生产发布来替代本地 staging。

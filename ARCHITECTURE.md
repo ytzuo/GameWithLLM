@@ -144,7 +144,7 @@ https://gamewithllm.dev/extensions/game-context/v1
 }
 ```
 
-创建 Context 时，Agent Service 要求对应 Runtime 已注册且 NPC Profile 存在。
+创建 Context 时，Agent Service 要求对应 Runtime 与实体已注册；未绑定 NPC 使用配置 Profile，绑定 NPC 从可信内容根独立解析版本化定义。
 复用 Context 时重新校验 `instanceId + playerId + agentId`，禁止跨 Runtime、
 玩家或实体复用。当前 Go `Capabilities` 实现尚未用 Manifest 的实体列表核对
 新 Context 的 `agentId`；不存在或离线的实体会在 Unity 执行工具时被拒绝。
@@ -228,9 +228,52 @@ Profile 和 system prompt 创建新的 A2A Context ID。存档操作不是模型
 
 System Prompt 由 Go 启动时严格加载 `config/system_prompt.zh-CN.json`，通过
 `SYSTEM_PROMPT_PATH` 可选择其他文件。Catalog 只记录 schema、内容版本、locale
-和带固定占位符的模板，不进入 Unity 或 Addressables。活动 Catalog 的切换只影响
+和带固定占位符的模板。远端 NPC 的 Profile/Prompt 可随 `npc.json` 下载并保存到 Unity 本地；Unity 不组装模型请求，Go 独立加载可信正文。活动 Catalog 的切换只影响
 之后创建或恢复出的 Context；已有 Context 保留创建时的 Prompt 字符串。日志只可
 记录版本和加载结果，不记录 Prompt 正文。
+
+### 2.7 远端 NPC 内容契约（第一轮已实现）
+
+内容源为仓库 `NpcContent/npc/index.json` 与 `npc/{npcId}/{contentVersion}/`。
+索引可变，版本目录不可变；最终 JSON 字段、文本键和两名测试 NPC 见
+`Docs/REMOTE_NPC_CONTENT_CONTRACT.md` 与真实测试夹具。Unity 使用共享 Catalog，
+启动 Catalog 的版本取当前 release `contentVersion`；UI 刷新列表不切换 Catalog。
+本轮不提供下载 UI、安装记录或动态生成流程。
+
+公共 SDK `RuntimeManifest` 添加 `NpcContents`，线上 JSON 为可选 `npcContents`：
+每项只有 `entityId / contentVersion / manifestSha256`，原有 `entities/tools/revision`
+含义不变。绑定实体必须在同一 Manifest 中且唯一。`NpcEntity.BindContent` 仅允许在
+inactive 时设置同 ID 绑定；Host 与 Gateway 快照、重新序列化和重连均保留绑定。
+完整 Manifest 更新不得改变仍在场的实体绑定。重新连接后旧 Context 使用前核对绑定，
+版本/hash 冲突时拒绝复用，不能把已创建 Prompt 换成新内容。
+
+Go `NPCContentResolver` 使用 `NPC_CONTENT_BASE_URL` 下构造的固定路径，合法 ID/version
+为 `[A-Za-z0-9][A-Za-z0-9_-]{0,63}`，hash 为 64 位小写十六进制。
+禁止任意 URL、路径穿越和重定向。HTTP 超时 10 秒、清单上限 256 KiB；先校验原始
+字节 hash，再严格拒绝重复/未知 JSON 字段，核对 Profile ID、Prompt 内容版本及
+完整模板占位符。成功定义按 ID/version/hash 缓存，无 TTL、磁盘恢复或后台刷新；失败
+不缓存，下次对话可重试。错误只返回稳定 `NPC_CONTENT_*`，不泄露远端正文。
+HTTP 期间不持有 Registry 或 Service 生命周期锁，解析后重新核对当前实体绑定。
+
+对话快照版本仍为 1，每个 Context 可选保存 `npcContent`（同三字段），不保存 Prompt。
+restore 在替换当前 Context 前核对版本/hash并从当前绑定解析 Prompt；冲突返回
+`NPC_CONTENT_VERSION_MISMATCH`，解析失败返回 `NPC_CONTENT_UNAVAILABLE`，失败保留
+原 Context。旧无绑定快照继续从服务端 Profile/Prompt 配置恢复。
+
+`INpcAnimationDriver` 位于稳定 Gameplay AOT 程序集，生命周期为
+`Bind(Animator) / Tick(deltaTime, movementSpeed) / Dispose`，只允许主线程调用。
+样例 Merchant/Guide V1 DLL 仅引用 Gameplay、标准库和 Unity 动画模块，入口明确实现
+该接口；不实现 IAgentTool、不改变 ToolSet、不执行工具发现。第一轮交付 C# 与 DLL、
+版本化模型/Controller/动画/材质/贴图及本地 Bundle；实际 DLL driver 加载接入属于第二轮。
+新增 AOT 接口要求第二轮首个兼容基础 Player 完成构建与裁剪验证，已发布旧 Player
+不能因版本字符串相同就被认为具有新契约；正式发布必须分配新的 Player 身份。生产输入门禁拒绝旧 0.1.0 身份，并校验目标 Gameplay AOT metadata 中的接口。
+
+`NpcContentRelease.BuildSamples` 是显式样例 staging，生产流水线不会隐式改写样例。
+`NpcContent` 模块在统一验证器检查程序集引用、入口、hash、版本地址与视觉依赖；
+`Build-ContentRelease.ps1` 使用 Go 同一个解析器校验静态索引/Profile/Prompt。
+候选文件台账追加 `npcContentRoot` 和静态 NPC 文件，原有 release 字段不改变含义。
+提升脚本拒绝覆盖已发布版本，先交付不可变文件，最后切换 `npc/index.json`，回滚
+索引同时保留所有已发布版本。真实远端发布与环境证据仍按既有流水线执行。
 
 ## 3. 进程内契约
 
@@ -361,7 +404,7 @@ unity-NPC-agent-client/Packages/com.gamewithllm.agent-runtime/
 
 ### 6.1 HybridCLR 边界
 
-Windows Player 使用 IL2CPP x86_64，HybridCLR 只承载版本化的 NPC 工具包。程序集
+Windows Player 使用 IL2CPP x86_64，HybridCLR 承载版本化工具包与独立 NPC 动画程序集。程序集
 边界固定如下：
 
 - `GameWithLLM.AgentRuntime` 是公共契约 AOT 程序集，不参与热更新。
@@ -472,7 +515,7 @@ smoke Player 构建期间临时注入 `StreamingAssets`，构建结束立即清�
 - `SampleScene`、NavMeshData 和第一阶段场景固有材质属于
   `Local_SampleScene`；最小下载/错误 UI 和默认内容属于 `Local_Bootstrap`。
 - 客户端 JSON、AOT metadata、版本化工具 DLL、UI、物品表现、角色表现和附加
-  场景分别由唯一的 `Remote_*` Group 拥有。Go System Prompt 不进入 Addressables。
+  场景分别由唯一的 `Remote_*` Group 拥有。场景 NPC 的 Go 配置仍不进入 Addressables；远端 NPC 的原始 `npc.json` 通过静态 HTTP 交付并在本地安装时保留。
 - Address 使用稳定逻辑 ID，Label 只用于批量下载，业务 ID 独立保存。发布过的
   Address 和业务 ID 不得删除后复用；版本化工具二进制地址包含不可复用版本。
 - 每次运行时加载都必须由 bootstrap、catalog、窗口、实体视觉或场景协调器之一
@@ -596,6 +639,7 @@ Agent Service：
 - `CONVERSATION_SAVE_DIR`
 - `NPC_PROFILE_PATH`
 - `SYSTEM_PROMPT_PATH`
+- `NPC_CONTENT_BASE_URL`（可选的可信 HTTP/HTTPS 内容根）
 
 Unity：
 

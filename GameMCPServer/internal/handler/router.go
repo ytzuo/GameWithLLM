@@ -43,6 +43,15 @@ func RegisterRoutesWithConfig(mux *http.ServeMux, cfg config.Config) (*App, erro
 	if err := conversations.ActivateSystemPromptCatalog(promptCatalog); err != nil {
 		return nil, fmt.Errorf("activate system prompt catalog: %w", err)
 	}
+
+	var contentResolver *agent.NPCContentResolver
+	if cfg.NPCContentBaseURL != "" {
+		contentResolver, err = agent.NewNPCContentResolver(cfg.NPCContentBaseURL)
+		if err != nil {
+			return nil, err
+		}
+	}
+	conversations.ConfigureNPCContent(contentResolver, registry)
 	a2aServer := a2a.NewServer(conversations, cfg.BaseURL, cfg.A2ABearerToken)
 	gatewayServer := gateway.NewServer(registry, cfg.RuntimeGatewayToken, cfg.GatewayServiceToken)
 	saveCoordinator := savecoord.New(conversations, cfg.A2ABearerToken)

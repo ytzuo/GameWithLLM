@@ -31,6 +31,7 @@ public static class ContentValidationRunner
         new RegisteredRule(new ItemContentValidator(), ContentValidationProfile.Fast),
         new RegisteredRule(new CharacterContentValidator(), ContentValidationProfile.Fast),
         new RegisteredRule(new SceneContentValidator(), ContentValidationProfile.Fast),
+        new RegisteredRule(new NpcContentValidator(), ContentValidationProfile.Fast),
         new RegisteredRule(new ToolPackageValidator(), ContentValidationProfile.Candidate),
         new RegisteredRule(new ReleaseBudgetValidator(), ContentValidationProfile.Candidate)
     };

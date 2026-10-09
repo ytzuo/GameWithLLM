@@ -14,6 +14,15 @@ public class NpcEntity : MonoBehaviour, IGameObjectAgentEntity, IGameplayWorldTa
     public static event Action<NpcEntity, bool> RuntimeAvailabilityChanged;
 
     public string npcId;
+    public NpcContentBinding ContentBinding { get; private set; }
+
+    // The installer/spawner must set this before activating the root.
+    public void BindContent(NpcContentBinding binding)
+    {
+        if (isActiveAndEnabled || binding == null || binding.EntityId != npcId)
+            throw new InvalidOperationException("NPC content must match an inactive entity.");
+        ContentBinding = binding;
+    }
 
     [Header("Movement")]
     [SerializeField, Min(0.5f)] private float moveStoppingDistance = 1.5f;

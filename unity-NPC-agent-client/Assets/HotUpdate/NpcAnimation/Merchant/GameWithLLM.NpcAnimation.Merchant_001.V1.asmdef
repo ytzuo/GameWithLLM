@@ -1,0 +1,7 @@
+{
+  "name": "GameWithLLM.NpcAnimation.Merchant_001.V1",
+  "references": [
+    "GameWithLLM.Client.Gameplay"
+  ],
+  "autoReferenced": false
+}

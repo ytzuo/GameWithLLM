@@ -113,6 +113,40 @@ if (-not $Rollback -and -not $releaseAlreadyPresent) {
 
 New-Item -ItemType Directory -Force -Path $publish | Out-Null
 $currentPath = Join-Path $publish 'current.json'
+# Extend the same transaction with immutable NPC versions. Never overwrite published bytes.
+$npcIndexSource = $null
+if ($manifest.npcContentRoot) {
+    $npcRoot = Resolve-ContainedPath $releaseDirectory $manifest.npcContentRoot
+    $npcIndexSource = Resolve-ContainedPath $npcRoot 'npc/index.json'
+    $npcIndexFiles = @($manifest.files | Where-Object {
+        $_.path.Replace('\', '/') -eq ($manifest.npcContentRoot + '/npc/index.json')
+    })
+    if ($npcIndexFiles.Count -ne 1) { throw 'NPC index must appear exactly once in the candidate file manifest.' }
+    $npcFiles = @($manifest.files | Where-Object {
+        $_.path.Replace('\', '/').StartsWith($manifest.npcContentRoot + '/npc/') -and
+        $_.path.Replace('\', '/') -ne ($manifest.npcContentRoot + '/npc/index.json')
+    })
+    # Preflight every retained version before creating any destination files.
+    foreach ($file in $npcFiles) {
+        $relative = $file.path.Replace('\', '/').Substring($manifest.npcContentRoot.Length + 1)
+        $destination = Resolve-ContainedPath $publish $relative
+        if (Test-Path -LiteralPath $destination) {
+            if ((Get-Item -LiteralPath $destination).Length -ne $file.length -or
+                (Get-FileHash -Algorithm SHA256 -LiteralPath $destination).Hash.ToLowerInvariant() -ne $file.sha256) {
+                throw "Published NPC version is immutable: '$relative'."
+            }
+        }
+    }
+    foreach ($file in $npcFiles) {
+        $relative = $file.path.Replace('\', '/').Substring($manifest.npcContentRoot.Length + 1)
+        $destination = Resolve-ContainedPath $publish $relative
+        if (-not (Test-Path -LiteralPath $destination)) {
+            New-Item -ItemType Directory -Force -Path (Split-Path $destination -Parent) | Out-Null
+            Copy-Item -LiteralPath (Resolve-ContainedPath $releaseDirectory $file.path) -Destination $destination
+        }
+    }
+}
+
 $previous = $null
 if (Test-Path -LiteralPath $currentPath -PathType Leaf) {
     $previous = (Get-Content -Raw -LiteralPath $currentPath | ConvertFrom-Json).releaseId
@@ -131,5 +165,13 @@ $temporary = Join-Path $publish ("current.{0}.tmp" -f [Guid]::NewGuid().ToString
 if ($PSCmdlet.ShouldProcess($currentPath, "atomically publish content release '$($manifest.releaseId)'")) {
     $pointer | ConvertTo-Json | Set-Content -LiteralPath $temporary -Encoding utf8
     Move-Item -LiteralPath $temporary -Destination $currentPath -Force
+    # The mutable list switches last, after all immutable payload and the release pointer.
+    if ($npcIndexSource) {
+        $npcIndexPath = Resolve-ContainedPath $publish 'npc/index.json'
+        $npcTemporary = Resolve-ContainedPath $publish ("npc/index.{0}.tmp" -f [Guid]::NewGuid().ToString('N'))
+        New-Item -ItemType Directory -Force -Path (Split-Path $npcIndexPath -Parent) | Out-Null
+        Copy-Item -LiteralPath $npcIndexSource -Destination $npcTemporary
+        Move-Item -LiteralPath $npcTemporary -Destination $npcIndexPath -Force
+    }
 }
 Write-Output "Content release '$($manifest.releaseId)' published; previous release '$previous' remains retained."

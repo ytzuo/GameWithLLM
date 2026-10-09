@@ -97,3 +97,11 @@ public sealed class ReleaseBudgetValidator : ContentValidationRule
     public override string RuleId => "ReleaseInputs";
     public override string Module => "Release";
 }
+
+public sealed class NpcContentValidator : ContentValidationRule
+{
+    public NpcContentValidator(Action<ContentValidationContext> validation = null)
+        : base(validation ?? (_ => NpcContentRelease.Validate())) { }
+    public override string RuleId => "NpcContentContract";
+    public override string Module => "NpcContent";
+}

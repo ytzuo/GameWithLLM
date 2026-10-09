@@ -828,8 +828,17 @@ public class AgentHostClient : Singleton<AgentHostClient>, ISceneTransitionParti
                 unityInstanceId,
                 _dispatcher.GetRegisteredEntityIds(),
                 _tools.GetRuntimeTools(),
-                Interlocked.Increment(ref _manifestRevision));
+                Interlocked.Increment(ref _manifestRevision),
+                GetNpcContentBindings());
         }
+    }
+    private IReadOnlyList<NpcContentBinding> GetNpcContentBindings()
+    {
+        var bindings = new List<NpcContentBinding>();
+        foreach (NpcEntity npc in _npcCapabilities.Keys)
+            if (npc != null && npc.IsOnline && npc.ContentBinding != null)
+                bindings.Add(npc.ContentBinding);
+        return bindings;
     }
     private RuntimeManifest GetManifest()
     {
@@ -838,7 +847,7 @@ public class AgentHostClient : Singleton<AgentHostClient>, ISceneTransitionParti
                 _manifest.InstanceId,
                 new List<string>(_manifest.EntityIds),
                 new List<AgentToolDescriptor>(_manifest.Tools),
-                _manifest.Revision);
+                _manifest.Revision, _manifest.NpcContents);
     }
     private void CancelStream(string npcId) =>
         _mainThread.Enqueue(() => ChatViewModel.Instance.CancelOpponentMessageStream(npcId));

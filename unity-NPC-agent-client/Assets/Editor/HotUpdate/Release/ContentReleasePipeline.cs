@@ -41,6 +41,7 @@ public static class ContentReleasePipeline
         VerifyPlayerAndAddressableSeparation(settings);
         VerifyMissingScripts(settings);
         VerifyAotIdentity();
+        NpcContentRelease.ValidateProductionPlayerContract();
         ReadPolicy();
     }
 
@@ -307,9 +308,10 @@ public static class ContentReleasePipeline
         string state = FindContentState();
         string archivedState = Path.Combine(candidateDirectory, ContentStateName);
         File.Copy(state, archivedState, true);
-        var roots = new List<string> { releaseDirectory, catalogDirectory };
+        NpcContentRelease.Validate();
+        var roots = new List<string> { releaseDirectory, catalogDirectory, NpcContentRelease.StaticRoot };
         if (!string.IsNullOrWhiteSpace(player)) roots.Add(Path.GetDirectoryName(player));
-        string[] candidateContent = roots.Take(2).SelectMany(path => Directory.GetFiles(path, "*", SearchOption.AllDirectories)).ToArray();
+        string[] candidateContent = roots.Take(3).SelectMany(path => Directory.GetFiles(path, "*", SearchOption.AllDirectories)).ToArray();
         long remoteBytes = candidateContent.Sum(path => new FileInfo(path).Length);
         string[] bundles = Directory.GetFiles(releaseDirectory, "*.bundle", SearchOption.AllDirectories);
         long largestBundle = bundles.Length == 0 ? 0 : bundles.Max(path => new FileInfo(path).Length);
@@ -345,6 +347,7 @@ public static class ContentReleasePipeline
             ["largestBundleBytes"] = largestBundle,
             ["estimatedPeakMemoryBytes"] = estimatedPeakMemory,
             ["duplicateImplicitAssets"] = duplicateImplicitAssets,
+            ["npcContentRoot"] = "NpcContent",
             ["files"] = ArtifactFileManifest.Create(root, roots, new[] { archivedState })
         };
         File.WriteAllText(Path.Combine(candidateDirectory, "candidate-manifest.json"),

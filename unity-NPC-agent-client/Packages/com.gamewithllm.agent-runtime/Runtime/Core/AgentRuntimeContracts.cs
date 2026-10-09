@@ -104,23 +104,48 @@ namespace GameWithLLM.AgentRuntime
         ValueTask SwitchToMainThreadAsync(CancellationToken cancellationToken);
     }
 
+    public sealed class NpcContentBinding
+    {
+        public string EntityId { get; }
+        public string ContentVersion { get; }
+        public string ManifestSha256 { get; }
+        public NpcContentBinding(string entityId, string contentVersion, string manifestSha256)
+        {
+            const string segment = @"^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$";
+            if (!System.Text.RegularExpressions.Regex.IsMatch(entityId ?? string.Empty, segment) ||
+                !System.Text.RegularExpressions.Regex.IsMatch(contentVersion ?? string.Empty, segment) ||
+                !System.Text.RegularExpressions.Regex.IsMatch(manifestSha256 ?? string.Empty, @"^[0-9a-f]{64}$"))
+                throw new ArgumentException("Invalid NPC content binding.");
+            EntityId = entityId; ContentVersion = contentVersion; ManifestSha256 = manifestSha256;
+        }
+    }
+
     public sealed class RuntimeManifest
     {
         public string InstanceId { get; }
         public IReadOnlyList<string> EntityIds { get; }
         public IReadOnlyList<AgentToolDescriptor> Tools { get; }
         public long Revision { get; }
+        public IReadOnlyList<NpcContentBinding> NpcContents { get; }
 
         public RuntimeManifest(
             string instanceId,
             IReadOnlyList<string> entityIds,
             IReadOnlyList<AgentToolDescriptor> tools,
-            long revision)
+            long revision,
+            IReadOnlyList<NpcContentBinding> npcContents = null)
         {
             InstanceId = instanceId;
             EntityIds = entityIds;
             Tools = tools;
             Revision = revision;
+            var bindings = new List<NpcContentBinding>(npcContents ?? Array.Empty<NpcContentBinding>());
+            var entities = new HashSet<string>(entityIds);
+            var bound = new HashSet<string>();
+            foreach (NpcContentBinding binding in bindings)
+                if (binding == null || !entities.Contains(binding.EntityId) || !bound.Add(binding.EntityId))
+                    throw new ArgumentException("NPC binding must identify a unique manifest entity.");
+            NpcContents = bindings.AsReadOnly();
         }
     }
 }

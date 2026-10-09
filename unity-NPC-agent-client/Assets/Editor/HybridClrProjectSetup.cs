@@ -47,7 +47,7 @@ public static class HybridClrProjectSetup
         settings.il2cppPlusRepoURL = "https://github.com/focus-creative-games/il2cpp_plus";
         settings.hotUpdateAssemblyDefinitions =
             Array.Empty<UnityEditorInternal.AssemblyDefinitionAsset>();
-        settings.hotUpdateAssemblies = new[] { SmokeAssemblyName };
+        settings.hotUpdateAssemblies = new[] { SmokeAssemblyName, "GameWithLLM.NpcAnimation.Merchant_001.V1", "GameWithLLM.NpcAnimation.Guide_001.V1" };
         settings.preserveHotUpdateAssemblies = Array.Empty<string>();
         settings.patchAOTAssemblies = PatchAotAssemblies;
         HybridCLRSettings.Save();

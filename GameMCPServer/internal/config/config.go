@@ -40,6 +40,7 @@ type Config struct {
 	LLMMaxContextChars      int
 	ConversationSaveDir     string
 	NPCProfilePath          string
+	NPCContentBaseURL       string
 	SystemPromptPath        string
 }
 
@@ -66,6 +67,7 @@ func Load() Config {
 		ConversationSaveDir:     conversationSaveDir(values),
 		NPCProfilePath:          npcProfilePath(values),
 		SystemPromptPath:        systemPromptPath(values),
+		NPCContentBaseURL:       stringValue("NPC_CONTENT_BASE_URL", values, ""),
 	}
 }
 

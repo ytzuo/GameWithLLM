@@ -101,10 +101,11 @@ func (r ConversationLoadResult) MarshalJSON() ([]byte, error) {
 }
 
 type persistedConversationContext struct {
-	NPCID           string    `json:"npcId"`
-	HistoryMessages []Message `json:"historyMessages"`
-	CreatedAt       time.Time `json:"createdAt"`
-	LastActiveAt    time.Time `json:"lastActiveAt"`
+	NPCContent      *NPCContentBinding `json:"npcContent,omitempty"`
+	NPCID           string             `json:"npcId"`
+	HistoryMessages []Message          `json:"historyMessages"`
+	CreatedAt       time.Time          `json:"createdAt"`
+	LastActiveAt    time.Time          `json:"lastActiveAt"`
 }
 
 type conversationSnapshot struct {
@@ -241,6 +242,9 @@ func validateConversationSnapshot(snapshot conversationSnapshot) error {
 	}
 	seenNPCs := make(map[string]struct{}, len(snapshot.Contexts))
 	for _, context := range snapshot.Contexts {
+		if context.NPCContent != nil && (context.NPCContent.Validate() != nil || context.NPCContent.EntityID != context.NPCID) {
+			return &archiveFailure{code: "SNAPSHOT_INVALID", message: "Invalid NPC content binding in snapshot."}
+		}
 		if strings.TrimSpace(context.NPCID) == "" || context.CreatedAt.IsZero() || context.LastActiveAt.IsZero() {
 			return errors.New("snapshot context metadata is invalid")
 		}
@@ -357,7 +361,7 @@ func (s *Service) SaveConversations(ctx context.Context, request ConversationSav
 				history = append(history, cloneMessage(message))
 			}
 		}
-		snapshot.Contexts = append(snapshot.Contexts, persistedConversationContext{NPCID: session.NPCID, HistoryMessages: history, CreatedAt: session.CreatedAt, LastActiveAt: session.LastActiveAt})
+		snapshot.Contexts = append(snapshot.Contexts, persistedConversationContext{NPCContent: session.NPCContent, NPCID: session.NPCID, HistoryMessages: history, CreatedAt: session.CreatedAt, LastActiveAt: session.LastActiveAt})
 	}
 	saved, err := s.archive.Save(snapshot, request.Mode)
 	if err != nil {
@@ -395,6 +399,34 @@ func (s *Service) LoadConversations(ctx context.Context, request ConversationLoa
 		}
 	}
 
+	prompts := make(map[string]string)
+	bindings := make(map[string]*NPCContentBinding)
+	for _, persisted := range snapshot.Contexts {
+		if s.contentBindings != nil {
+			currentBinding, err := s.contentBindings.NPCContentBinding(ctx, request.InstanceID, persisted.NPCID)
+			if err != nil {
+				return failedLoad("NPC_CONTENT_UNAVAILABLE", "NPC binding is unavailable.")
+			}
+			if !sameNPCBinding(currentBinding, persisted.NPCContent) {
+				return failedLoad("NPC_CONTENT_VERSION_MISMATCH", "NPC content differs from the saved version.")
+			}
+		} else if persisted.NPCContent != nil {
+			return failedLoad("NPC_CONTENT_VERSION_MISMATCH", "NPC content binding is absent.")
+		}
+		prompt, binding, err := s.resolvePrompt(ctx, request.InstanceID, persisted.NPCID)
+		if err != nil {
+			if errors.Is(err, ErrNPCProfileNotFound) {
+				return failedLoad("NPC_PROFILE_NOT_FOUND", "NPC profile is missing.")
+			}
+			return failedLoad("NPC_CONTENT_UNAVAILABLE", "NPC definition could not be resolved.")
+		}
+		if (binding == nil) != (persisted.NPCContent == nil) || (binding != nil && *binding != *persisted.NPCContent) {
+			return failedLoad("NPC_CONTENT_VERSION_MISMATCH", "NPC content differs from the saved version.")
+		}
+		prompts[persisted.NPCID] = prompt
+		bindings[persisted.NPCID] = binding
+	}
+
 	s.lifecycleMu.Lock()
 	defer s.lifecycleMu.Unlock()
 	current, err := s.store.ListByOwner(ctx, request.PlayerID, request.InstanceID)
@@ -418,11 +450,7 @@ func (s *Service) LoadConversations(ctx context.Context, request ConversationLoa
 	replacements := make([]*Session, 0, len(snapshot.Contexts))
 	contexts := make([]LoadedConversationContext, 0, len(snapshot.Contexts))
 	for _, persisted := range snapshot.Contexts {
-		profile, profileFound := s.profiles.Get(persisted.NPCID)
-		if !profileFound {
-			return failedLoad("NPC_PROFILE_NOT_FOUND", fmt.Sprintf("NPC profile is missing: %s", persisted.NPCID))
-		}
-		session := &Session{ID: newSessionID(), PlayerID: request.PlayerID, NPCID: persisted.NPCID, UnityInstanceID: request.InstanceID, SystemPrompt: s.promptCatalog.Build(profile), Model: s.model, CreatedAt: persisted.CreatedAt, LastActiveAt: persisted.LastActiveAt}
+		session := &Session{ID: newSessionID(), PlayerID: request.PlayerID, NPCID: persisted.NPCID, UnityInstanceID: request.InstanceID, SystemPrompt: prompts[persisted.NPCID], NPCContent: bindings[persisted.NPCID], Model: s.model, CreatedAt: persisted.CreatedAt, LastActiveAt: persisted.LastActiveAt}
 		session.Messages = []Message{{Role: "system", Content: session.SystemPrompt}}
 		for _, message := range persisted.HistoryMessages {
 			session.Messages = append(session.Messages, cloneMessage(message))

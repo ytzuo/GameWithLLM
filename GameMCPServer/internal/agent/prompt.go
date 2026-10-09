@@ -63,7 +63,7 @@ var promptPlaceholders = []string{
 	"responsibilities", "worldKnowledge", "forbiddenTopics",
 }
 
-// SystemPromptCatalog 是 Go 独占的版本化 Prompt；其正文不会进入 Unity 或日志。
+// SystemPromptCatalog 由 Go 校验并用于模型请求；远端 NPC 可保存原始清单，正文不进入日志或对话归档。
 type SystemPromptCatalog struct {
 	SchemaVersion  int    `json:"schemaVersion"`
 	ContentVersion string `json:"contentVersion"`

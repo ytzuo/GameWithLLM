@@ -43,6 +43,8 @@ type Service struct {
 	maxContextChars int
 	archive         *FileConversationArchive
 	promptCatalog   *SystemPromptCatalog
+	contentResolver *NPCContentResolver
+	contentBindings NPCContentBindingSource
 	lifecycleMu     sync.Mutex
 }
 
@@ -86,8 +88,6 @@ func (s *Service) StartSession(ctx context.Context, playerID, npcID string) (*Se
 
 // StartSessionForRuntime 创建绑定到单个 Unity Runtime、玩家和实体的 A2A Context。
 func (s *Service) StartSessionForRuntime(ctx context.Context, instanceID, playerID, npcID string) (*Session, error) {
-	s.lifecycleMu.Lock()
-	defer s.lifecycleMu.Unlock()
 	if strings.TrimSpace(instanceID) == "" {
 		return nil, fmt.Errorf("instanceId is required")
 	}
@@ -97,18 +97,20 @@ func (s *Service) StartSessionForRuntime(ctx context.Context, instanceID, player
 	if strings.TrimSpace(npcID) == "" {
 		return nil, fmt.Errorf("npcId is required")
 	}
-	profile, profileFound := s.profiles.Get(npcID)
-	if !profileFound {
-		return nil, fmt.Errorf("%w: %s", ErrNPCProfileNotFound, npcID)
-	}
 	if _, err := s.runtime.Capabilities(ctx, instanceID, npcID); err != nil {
 		return nil, fmt.Errorf("runtime entity is unavailable: %w", err)
 	}
+	prompt, binding, err := s.resolvePrompt(ctx, instanceID, npcID)
+	if err != nil {
+		return nil, err
+	}
+	s.lifecycleMu.Lock()
+	defer s.lifecycleMu.Unlock()
 	now := time.Now().UTC()
 	session := &Session{
 		ID: newSessionID(), PlayerID: playerID, NPCID: npcID, UnityInstanceID: instanceID,
-		SystemPrompt: s.promptCatalog.Build(profile),
-		Model:        s.model, CreatedAt: now, LastActiveAt: now,
+		SystemPrompt: prompt, NPCContent: binding,
+		Model: s.model, CreatedAt: now, LastActiveAt: now,
 	}
 	session.Messages = []Message{{Role: "system", Content: session.SystemPrompt}}
 	if err := s.store.Save(ctx, session); err != nil {
@@ -125,6 +127,15 @@ func (s *Service) ValidateSessionOwner(ctx context.Context, sessionID, instanceI
 	}
 	if session.UnityInstanceID != instanceID || session.PlayerID != playerID || session.NPCID != npcID {
 		return errors.New("A2A context ownership mismatch")
+	}
+	if s.contentBindings != nil {
+		binding, err := s.contentBindings.NPCContentBinding(ctx, instanceID, npcID)
+		if err != nil {
+			return err
+		}
+		if !sameNPCBinding(binding, session.NPCContent) {
+			return errors.New("NPC_CONTENT_VERSION_MISMATCH")
+		}
 	}
 	return nil
 }

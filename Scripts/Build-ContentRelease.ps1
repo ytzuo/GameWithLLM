@@ -87,6 +87,13 @@ finally {
     if ($server -and -not $server.HasExited) { Stop-Process -Id $server.Id -Force }
 }
 
+# Use the service parser for strict static index/profile/template validation.
+Push-Location (Join-Path $repository 'GameMCPServer')
+try {
+    & go run ./cmd/npc-content-validate (Join-Path $repository 'NpcContent')
+    if ($LASTEXITCODE -ne 0) { throw 'NPC static content validation failed.' }
+} finally { Pop-Location }
+
 $method = if ($Mode -eq 'Full') {
     'ContentReleasePipeline.BuildFullFromCommandLine'
 } else {
