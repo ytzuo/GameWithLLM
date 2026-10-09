@@ -1,5 +1,8 @@
 # 远端 NPC 下载、安装与生成实现方案
 
+> 归档说明：本方案所述三轮实现已经完成，保留为历史实施与验证记录；当前事实以
+> `ARCHITECTURE.md` 为准。
+
 日期：2026-10-08  
 状态：三轮代码与本地生产候选构建已完成；受保护环境的动态 NPC Player smoke、真实远端
 部署和 1280×720 人工 UI 验收待执行。目标方案和已实现内容由文末记录区分，当前实现事实
@@ -242,7 +245,7 @@ Go 运行 `go test ./...`、`go vet ./...`、`go test -race ./...`；完成 Unit
 
 - 核对 Host 对 instanceId 添加运行期后缀、注册/完整 Manifest 快照与重连、release
   contentVersion 来源、共享 Catalog 以及 snapshotVersion=1 格式。契约冻结在
-  `Docs/REMOTE_NPC_CONTENT_CONTRACT.md`，真实夹具在 `NpcContent/npc/`。
+  `Docs/History/RemoteNpc/REMOTE_NPC_CONTENT_CONTRACT_V1.md`，真实夹具在 `NpcContent/npc/`。
 - SDK 增加可选 NpcContents，Unity Host/Transport 全链路保留，inactive Entity
   绑定入口拒绝错 ID；Go 拒绝非法/重复/不存在的绑定、未知或重复绑定字段。
 - 新增 NPC_CONTENT_BASE_URL、Go Resolver、按绑定创建 Context 和 restore。

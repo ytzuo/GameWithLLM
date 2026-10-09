@@ -235,8 +235,8 @@ System Prompt 由 Go 启动时严格加载 `config/system_prompt.zh-CN.json`，�
 ### 2.7 远端 NPC 内容契约（第一轮已实现）
 
 内容源为仓库 `NpcContent/npc/index.json` 与 `npc/{npcId}/{contentVersion}/`。
-索引可变，版本目录不可变；最终 JSON 字段、文本键和两名测试 NPC 见
-`Docs/REMOTE_NPC_CONTENT_CONTRACT.md` 与真实测试夹具。Unity 使用共享 Catalog，
+索引可变，版本目录不可变；当前已实现的 v1 JSON 字段、文本键和两名测试 NPC 见
+`Docs/History/RemoteNpc/REMOTE_NPC_CONTENT_CONTRACT_V1.md` 与真实测试夹具。Unity 使用共享 Catalog，
 启动 Catalog 的版本取当前 release `contentVersion`；UI 刷新列表不切换 Catalog。
 本轮不提供下载 UI、安装记录或动态生成流程。
 
