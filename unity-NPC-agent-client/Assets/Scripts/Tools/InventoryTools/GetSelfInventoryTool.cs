@@ -7,9 +7,6 @@ public sealed class GetSelfInventoryTool : InventoryNpcTool<EmptyInventoryToolAr
 {
     public override string Name => "game_inventory_get_self";
 
-    public override string Description =>
-        "获取当前 NPC 自身背包中的全部物品及数量。只查询当前对话 NPC，不查询其他容器。";
-
     protected override AgentToolResult ExecuteCore(
         AgentToolContext context,
         NpcEntity npc,

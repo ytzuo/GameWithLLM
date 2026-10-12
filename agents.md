@@ -133,14 +133,17 @@ Transport 公共类型。网络客户端、Registry、Dispatcher、UI 和具体�
 
 | 路径 | 职责 |
 |---|---|
-| `Assets/Scripts/Networking/AgentHostClient.cs` | Unity 场景门面和总编排 |
+| `Assets/Scripts/AgentHostClient.cs` | Unity 场景门面和总编排 |
 | `Assets/Scripts/Networking/A2AClientAdapter.cs` | A2A JSON-RPC/SSE |
 | `Assets/Scripts/Networking/RuntimeGatewayClient.cs` | `IRuntimeTransport` 实现 |
 | `Assets/Scripts/Networking/SaveCoordinationClient.cs` | Save REST Client |
 | `Assets/Scripts/CommandDispatcher/ToolsRegistry.cs` | Tool discovery、Schema 和 Manifest |
 | `Assets/Scripts/CommandDispatcher/CommandDispatcher.cs` | 主线程路由和每实体 FIFO |
 | `Assets/Scripts/CommandDispatcher/NpcTool.cs` | Warehouse `IAgentTool` 适配基类 |
-| `Assets/Scripts/GameLogic/NpcEntity.cs` | Entity、NavMesh 与长时行为 |
+| `Assets/Scripts/Gameplay/NpcEntity.cs` | Entity、NavMesh 与长时行为 |
+| `Assets/Scripts/Networking/AddressableHotUpdateReleaseLoader.cs` | release manifest、AOT 元数据、包哈希校验和候选加载 |
+| `Assets/Scripts/Networking/HotUpdateReleaseModels.cs` | 已加载工具包和 ToolSet release 运行时模型 |
+| `Assets/HotUpdate/SmokeTest` | 由 release 选择的本地多工具 Smoke Tool Pack |
 | `Packages/com.gamewithllm.agent-runtime/Runtime` | SDK 公共契约 |
 
 移动或重命名 Unity 资源时必须同时移动 `.meta` 并保留 GUID。
@@ -163,6 +166,7 @@ Go Agent Service：
 - `LLM_MAX_CONTEXT_CHARS`
 - `CONVERSATION_SAVE_DIR`
 - `NPC_PROFILE_PATH`
+- `SYSTEM_PROMPT_PATH`
 
 Unity：
 

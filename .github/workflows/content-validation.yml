@@ -1,0 +1,91 @@
+name: Content validation and smoke layers
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - "unity-NPC-agent-client/Assets/**"
+      - "unity-NPC-agent-client/Packages/**"
+      - ".github/workflows/content-validation.yml"
+
+jobs:
+  static-validation:
+    runs-on: [self-hosted, Windows, X64, unity-6000.3.19f1]
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          lfs: true
+      - name: Run candidate validation
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path './Artifacts/Validation','./unity-NPC-agent-client/Logs' | Out-Null
+          & '${{ vars.UNITY_6000_3_19F1_EXE }}' `
+          -batchmode -nographics -acceptSoftwareTermsForThisRunOnly `
+          -useHub -hubIPC -cloudEnvironment production -licensingIpc '${{ vars.UNITY_LICENSING_IPC }}' `
+          -projectPath './unity-NPC-agent-client' `
+          -executeMethod ContentValidationRunner.ValidateFromCommandLine `
+          -contentValidationProfile candidate `
+          -contentValidationReport '../Artifacts/Validation/candidate.json' `
+          -logFile './unity-NPC-agent-client/Logs/content-validation.log'
+      - uses: actions/upload-artifact@v4
+        with:
+          name: content-static-validation-${{ github.sha }}
+          if-no-files-found: error
+          path: |
+            Artifacts/Validation/candidate.json
+            unity-NPC-agent-client/Logs/content-validation.log
+
+  editmode-tests:
+    runs-on: [self-hosted, Windows, X64, unity-6000.3.19f1]
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          lfs: true
+      - name: Run EditMode tests
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path './Artifacts/Tests','./unity-NPC-agent-client/Logs' | Out-Null
+          & '${{ vars.UNITY_6000_3_19F1_EXE }}' `
+          -batchmode -nographics -acceptSoftwareTermsForThisRunOnly `
+          -useHub -hubIPC -cloudEnvironment production -licensingIpc '${{ vars.UNITY_LICENSING_IPC }}' `
+          -projectPath './unity-NPC-agent-client' `
+          -runTests -testPlatform EditMode `
+          -testResults '../Artifacts/Tests/editmode.xml' `
+          -logFile './unity-NPC-agent-client/Logs/editmode.log'
+      - uses: actions/upload-artifact@v4
+        with:
+          name: content-editmode-${{ github.sha }}
+          if-no-files-found: error
+          path: |
+            Artifacts/Tests/editmode.xml
+            unity-NPC-agent-client/Logs/editmode.log
+
+  packed-play-smoke:
+    strategy:
+      fail-fast: false
+      matrix:
+        layer: [ui-inventory, remote-scene]
+    runs-on: [self-hosted, Windows, X64, unity-6000.3.19f1]
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          lfs: true
+      - name: Run packed play smoke
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path './unity-NPC-agent-client/Logs' | Out-Null
+          & '${{ vars.UNITY_6000_3_19F1_EXE }}' `
+          -batchmode -nographics -acceptSoftwareTermsForThisRunOnly `
+          -useHub -hubIPC -cloudEnvironment production -licensingIpc '${{ vars.UNITY_LICENSING_IPC }}' `
+          -projectPath './unity-NPC-agent-client' `
+          -executeMethod ContentSmokeRunner.RunFromCommandLine `
+          -contentSmokeLayer '${{ matrix.layer }}' `
+          -logFile './unity-NPC-agent-client/Logs/${{ matrix.layer }}.log'
+      - uses: actions/upload-artifact@v4
+        with:
+          name: content-packed-${{ matrix.layer }}-${{ github.sha }}
+          if-no-files-found: error
+          path: unity-NPC-agent-client/Logs/${{ matrix.layer }}.log

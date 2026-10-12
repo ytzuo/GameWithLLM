@@ -1,0 +1,18 @@
+{
+  "schemaVersion": 1,
+  "releaseId": "h8-production-2.0.0",
+  "toolSetVersion": "6.0.0",
+  "smokeCalls": [
+    {
+      "toolName": "game_hotfix_smoke_package_info",
+      "arguments": {}
+    },
+    {
+      "toolName": "game_hotfix_smoke_query",
+      "arguments": {
+        "echo": "h8"
+      }
+    }
+  ],
+  "retiredTools": []
+}

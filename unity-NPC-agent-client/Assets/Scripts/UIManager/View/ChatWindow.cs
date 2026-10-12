@@ -46,9 +46,9 @@ public class ChatWindow : BaseWindow
         _chatTitle = RootElement.Q<Label>("chat-title");
         _npcListContainer = RootElement.Q<VisualElement>("npc-list-container");
 
-        _systemMessageTemplate = Resources.Load<VisualTreeAsset>("UI/Chat/SystemMessage");
-        _playerMessageTemplate = Resources.Load<VisualTreeAsset>("UI/Chat/PlayerMessage");
-        _opponentMessageTemplate = Resources.Load<VisualTreeAsset>("UI/Chat/OpponentMessage");
+        _systemMessageTemplate = ContentCatalog.GetVisualTree(UiContentIds.SystemMessageTemplate);
+        _playerMessageTemplate = ContentCatalog.GetVisualTree(UiContentIds.PlayerMessageTemplate);
+        _opponentMessageTemplate = ContentCatalog.GetVisualTree(UiContentIds.OpponentMessageTemplate);
 
         if (_chatScrollView == null || _chatInput == null)
             Debug.LogError("ChatWindow: required chat controls are missing from ChatView.uxml.");

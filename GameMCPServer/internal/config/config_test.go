@@ -22,8 +22,11 @@ func TestLoad_AgentServiceGatewayAndLLMConfiguration(t *testing.T) {
 	t.Setenv("LLM_MAX_RETRIES", "1")
 	t.Setenv("LLM_MAX_CONTEXT_CHARS", "12345")
 	t.Setenv("NPC_PROFILE_PATH", "testdata/profiles.json")
+	t.Setenv("SYSTEM_PROMPT_PATH", "testdata/system_prompt.json")
+	t.Setenv("NPC_CONTENT_BASE_URL", "http://127.0.0.1:8081")
 
 	cfg := Load()
+	assert.Equal(t, "http://127.0.0.1:8081", cfg.NPCContentBaseURL)
 	assert.Equal(t, "127.0.0.1:19090", cfg.ServerAddr)
 	assert.Equal(t, "http://127.0.0.1:19090", cfg.BaseURL)
 	assert.Equal(t, "runtime-token", cfg.RuntimeGatewayToken)
@@ -37,6 +40,7 @@ func TestLoad_AgentServiceGatewayAndLLMConfiguration(t *testing.T) {
 	assert.Equal(t, 1, cfg.LLMMaxRetries)
 	assert.Equal(t, 12345, cfg.LLMMaxContextChars)
 	assert.Equal(t, filepath.Join(findRepoRootForTest(t), "testdata", "profiles.json"), cfg.NPCProfilePath)
+	assert.Equal(t, filepath.Join(findRepoRootForTest(t), "testdata", "system_prompt.json"), cfg.SystemPromptPath)
 }
 func findRepoRootForTest(t *testing.T) string {
 	t.Helper()

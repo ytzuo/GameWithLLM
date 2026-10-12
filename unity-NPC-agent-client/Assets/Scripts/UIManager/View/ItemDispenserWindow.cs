@@ -63,7 +63,7 @@ public class ItemDispenserWindow : BaseWindow
         _quantitySlider = RootElement.Q<SliderInt>("dispenser-quantity-slider");
         _dispenseButton = RootElement.Q<Button>("dispenser-dispense-btn");
 
-        _slotTemplate = Resources.Load<VisualTreeAsset>("UI/Inventory/InventorySlot");
+        _slotTemplate = ContentCatalog.GetVisualTree(UiContentIds.InventorySlotTemplate);
 
         if (_containerGrid == null)
             Debug.LogError("ItemDispenserWindow: dispenser-container-grid 未在 UXML 中找到。");

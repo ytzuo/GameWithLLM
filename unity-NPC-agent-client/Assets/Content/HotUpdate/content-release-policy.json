@@ -1,0 +1,13 @@
+{
+  "schemaVersion": 1,
+  "retentionDays": 30,
+  "minimumRetainedReleases": 2,
+  "budgets": {
+    "maximumBundleCount": 64,
+    "maximumTotalRemoteBytes": 268435456,
+    "maximumPatchBytes": 134217728,
+    "maximumLargestBundleBytes": 67108864,
+    "maximumEstimatedPeakMemoryBytes": 134217728,
+    "maximumDuplicateImplicitAssets": 0
+  }
+}

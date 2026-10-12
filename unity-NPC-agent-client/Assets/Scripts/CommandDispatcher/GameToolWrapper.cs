@@ -37,6 +37,14 @@ public class GameToolWrapper<T> where T : ToolArgsBase
                 ex.Message,
                 ex.Data?.ToString(Formatting.None));
         }
+        catch (GameplayOperationException ex)
+        {
+            Debug.LogWarning($"[Game Tool] {typeof(T).Name} failed ({ex.ErrorCode}): {ex.Message}");
+            return AgentToolResult.Failure(
+                ex.ErrorCode,
+                ex.Message,
+                ex.Data?.ToString(Formatting.None));
+        }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
             throw;

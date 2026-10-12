@@ -14,22 +14,30 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::ItemList
   items:
   - ItemId: rock
-    ItemName: Rock
-    Icon: {fileID: 21300000, guid: cc7283ca141790b46a3cf0ca7f1e1f2d, type: 3}
-    Description: Rock And Roll
+    DisplayNameKey: item.rock.name
+    DescriptionKey: item.rock.description
+    IconAtlasAddress: item/icons/core-atlas
+    IconName: 11
+    WorldVisualAddress:
     MaxStackSize: 64
   - ItemId: wood
-    ItemName: Wood
-    Icon: {fileID: 21300000, guid: 06bbbff6f8fb6e34794244d621ec1393, type: 3}
-    Description: WestWood
+    DisplayNameKey: item.wood.name
+    DescriptionKey: item.wood.description
+    IconAtlasAddress: item/icons/core-atlas
+    IconName: 10979
+    WorldVisualAddress:
     MaxStackSize: 64
   - ItemId: axe
-    ItemName: Axe
-    Icon: {fileID: 21300000, guid: 179748bc960fec84699df8a476b4e9bd, type: 3}
-    Description: 0.9attack speed
+    DisplayNameKey: item.axe.name
+    DescriptionKey: item.axe.description
+    IconAtlasAddress: item/icons/core-atlas
+    IconName: weapon_0
+    WorldVisualAddress:
     MaxStackSize: 1
   - ItemId: helmet
-    ItemName: Helmet
-    Icon: {fileID: 21300000, guid: 9856b30bc0330b2478759312173bfd71, type: 3}
-    Description: Head,Eyes
+    DisplayNameKey: item.helmet.name
+    DescriptionKey: item.helmet.description
+    IconAtlasAddress: item/icons/core-atlas
+    IconName: 1086
+    WorldVisualAddress:
     MaxStackSize: 1

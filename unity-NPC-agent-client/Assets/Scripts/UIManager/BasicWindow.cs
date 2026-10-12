@@ -10,11 +10,12 @@ public abstract class BaseWindow
     
     // 标记当前窗口是否处于打开状态
     public bool IsOpen { get; private set; }
+    protected UiContentCatalog ContentCatalog { get; private set; }
 
     /// <summary>
     /// 加载 UXML 资源并初始化根节点
     /// </summary>
-    public void Load(VisualTreeAsset uxml)
+    public void Load(VisualTreeAsset uxml, UiContentCatalog contentCatalog)
     {
         if (uxml == null)
         {
@@ -22,6 +23,8 @@ public abstract class BaseWindow
             return;
         }
 
+        ContentCatalog = contentCatalog ??
+                         throw new ArgumentNullException(nameof(contentCatalog));
         RootElement = uxml.Instantiate();
         
         // 使得该界面铺满父级容器（全屏覆盖）

@@ -144,7 +144,7 @@ https://gamewithllm.dev/extensions/game-context/v1
 }
 ```
 
-创建 Context 时，Agent Service 要求对应 Runtime 已注册且 NPC Profile 存在。
+创建 Context 时，Agent Service 要求对应 Runtime 与实体已注册；未绑定 NPC 使用配置 Profile，绑定 NPC 从可信内容根独立解析版本化定义。
 复用 Context 时重新校验 `instanceId + playerId + agentId`，禁止跨 Runtime、
 玩家或实体复用。当前 Go `Capabilities` 实现尚未用 Manifest 的实体列表核对
 新 Context 的 `agentId`；不存在或离线的实体会在 Unity 执行工具时被拒绝。
@@ -226,6 +226,79 @@ Unity 权威保存 Transform、NavMesh 位置和 Inventory；Agent Service 只�
 system 的对话快照。操作通过 `saveId + operationId` 关联。restore 使用当前
 Profile 和 system prompt 创建新的 A2A Context ID。存档操作不是模型工具。
 
+System Prompt 由 Go 启动时严格加载 `config/system_prompt.zh-CN.json`，通过
+`SYSTEM_PROMPT_PATH` 可选择其他文件。Catalog 只记录 schema、内容版本、locale
+和带固定占位符的模板。远端 NPC 的 Profile/Prompt 可随 `npc.json` 下载并保存到 Unity 本地；Unity 不组装模型请求，Go 独立加载可信正文。活动 Catalog 的切换只影响
+之后创建或恢复出的 Context；已有 Context 保留创建时的 Prompt 字符串。日志只可
+记录版本和加载结果，不记录 Prompt 正文。
+
+### 2.7 远端 NPC 内容契约与 Prefab 接入
+
+内容源为仓库 `NpcContent/npc/index.json` 与 `npc/{npcId}/{contentVersion}/`。
+索引可变，版本目录不可变；已发布 v1 JSON 字段和文本键见
+`Docs/History/RemoteNpc/REMOTE_NPC_CONTENT_CONTRACT_V1.md`。解析器按显式
+`schemaVersion` 严格区分 v1/v2，并拒绝未知、重复或跨版本字段。v1 保留手写
+Controller/动画/材质/贴图 Address 与必需动画 DLL；v2 的 `visual` 只有
+`prefabAddress`，Addressables 从 Prefab 引用图下载模型、Mesh、Avatar、材质、贴图、
+Controller 和 AnimationClip 传递依赖。v2 Prefab 必须自带有效 Animator、Avatar 和
+RuntimeAnimatorController，且不能包含 Entity、NavMesh、Inventory、工具、Registry 或
+网络权威组件。视觉实例仍只挂在 AOT 权威实体的 `VisualRoot` 下。
+
+v2 `animationDriver` 显式选择 `builtin` 或 `hotUpdate`。内置
+`standard-locomotion` 位于稳定 Gameplay AOT 程序集，每帧写入 float `Speed`，并从
+`INpcAnimationEventSource` 快照和事件独立写入 bool `Moving/Thinking/Speaking`。
+`hotUpdate` 继续使用版本化 DLL Address、程序集、入口、长度和 SHA-256。未知 kind/ID
+直接拒绝，builtin 不下载或加载 NPC 专属 DLL。当前 Merchant v3 与 Guide v3 均为
+schema v2/builtin；Guide v2 及更早版本保留为 schema v1/hot-update 兼容回归，既有版本
+目录和 Address 不修改。
+
+公共 SDK `RuntimeManifest` 添加 `NpcContents`，线上 JSON 为可选 `npcContents`：
+每项只有 `entityId / contentVersion / manifestSha256`，原有 `entities/tools/revision`
+含义不变。绑定实体必须在同一 Manifest 中且唯一。`NpcEntity.BindContent` 仅允许在
+inactive 时设置同 ID 绑定；Host 与 Gateway 快照、重新序列化和重连均保留绑定。
+完整 Manifest 更新不得改变仍在场的实体绑定。重新连接后旧 Context 使用前核对绑定，
+版本/hash 冲突时拒绝复用，不能把已创建 Prompt 换成新内容。
+
+Go `NPCContentResolver` 使用 `NPC_CONTENT_BASE_URL` 下构造的固定路径，合法 ID/version
+为 `[A-Za-z0-9][A-Za-z0-9_-]{0,63}`，hash 为 64 位小写十六进制。
+禁止任意 URL、路径穿越和重定向。HTTP 超时 10 秒、清单上限 256 KiB；先校验原始
+字节 hash，再严格拒绝重复/未知 JSON 字段，核对 Profile ID、Prompt 内容版本及
+完整模板占位符。成功定义按 ID/version/hash 缓存，无 TTL、磁盘恢复或后台刷新；失败
+不缓存，下次对话可重试。错误只返回稳定 `NPC_CONTENT_*`，不泄露远端正文。
+HTTP 期间不持有 Registry 或 Service 生命周期锁，解析后重新核对当前实体绑定。
+
+对话快照版本仍为 1，每个 Context 可选保存 `npcContent`（同三字段），不保存 Prompt。
+restore 在替换当前 Context 前核对版本/hash并从当前绑定解析 Prompt；冲突返回
+`NPC_CONTENT_VERSION_MISMATCH`，解析失败返回 `NPC_CONTENT_UNAVAILABLE`，失败保留
+原 Context。旧无绑定快照继续从服务端 Profile/Prompt 配置恢复。
+
+`INpcAnimationDriver` 位于稳定 Gameplay AOT 程序集，生命周期为
+`Bind(Animator) / Tick(deltaTime, movementSpeed) / Dispose`，只允许主线程调用。
+事件能力通过旁路接口 `INpcEventDrivenAnimationDriver.BindEventSource` 增加，未实现该接口的
+已发布 v1 Driver 仍只走旧生命周期。事件源提供 `NpcAnimationSnapshot` 与带 operationId、
+结束原因的 `NpcAnimationEvent`；`NpcAnimationDriverHost` 在普通 `Bind` 后可选绑定事件源，
+`Dispose` 必须退订。样例旧 DLL 仍只引用 Gameplay、标准库和 Unity 动画模块，不实现
+IAgentTool、不改变 ToolSet、不执行工具发现。
+
+`NpcEntity` 在 `SetDestination` 成功后发布 `MovementStarted`，并在到达、失败、取消、
+存档恢复或销毁的集中退出路径恰好发布一次 `MovementEnded`。`AgentHostClient` 在取得发送锁
+后为每次响应生成独立 operationId，把 Thinking/Speaking 变更与 UI 一起投递主线程；首个
+非空 delta 结束 Thinking 并开始 Speaking，仅最终正文则在 completed 时切换。failed、
+cancelled、异常、切场和销毁立即收束，迟到事件因 operationId 不匹配被忽略。Speaking
+时长按最终可见字符数估算，流式阶段已经经过的时间会扣除。Movement 与 Conversation 是
+独立维度，可同时为 Moving + Thinking 或 Moving + Speaking，事件不进入网络协议、Profile、
+模型历史或世界存档。
+
+Editor-only `NpcContentDefinition` 是生产作者入口，包含稳定 ID/版本、完整视觉 Prefab、
+头像、Profile、Prompt 和 driver 选择。`NpcContentRelease.BuildDefinitions` 统一注册
+版本化 Prefab Address/Label、生成严格 v2 `npc.json`、复制头像原始字节、更新索引并
+执行内容验证；生产路径不再复制固定 Merchant/Guide 文件或维护 GUID 重映射表。
+`NpcContent` 模块在统一验证器检查 Prefab 完整性及依赖、程序集引用、入口、hash 与版本地址；
+`Build-ContentRelease.ps1` 使用 Go 同一个解析器校验静态索引/Profile/Prompt。
+候选文件台账追加 `npcContentRoot` 和静态 NPC 文件，原有 release 字段不改变含义。
+提升脚本拒绝覆盖已发布版本，先交付不可变文件，最后切换 `npc/index.json`，回滚
+索引同时保留所有已发布版本。真实远端发布与环境证据仍按既有流水线执行。
+
 ## 3. 进程内契约
 
 以下边界不经过网络，也不重复定义协议 DTO：
@@ -276,11 +349,13 @@ ConversationService
 
 ### 5.1 启动和注册
 
-1. Unity 反射发现 `IAgentTool`，注册 `IAgentEntity`，生成完整 Manifest。
-2. `RuntimeGatewayClient` 作为 WebSocket 客户端主动连接 Gateway 的
+1. Unity 完成内容 bootstrap，读取 release manifest，只加载活动工具包并发现候选工具。
+2. Unity 联合验证完整 ToolSet 与三份 JSON Catalog，原子激活后注册
+   `IAgentEntity` 并生成完整 Manifest。
+3. `RuntimeGatewayClient` 作为 WebSocket 客户端主动连接 Gateway 的
    `/runtime/ws`，并发送 `runtime.initialize`。
-3. Gateway 验证 token，登记 `instanceId`、Manifest 和 generation。
-4. Entity 或工具变化时，Unity 发送完整 `runtime.manifest.changed`。
+4. Gateway 验证 token，登记 `instanceId`、Manifest 和 generation。
+5. Entity、工具或工具描述变化时，Unity 发送完整 `runtime.manifest.changed`。
 
 Unity 启动时会在配置的 `UNITY_INSTANCE_ID` 后追加随机 GUID，因此每次运行
 获得独立 Runtime ID。
@@ -351,6 +426,219 @@ unity-NPC-agent-client/Packages/com.gamewithllm.agent-runtime/
 逻辑仍位于 `Assets/Scripts`，不会随当前 SDK 包发布。`Assets` 中不得重新定义
 平行的 Tool、Result、Command、Manifest、Entity 或 Transport 公共类型。
 
+### 6.1 HybridCLR 边界
+
+Windows Player 使用 IL2CPP x86_64，HybridCLR 承载版本化工具包与独立 NPC 动画程序集。程序集
+边界固定如下：
+
+- `GameWithLLM.AgentRuntime` 是公共契约 AOT 程序集，不参与热更新。
+- `GameWithLLM.Client.Gameplay`、`GameWithLLM.Client.ToolFramework`、
+  `GameWithLLM.Client.Core` 和 `GameWithLLM.Client.BuiltinTools` 是稳定 AOT 程序集。
+- 热更新工具包只能引用上述命名程序集，不得引用 `Assembly-CSharp`，不得修改稳定
+  组件或引入平行 SDK 契约。发布清单可以为同一逻辑工具选择更高实现版本，但不得
+  用热更新类型覆盖 AOT BuiltinTool。
+- 工具实现和结构 Schema 分别由 `implementationVersion` 与 `contractVersion`
+  管理；名称、逻辑身份、来源、版本和规范化 Schema hash 进入历史台账。停用名称
+  只能以同一逻辑身份和更高版本重新启用，不得改作无关语义。
+- 参数仍以 JSON 对象跨越 Runtime/MCP 边界。
+
+当前启动顺序为：Addressables 内容 bootstrap 读取完整 release manifest，只为
+候选快照引用的包下载 AOT 补充元数据和经 SHA-256 校验的 DLL；三份 JSON 与全部二进制
+先完成拷贝和校验，再由 `HybridClrToolPackageLoader` 按 metadata、DLL、工具发现的顺序
+构建包候选。内置程序集和选中的热更新程序集只产生发现候选，不直接修改 Registry。
+`ToolsRegistry.PrepareToolSet`
+在锁外完成名称、来源、包身份、Descriptor、Schema、版本单调性、删除/重新启用和
+历史台账校验，`ActivateToolSet` 在锁内一次交换不可变活动快照和包索引。Runtime
+Gateway 与 A2A 在激活成功后才创建，因此不会发布或执行半套新旧工具。
+
+`GetRuntimeTools`、`GetAvailableToolNames` 和 `ExecuteAsync` 每次只读取同一个快照
+引用；执行开始后捕获的实例可正常完成。已停用工具不会出现在 Manifest 或实体能力
+中，陈旧调用稳定返回 `TOOL_RETIRED`。同一候选重复激活是幂等操作，成功切换至多
+触发一次 `ToolsChanged`；不提供逐项 Unregister、原地 Replace 或程序集卸载接口。
+候选失败时 Registry 保持上一完整快照，业务回滚通过下次启动选择上一成功 release
+完成。
+
+内容 Catalog 将自然语言文案与结构契约分离。`ToolContract<TArgs>` 生成的缓存 Schema 只含
+类型、必填、范围、模式、枚举和 `additionalProperties` 等结构字段；工具及参数
+description 只从版本化 `tool_metadata.zh-CN.json` 注入。Catalog 使用严格 JSON
+解析，并与候选 ToolSet 联合验证：活动工具和结构参数必须完整覆盖，未知/停用工具、
+未知参数和路由字段 `entityId` 均被拒绝。`ToolsRegistry` 在同一激活锁内交换完整
+ToolSet/Catalog，纯文案更新则只原子交换 Catalog；成功切换只触发一次完整 Manifest
+更新，无效 Catalog 保留上一成功快照。工具程序集、参数 Attribute 和结构 Schema
+基线均不保存描述副本；启动时没有可用 JSON Catalog，则仅以稳定工具名作为临时工具
+描述、完全省略参数描述，并输出显式 Warning，禁止静默恢复到代码内文案。
+
+`agent_messages.zh-CN.json` 与 `ui.zh-CN.json` 使用稳定文本键。它们与工具 Catalog
+共享同一 `contentVersion`，在 ToolSet 提交前全部完成严格验证，再由
+`ClientTextCatalogs` 一次发布；调用点不保存自然语言 fallback，Catalog 未激活时只
+返回稳定文本键。错误码、协议错误和日志事件名仍固定在代码中。
+统一内容候选将三份 JSON、release manifest、metadata 和工具 DLL 分别交付到
+`Remote_ClientConfig`、`Remote_HotfixMetadata` 和 `Remote_ToolPacks`。候选先按
+地址、长度、SHA-256、内容版本和 Player 版本整体验证，再执行 HybridCLR 加载；
+Player 不再包含 `StreamingAssets/HotUpdate` 双来源。
+
+加载失败由 `AgentHostClient` 记录稳定错误码并降级为只运行 AOT BuiltinTools，不改变
+Go/Unity 权威边界。已加载工具包按 packageId、packageVersion 和程序集 hash 幂等缓存；
+失败项不进入缓存，以允许重试。只有完整快照原子激活后才确认最后成功内容。
+PDB 只进入 Development/QA 的可选加载路径；Production 不把 PDB 地址加入必需下载集，
+正式构建的 staging hook 也会将其排除。
+
+`ToolPackageReleaseGate` 固化工具包生产门禁，锁定 Unity `6000.3.19f1`、
+HybridCLR `8.14.1` 与 Windows x86_64 IL2CPP，重新生成 AOT/metadata/tool pack，读取
+实际 DLL 的 AssemblyRef 并按白名单拒绝越界依赖，再联合验证历史工具指纹、JSON
+Catalog、规范化 Schema 快照和 Player build id。真实 Player 从本地 Addressables
+端点启动，执行 `tool-package-smoke-plan.json` 中每个要求的调用，并确认所有 tombstone
+不再出现在 Manifest、能力枚举或执行路由中。门禁本身不构建 Production Player 或
+Addressables，只向统一发布链返回 release、ToolSet 和工具候选信息。
+
+### 6.2 Addressables 内容边界
+
+资产所有权、稳定逻辑地址和生命周期已冻结；历史盘点和阶段基线归档在
+`Docs/History/HotUpdate`。当前 Bootstrap、Remote Catalog 和三套部署 Profile 已建立；
+客户端 JSON 与 HybridCLR 交付物由 Addressables 发布；UI、物品表现、角色表现和远端场景
+分别归属 `Remote_UI`、`Remote_SpritesTextures`、`Remote_Characters` 和
+`Remote_Scenes`。本地常驻 `BootstrapScene` 负责最小启动面，Warehouse 及其独立
+NavMeshData 作为远端场景交付。
+
+`ContentReleasePipeline` 是唯一 Production Player/Addressables 候选构建入口，并将
+生产交付固化为候选与提升分离的流水线。完整发布执行 Production
+Clean Build 和 Windows IL2CPP Player Build；内容更新必须显式提供与 Player 匹配的
+归档 `addressables_content_state.bin`，先检查 Content Update Restrictions，再执行
+Update a Previous Build。两种候选共同执行 Candidate 模块门禁、严格 JSON、全局 Address、
+业务 ID、Group/Label、AOT build id、Resources/Build Settings 重复和 Missing Script
+检查，并以 Build Layout 限制重复隐式依赖、Bundle 数、补丁体积、最大 Bundle 与估算
+峰值内存。候选清单记录 Unity/Addressables/Player 身份以及每个 Player、Bundle、Catalog
+和 content state 文件的长度与 SHA-256。
+
+生产提升与构建进程隔离。提升端只有在候选 hash 未变化，且全新安装或已有安装升级、
+断点重试、断网、缓存命中和磁盘不足证据齐全后，才按 Bundle/JSON/DLL、Catalog、版本化
+候选清单的顺序写入新的不可变 release 目录；`current.json` 始终最后原子替换。已发布
+release 不覆盖、不原地删除，当前指针记录 `previousReleaseId`，服务端至少保留当前与
+上一版本且默认回滚窗口为 30 天。坏 JSON、坏 DLL、缺失文件或预算越界只能使候选失败，
+不得改变生产指针。客户端仍只在完整 ToolSet/Catalog 原子激活后记录最后成功版本。
+
+热更新收束已将 Editor 构建底座、验证、Smoke 和生产发布改为长期模块职责。公共 Core 统一
+Addressables Profile 的恢复、Windows Player 构建、SHA-256、候选文件清单和命令行
+退出；`ContentValidationRunner` 以显式规则顺序执行 `Fast`、`Candidate`、`Release`
+或单 `Module` 验证，并写出不含业务敏感数据的结构化 JSON 报告。Project、Ownership、
+Catalogs、UI、Items、Characters、Scenes、ToolPackages 和 Release 各自返回独立
+Module/RuleId/失败信息；验证器不调用 Setup，并在规则执行后恢复 Editor Scene setup。
+`ContentSmokeRunner` 按运行环境选择 Bootstrap、UI/Inventory、Scene 或 Tool Package
+smoke，CI 分层保存报告，不把不同运行环境合并为单一测试方法。工具包 smoke 只构建
+LocalDevelopment Player；绑定 `TOOL_PACKAGE_SMOKE_SUCCESS` 证据后，才允许
+`ContentReleasePipeline` 构建 Production 候选。生产构建脚本唯一为
+`Build-ContentRelease.ps1`，提升与回滚唯一为 `Publish-ContentRelease.ps1`；候选统一写入
+`Artifacts/Content/<releaseId>`。运行时只允许
+`ClientContentBootstrap → AddressableHotUpdateReleaseLoader → HybridClrToolPackageLoader`
+交付热更新包；关闭 `enableContentBootstrap` 时仅启用 AOT BuiltinTools，不读取本地
+manifest、DLL、metadata 或 Catalog。工具包 smoke plan 位于 Editor 测试目录，仅在本地
+smoke Player 构建期间临时注入 `StreamingAssets`，构建结束立即清除；Production 构建会
+拒绝任何本地热更新或 smoke staging。Runtime、A2A、MCP、Save 与已发布 Release 标识均未改变。
+冻结证据见 `Docs/History/HotUpdate/Baselines/hot-update-consolidation-c0.json`。
+
+- `SampleScene`、NavMeshData 和第一阶段场景固有材质属于
+  `Local_SampleScene`；最小下载/错误 UI 和默认内容属于 `Local_Bootstrap`。
+- 客户端 JSON、AOT metadata、版本化工具 DLL、UI、物品表现、角色表现和附加
+  场景分别由唯一的 `Remote_*` Group 拥有。场景 NPC 的 Go 配置仍不进入 Addressables；远端 NPC 的原始 `npc.json` 通过静态 HTTP 交付并在本地安装时保留。
+- Address 使用稳定逻辑 ID，Label 只用于批量下载，业务 ID 独立保存。发布过的
+  Address 和业务 ID 不得删除后复用；版本化工具二进制地址包含不可复用版本。
+- 每次运行时加载都必须由 bootstrap、catalog、窗口、实体视觉或场景协调器之一
+  持有 handle，并在对应生命周期结束时释放。
+- `SampleScene` 对 UI、ItemData 和物品 Sprite 的远端硬引用已删除。
+- `ItemContentCatalog` 在开放 Inventory、发放器、存档和 Runtime 工具前预加载
+  `item/catalog/default`、`item/catalog/text/zh-CN` 和
+  `item/icons/core-atlas`，校验已发布 itemId、堆叠规则、文本键和图标映射，
+  并持有全部 Addressables lease 到应用退出。Inventory 只同步读取已就绪缓存。
+- 物品业务定义只保存稳定 `itemId` 和 `MaxStackSize`；名称、描述、
+  图标 Atlas 与可选 `WorldVisualAddress` 属于表现契约。当前没有已发布的物品世界
+  Prefab，因此启动与打开 Inventory 不会下载世界模型。
+- 权威 NPC/Player 根对象继续持有 Entity、NavMesh、Inventory、工具与存档
+  组件；其直接子对象 `VisualRoot` 由 `CharacterVisualController` 管理。角色目录只
+  保存稳定 `characterId/appearanceId` 与逻辑地址，模型按实体按需实例化，失败时
+  保留本地 fallback。每个角色的 Prefab、专属 Material/Texture、Animator
+  Controller 和 AnimationClip 使用独立 Addressable entry 与角色 label，实例 lease
+  在实体销毁时释放；已实例化模型不在运行中原地替换。
+- `RemoteSceneCoordinator` 位于本地 Bootstrap/AOT 层，只通过
+  `IContentSceneProvider.LoadSceneAsync` / `UnloadSceneAsync` 管理唯一活动 Scene
+  lease。切场前 `AgentHostClient` 冻结新请求、取得对话/存档锁、等待在途工具完成、
+  注销旧实体并发布 Manifest；新场景完成 Item/角色目录绑定后才重新开放输入。
+  远端 Scene 禁止携带 Host、UIManager、Registry、Dispatcher 或第二条 Gateway；
+  下载、激活或校验失败时释放候选并恢复本地 Bootstrap 为 Active Scene。
+- `Assets/Art/Items` 中未被当前 ItemData 使用的源 PNG 不进入发布。加入目录前必须
+  先分配稳定 itemId、Address 和唯一 owner Group。
+
+部署 Profile 为 `LocalDevelopment`、`QA`、`Production`。Bundle Build/Load Path
+包含不可复用 `ReleaseId`，Catalog 使用不含 `ReleaseId` 的稳定入口；三套 Profile
+使用独立 channel 目录。Remote Catalog 已开启，Addressables 自启动更新已关闭，
+Catalog 检查和更新只由 `ClientContentBootstrap` 执行。Catalog 更新不自动清理旧
+Bundle cache。
+
+启动时 `AgentHostClient` 先冻结 `PlayerMock` 输入并隐藏业务 `UIDocument`，再执行
+Addressables 初始化、Catalog 检查/更新、候选验证、下载和激活。激活之前不会创建
+A2A、Save 或 Runtime Gateway 客户端，不会发布 Runtime Manifest；release 的完整
+ToolSet 也在内容激活之后、网络输入开放之前原子激活。首次离线且无
+成功缓存时，本地 IMGUI 错误界面保持可见并允许
+重试；有最后成功缓存时可降级继续。`enableContentBootstrap` 是场景级回滚开关。
+
+`ContentAssetProvider` 是 Addressables 唯一运行时入口。资源、实例和场景加载分别
+返回显式 lease，调用方负责释放，Provider 在应用退出时兜底；禁止业务代码获取后
+丢弃裸 handle。历史实现基线见 `Docs/History/HotUpdate`。
+
+`UiContentCatalog` 使用 `content.ui-required` 在启动下载阶段取得
+`Remote_UI`，随后预加载稳定 `ui/...` 地址并校验所有代码依赖的 `Q<T>(name)`。
+Catalog 持有共享资产 lease 到应用退出，窗口仅同步克隆并在关闭时移除 VisualTree
+实例；`UIDocument.panelSettings` 也只在 Catalog 就绪后赋值。UI 资源更新不修改已
+打开窗口，当前只在下次启动获取新 Catalog 后生效。运行时赋值 PanelSettings 会
+触发 UIDocument 延迟重建根节点，因此 HUD 只在根节点稳定后挂载，并在根节点再次
+变化时重新挂载。历史地址与迁移证据归档在 `Docs/History/HotUpdate`。
+
+### 6.3 远端 NPC 目录、安装与动态生成
+
+Unity 在内容启动完成后创建唯一的 `NpcLibraryServices`，其目录客户端从当前
+Addressables 内容通道推导可信静态根，只读取 `npc/index.json`、该索引声明的头像和
+不可变 `npc.json`。目录和清单执行未知/重复字段、ID、版本、hash、相对路径、同源、
+大小与超时校验；目录失败时只回退到最后一次完整缓存。打开资料库只加载文本和头像，
+不会下载模型依赖，窗口关闭会释放头像纹理。
+
+`NpcContentInstaller` 在 `Application.persistentDataPath/NpcContent` 维护单一原子替换的
+安装索引和原始已验证清单。同一时刻只允许一个下载任务；Addressables 依赖地址完全来自
+清单，取消或失败不会写入安装成功。已安装内容在显示和生成前通过
+`GetDownloadSizeAsync` 检测缓存驱逐并转为修复状态。远端目录的
+`catalogContentVersion` 与本次启动内容版本不一致时只允许操作已有本地内容，新的远端
+安装要求重启。
+
+`NpcSpawnController` 为每个 `npcId` 保持一个实例和一个生成中标记。权威根由本地 AOT
+代码在 Player 下以未激活状态构造，并在 `(0,0,0)` 精确验证 NavMesh；随后绑定
+`NpcEntity`、库存身份和 `NpcContentBinding`，通过 `CharacterVisualController` 严格加载
+远端视觉和 Animator。动画 DLL 以清单长度、SHA-256、程序集名、入口类型及
+`INpcAnimationDriver` 契约校验后加载，只在 Unity 主线程 Bind/Tick/Dispose，不参加工具
+发现。所有准备完成后才激活权威根并加入 Player 可见 NPC 列表，因此既有
+`RuntimeAvailabilityChanged` 和完整 Manifest 发布仍是唯一运行时权威。任何失败都会
+释放实例、动画驱动、资源 lease 和生成中标记。
+
+世界存档格式版本为 2，并为每个远端 NPC 保存 `entityId / contentVersion /
+manifestSha256`；版本 1 的无远端 NPC 存档继续可读。恢复先完整校验所有安装记录、版本、
+hash 与 Addressables 缓存，再通过唯一生成入口补齐实体；任一前置条件失败时不生成任何
+缺失实体。生成失败会回收本轮已创建实体。全部实体就绪后才恢复 Transform/Inventory、
+同步发送完整 Runtime Manifest，最后调用 Go 的 Context restore，因此版本冲突不会混用旧
+Context。缓存缺失、未安装和版本冲突分别返回稳定错误并引导补下载或安装存档版本。
+
+切场开始时 `AgentHostClient` 在取得对话/工具临界区锁前先取消并等待当前 NPC 安装与生成；
+取消后的任务不得提交安装记录或激活实体。旧场景卸载后，生成器会清理失效 Unity 引用，
+同一 npcId 在新场景仍可通过同一唯一入口重新生成。
+
+含 `npcContentRoot` 的生产候选除通用环境 smoke 外，还必须提供与候选 manifest SHA-256
+绑定的 `npc-runtime-smoke.passed.json`。发布脚本硬性要求动态下载、动画 driver、存档恢复、
+版本冲突、缓存修复、Catalog 重启提示、切场取消和重连 Manifest 八项均通过；证据随不可变
+release 归档。发布仍按不可变 NPC 文件、release/Catalog、`current.json`、最后
+`npc/index.json` 的顺序执行，已发布版本永不覆盖。
+
+现有已发布基线为 Player `0.2.0`、release `h8-production-2.0.0`、ToolSet `6.0.0`；它只
+保证旧 `INpcAnimationDriver` AOT 契约。事件接口扩展正式发布时必须分配新的 Player 身份，
+并由上述 metadata 门禁验证，不能覆盖或冒充 0.2.0。Merchant/Guide 当前索引都指向内容
+版本 3 的 schema v2 清单，历史静态文件与 Address 继续保留。共享 URP Shader 由
+`Remote_Materials` 显式持有，避免场景和逐 NPC Bundle 重复打包。
+
 ## 7. 代码地图
 
 ### 7.1 Go
@@ -361,7 +649,7 @@ unity-NPC-agent-client/Packages/com.gamewithllm.agent-runtime/
 | `internal/config` | 环境变量与根目录 dotenv |
 | `internal/handler` | 路由装配和健康检查 |
 | `internal/a2a` | Agent Card、A2A JSON-RPC/SSE、Game Context 校验 |
-| `internal/agent` | Profile、内存 Context、LLM、tool loop 和对话归档 |
+| `internal/agent` | Profile、版本化 System Prompt、内存 Context、LLM、tool loop 和对话归档 |
 | `internal/mcp` | MCP 类型、HTTP Client、Entity 绑定和 Agent Runtime Adapter |
 | `internal/gateway` | Runtime Bridge、Registry、generation 和虚拟 MCP |
 | `internal/savecoord` | prepare、commit、restore、status |
@@ -371,14 +659,34 @@ unity-NPC-agent-client/Packages/com.gamewithllm.agent-runtime/
 
 | 路径 | 职责 |
 |---|---|
-| `Assets/Scripts/Networking/AgentHostClient.cs` | 场景门面、A2A 与 Runtime 编排 |
+| `Assets/Scripts/AgentHostClient.cs` | 场景门面、A2A、Runtime 与热更新启动编排 |
 | `Assets/Scripts/Networking/A2AClientAdapter.cs` | A2A JSON-RPC/SSE 与 SDK 事件映射 |
 | `Assets/Scripts/Networking/RuntimeGatewayClient.cs` | `IRuntimeTransport` WebSocket 实现 |
 | `Assets/Scripts/Networking/SaveCoordinationClient.cs` | Save Coordination REST Client |
-| `Assets/Scripts/CommandDispatcher/ToolsRegistry.cs` | 工具发现、Schema 和 Manifest 工具快照 |
+| `Assets/Scripts/CommandDispatcher/ToolsRegistry.cs` | ToolSet 与 Catalog 两阶段准备/原子激活、Manifest 快照 |
+| `Assets/Scripts/CommandDispatcher/ToolMetadataCatalog.cs` | 工具/参数描述 JSON 的严格验证与 Schema 注入 |
+| `Assets/Scripts/CommandDispatcher/ToolSetValidator.cs` | 工具版本、结构 Schema、身份历史和 tombstone 校验 |
 | `Assets/Scripts/CommandDispatcher/CommandDispatcher.cs` | 主线程 Entity 路由和每实体 FIFO |
 | `Assets/Scripts/CommandDispatcher/NpcTool.cs` | Warehouse 工具适配基类 |
-| `Assets/Scripts/GameLogic/NpcEntity.cs` | NPC 生命周期、NavMesh 行为和结果 |
+| `Assets/Scripts/Gameplay/NpcEntity.cs` | NPC 生命周期、NavMesh 行为和结果 |
+| `Assets/Scripts/Gameplay/ClientTextCatalog.cs` | agent/UI 稳定文本键 Catalog 与活动快照 |
+| `Assets/Scripts/Gameplay/Inventory` | 稳定 AOT 库存能力与视图模型 |
+| `Assets/Scripts/Tools` | AOT BuiltinTools 实现 |
+| `Assets/Scripts/Networking/HotUpdateReleaseModels.cs` | 已加载工具包和 ToolSet release 的运行时模型 |
+| `Assets/Scripts/Networking/AddressableHotUpdateReleaseLoader.cs` | release manifest、Catalog 与候选工具包加载 |
+| `Assets/Scripts/Networking/ClientContentBootstrap.cs` | Addressables 启动状态机、缓存降级和内容激活门控 |
+| `Assets/Scripts/Networking/ContentAssetProvider.cs` | Addressables 初始化、Catalog、下载、加载和 handle lease |
+| `Assets/Scripts/Networking/ContentBootstrapOverlay.cs` | 不依赖远端内容的本地错误、进度与重试 UI |
+| `Assets/HotUpdate/SmokeTest` | 由 release 选择的本地多工具 Smoke Tool Pack |
+| `Assets/Content/Catalogs` | 工具元数据、Agent 消息和 UI 文本 JSON 源文件 |
+| `Assets/Content/HotUpdate` | Addressables 源交付物：AOT metadata、版本化工具 DLL 和 release manifest |
+| `Assets/Editor/HybridClrProjectSetup.cs` | HybridCLR 配置、生成和带包身份的候选 staging |
+| `Assets/Editor/HotUpdate/Core` | 公共命令行、Profile scope、Player builder、Hash 和候选文件清单 |
+| `Assets/Editor/HotUpdate/Validation` | 模块验证规则、Profile 编排和结构化报告 |
+| `Assets/Editor/HotUpdate/Migrations` | 显式项目修复、资产迁移和候选 staging；生产 Pipeline 不隐式调用 Setup |
+| `Assets/Editor/HotUpdate/Tests` | 分层 smoke 编排及不进入 Production 的测试数据 |
+| `Assets/Editor/HotUpdate/Release` | 唯一 Production 候选构建与工具包门禁 |
+| `Assets/Tests/Editor/ToolPackRegistrationTests.cs` | 工具发现、原子提交、冲突拒绝和幂等验证 |
 | `Packages/com.gamewithllm.agent-runtime/Runtime` | SDK 公共契约 |
 
 移动或重命名 Unity 资源时必须同时移动 `.meta` 并保留 GUID。
@@ -401,6 +709,8 @@ Agent Service：
 - `LLM_MAX_CONTEXT_CHARS`
 - `CONVERSATION_SAVE_DIR`
 - `NPC_PROFILE_PATH`
+- `SYSTEM_PROMPT_PATH`
+- `NPC_CONTENT_BASE_URL`（可选的可信 HTTP/HTTPS 内容根）
 
 Unity：
 

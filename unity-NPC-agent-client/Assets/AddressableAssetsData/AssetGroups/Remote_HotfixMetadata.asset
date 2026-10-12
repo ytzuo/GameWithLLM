@@ -1,0 +1,65 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: bbb281ee3bf0b054c82ac2347e9e782c, type: 3}
+  m_Name: Remote_HotfixMetadata
+  m_EditorClassIdentifier: Unity.Addressables.Editor::UnityEditor.AddressableAssets.Settings.AddressableAssetGroup
+  m_GroupName: Remote_HotfixMetadata
+  m_GUID: fd66779a9a00fa344a05a1cf7e010dc2
+  m_SerializeEntries:
+  - m_GUID: 1f74e6284cc2bd149b13ac16fbd834c9
+    m_Address: hotfix/aot/windows-x64-0.2.0/mscorlib
+    m_ReadOnly: 0
+    m_SerializedLabels:
+    - content.hotfix-metadata
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 387daef65714d3649bcf3766ecbf5d98
+    m_Address: hotfix/aot/windows-x64-0.2.0/GameWithLLM.Client.ToolFramework
+    m_ReadOnly: 0
+    m_SerializedLabels:
+    - content.hotfix-metadata
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 60bd5d51461d9364b9b602cde5f4ac2c
+    m_Address: hotfix/aot/windows-x64-0.2.0/GameWithLLM.AgentRuntime
+    m_ReadOnly: 0
+    m_SerializedLabels:
+    - content.hotfix-metadata
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 63d7644ff90aa194992171ee811c41d7
+    m_Address: hotfix/aot/windows-x64-0.2.0/GameWithLLM.Client.Gameplay
+    m_ReadOnly: 0
+    m_SerializedLabels:
+    - content.hotfix-metadata
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 8b91002cdc0ff8a498dd5e04dac205b1
+    m_Address: hotfix/aot/windows-x64-0.2.0/System.Core
+    m_ReadOnly: 0
+    m_SerializedLabels:
+    - content.hotfix-metadata
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 8c7d012075db1834f85da945d0b289b3
+    m_Address: hotfix/aot/windows-x64-0.2.0/System
+    m_ReadOnly: 0
+    m_SerializedLabels:
+    - content.hotfix-metadata
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 920d76114ef3cf844b5190079492021e
+    m_Address: hotfix/aot/windows-x64-0.2.0/Newtonsoft.Json
+    m_ReadOnly: 0
+    m_SerializedLabels:
+    - content.hotfix-metadata
+    FlaggedDuringContentUpdateRestriction: 0
+  m_ReadOnly: 0
+  m_Settings: {fileID: 11400000, guid: ce52958fe87f4da4e8b1723359b35a16, type: 2}
+  m_SchemaSet:
+    m_Schemas:
+    - {fileID: 11400000, guid: 1c1c6a8c7296b134ba2ca273c8686e3a, type: 2}
+    - {fileID: 11400000, guid: c978402aca37bc444ac704f19e034c19, type: 2}

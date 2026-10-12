@@ -408,7 +408,7 @@ public sealed class RuntimeGatewayClient : IRuntimeTransport, IDisposable
                 manifest.InstanceId,
                 new List<string>(manifest.EntityIds),
                 new List<AgentToolDescriptor>(manifest.Tools),
-                manifest.Revision);
+                manifest.Revision, manifest.NpcContents);
         }
     }
 
@@ -423,7 +423,7 @@ public sealed class RuntimeGatewayClient : IRuntimeTransport, IDisposable
                 _manifest.InstanceId,
                 new List<string>(_manifest.EntityIds),
                 new List<AgentToolDescriptor>(_manifest.Tools),
-                _manifest.Revision);
+                _manifest.Revision, _manifest.NpcContents);
         }
     }
 
@@ -439,8 +439,13 @@ public sealed class RuntimeGatewayClient : IRuntimeTransport, IDisposable
                 inputSchema = JToken.Parse(tool.InputSchemaJson)
             });
         }
+        var npcContents = new List<object>();
+        foreach (NpcContentBinding binding in manifest.NpcContents)
+            npcContents.Add(new { entityId = binding.EntityId, contentVersion = binding.ContentVersion,
+                manifestSha256 = binding.ManifestSha256 });
         return new
         {
+            npcContents,
             instanceId = manifest.InstanceId,
             revision = manifest.Revision,
             entities = manifest.EntityIds,

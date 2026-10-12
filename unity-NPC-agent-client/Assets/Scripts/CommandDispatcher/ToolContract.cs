@@ -12,7 +12,6 @@ using Newtonsoft.Json.Linq;
 public sealed class ToolParameterAttribute : Attribute
 {
     public bool Required { get; set; }
-    public string Description { get; set; }
     public double Minimum { get; set; } = double.NaN;
     public double Maximum { get; set; } = double.NaN;
     public int MinLength { get; set; } = -1;
@@ -184,9 +183,6 @@ internal static class ToolContractSchema
         string fieldName)
     {
         string type = schema.Value<string>("type");
-        if (!string.IsNullOrWhiteSpace(parameter.Description))
-            schema["description"] = parameter.Description;
-
         if (!double.IsNaN(parameter.Minimum) || !double.IsNaN(parameter.Maximum))
         {
             RequireType(type, fieldName, "number", "integer");

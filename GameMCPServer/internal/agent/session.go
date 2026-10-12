@@ -12,6 +12,7 @@ type Session struct {
 	PlayerID          string
 	NPCID             string
 	UnityInstanceID   string
+	NPCContent        *NPCContentBinding
 	SystemPrompt      string
 	Messages          []Message
 	Model             string

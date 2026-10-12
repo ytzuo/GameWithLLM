@@ -1,0 +1,41 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: bbb281ee3bf0b054c82ac2347e9e782c, type: 3}
+  m_Name: Remote_SpritesTextures
+  m_EditorClassIdentifier: Unity.Addressables.Editor::UnityEditor.AddressableAssets.Settings.AddressableAssetGroup
+  m_GroupName: Remote_SpritesTextures
+  m_GUID: 205707f0ee07da642996132b893fb6b4
+  m_SerializeEntries:
+  - m_GUID: 977a638e7f9cfba468dacf204b40ff64
+    m_Address: item/icons/core-atlas
+    m_ReadOnly: 0
+    m_SerializedLabels:
+    - content.item-icons
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: a3e6c0133c8f4810bde1682e6447492b
+    m_Address: item/catalog/text/zh-CN
+    m_ReadOnly: 0
+    m_SerializedLabels:
+    - content.items
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: ca82c80f535b2c24f9300d66adec8a18
+    m_Address: item/catalog/default
+    m_ReadOnly: 0
+    m_SerializedLabels:
+    - content.items
+    FlaggedDuringContentUpdateRestriction: 0
+  m_ReadOnly: 0
+  m_Settings: {fileID: 11400000, guid: ce52958fe87f4da4e8b1723359b35a16, type: 2}
+  m_SchemaSet:
+    m_Schemas:
+    - {fileID: 11400000, guid: cae3627d51ba6924d9d42da878007e70, type: 2}
+    - {fileID: 11400000, guid: 01c413389fd112d4ba094d653e6c5d45, type: 2}

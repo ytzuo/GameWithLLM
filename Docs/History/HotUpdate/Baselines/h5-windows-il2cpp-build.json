@@ -1,0 +1,11 @@
+{
+  "unityVersion": "6000.3.19f1",
+  "hybridClrVersion": "8.14.1",
+  "target": "StandaloneWindows64",
+  "scriptingBackend": "IL2CPP",
+  "apiCompatibility": "NET_Standard_2_0",
+  "development": true,
+  "totalBytes": 1601972315,
+  "buildSeconds": 151.77385099999998,
+  "outputPath": "D:\\UnityProject\\GameWithLLM\\unity-NPC-agent-client\\Builds\\HybridClrH5\\GameWithLLM.exe"
+}

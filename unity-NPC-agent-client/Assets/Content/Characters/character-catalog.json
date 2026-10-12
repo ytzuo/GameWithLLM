@@ -1,0 +1,36 @@
+{
+  "schemaVersion": 1,
+  "contentVersion": "a5-v1",
+  "appearances": [
+    {
+      "characterId": "alice",
+      "appearanceId": "default",
+      "prefabAddress": "character/alice/visual/default",
+      "avatarAddress": null,
+      "animatorControllerAddress": "character/alice/animator/default",
+      "animationSetAddresses": ["character/alice/animation/idle"],
+      "materialAddresses": ["character/alice/material/default-body"],
+      "textureAddresses": ["character/alice/texture/default-body"]
+    },
+    {
+      "characterId": "ryan",
+      "appearanceId": "default",
+      "prefabAddress": "character/ryan/visual/default",
+      "avatarAddress": null,
+      "animatorControllerAddress": "character/ryan/animator/default",
+      "animationSetAddresses": ["character/ryan/animation/idle"],
+      "materialAddresses": ["character/ryan/material/default-body"],
+      "textureAddresses": ["character/ryan/texture/default-body"]
+    },
+    {
+      "characterId": "player",
+      "appearanceId": "default",
+      "prefabAddress": "character/player/visual/default",
+      "avatarAddress": null,
+      "animatorControllerAddress": "character/player/animator/default",
+      "animationSetAddresses": ["character/player/animation/idle"],
+      "materialAddresses": ["character/player/material/default-body"],
+      "textureAddresses": ["character/player/texture/default-body"]
+    }
+  ]
+}

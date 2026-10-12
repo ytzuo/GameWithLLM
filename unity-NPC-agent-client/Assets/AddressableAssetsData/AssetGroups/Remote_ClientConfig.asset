@@ -1,0 +1,47 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: bbb281ee3bf0b054c82ac2347e9e782c, type: 3}
+  m_Name: Remote_ClientConfig
+  m_EditorClassIdentifier: Unity.Addressables.Editor::UnityEditor.AddressableAssets.Settings.AddressableAssetGroup
+  m_GroupName: Remote_ClientConfig
+  m_GUID: cab37bf1c674c9f4ea2c9e20f7f3553d
+  m_SerializeEntries:
+  - m_GUID: 48672bad26ab52d49b3151f8126fd603
+    m_Address: hotfix/release/manifest
+    m_ReadOnly: 0
+    m_SerializedLabels:
+    - content.release-manifest
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: c997175828c44e4eb48de5550465145d
+    m_Address: config/tool-metadata/zh-CN
+    m_ReadOnly: 0
+    m_SerializedLabels:
+    - content.client-config
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: d68d1557a5dc4fd886c04474272a65e5
+    m_Address: config/ui/zh-CN
+    m_ReadOnly: 0
+    m_SerializedLabels:
+    - content.client-config
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: ffac3eb40e254d3892fa8ac3daecfbe7
+    m_Address: config/agent-messages/zh-CN
+    m_ReadOnly: 0
+    m_SerializedLabels:
+    - content.client-config
+    FlaggedDuringContentUpdateRestriction: 0
+  m_ReadOnly: 0
+  m_Settings: {fileID: 11400000, guid: ce52958fe87f4da4e8b1723359b35a16, type: 2}
+  m_SchemaSet:
+    m_Schemas:
+    - {fileID: 11400000, guid: 359854750692e0a44a2be9edd643869d, type: 2}
+    - {fileID: 11400000, guid: bf5b11147fd5abc45b7f709a852f7a71, type: 2}

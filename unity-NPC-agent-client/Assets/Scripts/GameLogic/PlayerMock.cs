@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Threading.Tasks;
 using UnityEngine;
 using UnityEngine.InputSystem;
@@ -8,11 +9,15 @@ using UnityEngine.InputSystem;
 /// Player mock that holds a list of NPCs in the scene, opens the ChatWindow on F,
 /// and manages the ChatWindow lifecycle. Uses Unity's new InputSystem.
 /// </summary>
-public class PlayerMock : MonoBehaviour
+public class PlayerMock : MonoBehaviour, IGameplayWorldTarget
 {
     [SerializeField] private string worldTargetId = "player:local-player-1";
 
     internal string WorldTargetId => worldTargetId;
+    string IGameplayWorldTarget.WorldTargetId => worldTargetId;
+    string IGameplayWorldTarget.WorldTargetDisplayName => "玩家";
+    string IGameplayWorldTarget.WorldTargetCategory => "player";
+    bool IGameplayWorldTarget.IsDynamicWorldTarget => true;
     internal IReadOnlyList<NpcEntity> NpcEntities => npcEntities;
 
     internal void ConfigureWorldTargetId(string configuredPlayerId)
@@ -51,7 +56,7 @@ public class PlayerMock : MonoBehaviour
     private InputAction _openInventoryAction; // E key
 
     // ── Item Dispenser ──
-    public ItemDataList itemDataList; // set in Inspector
+    private ItemDataList _itemDataList;
     private ItemDispenserWindow _dispenserWindow;
     private InputAction _dispenserAction; // E key
 
@@ -59,6 +64,10 @@ public class PlayerMock : MonoBehaviour
     private InputAction _saveGameAction; // G key
     private SaveGameWindow _saveGameWindow;
     private SaveGameService _saveGameService;
+
+    // ── Remote NPC library ──
+    private InputAction _npcLibraryAction; // M key
+    private NpcLibraryWindow _npcLibraryWindow;
 
     // ──────────────────────────────────────────────────────
     //  Lifecycle
@@ -82,6 +91,7 @@ public class PlayerMock : MonoBehaviour
         // E —— 打开物品发放器
         _dispenserAction = new InputAction("Dispenser", InputActionType.Button, "<Keyboard>/e", null, null, null);
         _saveGameAction = new InputAction("SaveGame", InputActionType.Button, "<Keyboard>/g", null, null, null);
+        _npcLibraryAction = new InputAction("NpcLibrary", InputActionType.Button, "<Keyboard>/m", null, null, null);
 
         _onInteract = _ => OnInteract();
         _onCloseChat = _ => OnCloseChat();
@@ -92,13 +102,12 @@ public class PlayerMock : MonoBehaviour
         _openInventoryAction.performed += OnOpenInventory;
         _dispenserAction.performed += OnOpenDispenser;
         _saveGameAction.performed += OnOpenSaveGame;
+        _npcLibraryAction.performed += OnOpenNpcLibrary;
 
         if (npcEntities == null)
             npcEntities = new List<NpcEntity>();
 
-        InventoryViewModel.Instance.SetItemCatalog(itemDataList);
         InventoryViewModel.Instance.PlayerInventory = GetComponent<InventoryComponent>();
-        _saveGameService = new SaveGameService(this, itemDataList);
     }
 
     private void OnEnable()
@@ -123,11 +132,13 @@ public class PlayerMock : MonoBehaviour
             _dispenserAction.Disable();
         if (_saveGameAction != null)
             _saveGameAction.Disable();
+        if (_npcLibraryAction != null)
+            _npcLibraryAction.Disable();
     }
 
     private void OnDestroy()
     {
-        InventoryViewModel.Instance.ClearItemCatalog(itemDataList);
+        InventoryViewModel.Instance.ClearItemCatalog(_itemDataList);
 
         if (_interactAction != null)
         {
@@ -167,6 +178,12 @@ public class PlayerMock : MonoBehaviour
             _saveGameAction.Dispose();
             _saveGameAction = null;
         }
+        if (_npcLibraryAction != null)
+        {
+            _npcLibraryAction.performed -= OnOpenNpcLibrary;
+            _npcLibraryAction.Dispose();
+            _npcLibraryAction = null;
+        }
     }
 
     // ──────────────────────────────────────────────────────
@@ -183,6 +200,7 @@ public class PlayerMock : MonoBehaviour
             _openInventoryAction?.Disable();
             _dispenserAction?.Disable();
             _saveGameAction?.Disable();
+            _npcLibraryAction?.Disable();
             Cursor.visible = true;
             Cursor.lockState = CursorLockMode.None;
         }
@@ -194,6 +212,7 @@ public class PlayerMock : MonoBehaviour
             _openInventoryAction?.Enable();
             _dispenserAction?.Enable();
             _saveGameAction?.Enable();
+            _npcLibraryAction?.Enable();
             Cursor.visible = false;
             Cursor.lockState = CursorLockMode.Locked;
         }
@@ -285,6 +304,10 @@ public class PlayerMock : MonoBehaviour
             if (_saveGameWindow.IsBusy) return;
             _saveGameWindow.Close();
         }
+        if (_npcLibraryWindow != null && _npcLibraryWindow.IsOpen)
+        {
+            _npcLibraryWindow.Close();
+        }
 
         if (_chatWindow != null && _chatWindow.IsOpen)
         {
@@ -297,6 +320,24 @@ public class PlayerMock : MonoBehaviour
     }
 
     private void OnChatWindowClosed()
+    {
+        SwitchToGameplayMode();
+    }
+
+    private void OnOpenNpcLibrary(InputAction.CallbackContext ctx)
+    {
+        if (_npcLibraryWindow != null && _npcLibraryWindow.IsOpen) return;
+        if (UIManager.Instance == null || NpcLibraryServices.Current == null)
+        {
+            Debug.LogWarning("PlayerMock: NPC 资料库服务或 UIManager 不可用。");
+            return;
+        }
+        if (!_isUiMode) SwitchToUiMode();
+        _npcLibraryWindow = UIManager.Instance.OpenNewWindow<NpcLibraryWindow>();
+        _npcLibraryWindow.Closed += OnNpcLibraryClosed;
+    }
+
+    private void OnNpcLibraryClosed()
     {
         SwitchToGameplayMode();
     }
@@ -424,12 +465,16 @@ public class PlayerMock : MonoBehaviour
         try
         {
             SaveGameFile file = _saveGameService.Load(saveId);
-            var npcIds = new List<string>();
-            foreach (NpcEntity npc in npcEntities)
-            {
-                if (npc != null && !string.IsNullOrWhiteSpace(npc.npcId))
-                    npcIds.Add(npc.npcId.Trim());
-            }
+            if (NpcLibraryServices.Current == null)
+                throw new InvalidOperationException("NPC_CONTENT_SERVICES_UNAVAILABLE");
+            _saveGameWindow.SetStatus("正在校验并生成存档所需的远端 NPC……");
+            await NpcLibraryServices.Current.PrepareRestoreAsync(
+                file.NpcContents,
+                destroyCancellationToken);
+            var npcIds = (file.Entities ?? new List<SaveGameEntityState>())
+                .Where(entity => entity != null && entity.EntityId != WorldTargetId)
+                .Select(entity => entity.EntityId)
+                .ToList();
             AgentSnapshotLoadResult result = await AgentHostClient.Instance.LoadConversationsForSaveGameAsync(
                 file.SaveId, npcIds, () => _saveGameService.Apply(file));
             if (result == null || !result.Ok)
@@ -441,12 +486,26 @@ public class PlayerMock : MonoBehaviour
         }
         catch (Exception ex)
         {
-            _saveGameWindow.SetStatus($"加载失败：{ex.Message}", true);
+            _saveGameWindow.SetStatus("加载失败：" + FormatRestoreFailure(ex), true);
         }
         finally
         {
             _saveGameWindow?.SetBusy(false);
         }
+    }
+
+    private static string FormatRestoreFailure(Exception error)
+    {
+        string message = error?.GetBaseException().Message ?? "UNKNOWN";
+        if (message.StartsWith("NPC_CONTENT_NOT_INSTALLED:", StringComparison.Ordinal))
+            return "存档所需 NPC 尚未安装，请先下载对应版本后重试。";
+        if (message.StartsWith("NPC_CONTENT_CACHE_MISSING:", StringComparison.Ordinal))
+            return "存档所需 NPC 资源缓存已被清除，请在本地 NPC 列表补下载后重试。";
+        if (message.StartsWith("NPC_CONTENT_VERSION_CONFLICT:", StringComparison.Ordinal))
+            return "本地 NPC 版本与存档不一致，请安装存档记录的不可变版本后重试。";
+        if (message == "NPC_CONTENT_SAVE_BINDING_INVALID")
+            return "存档中的 NPC 内容绑定无效。";
+        return message;
     }
 
     private void RefreshSaveEntries()
@@ -526,7 +585,7 @@ public class PlayerMock : MonoBehaviour
     {
         if (_dispenserWindow != null && _dispenserWindow.IsOpen) return;
 
-        if (itemDataList == null)
+        if (_itemDataList == null)
         {
             Debug.LogWarning("PlayerMock: itemDataList 未设置，无法打开物品发放器");
             return;
@@ -535,8 +594,15 @@ public class PlayerMock : MonoBehaviour
         if (!_isUiMode) SwitchToUiMode();
 
         _dispenserWindow = UIManager.Instance.OpenNewWindow<ItemDispenserWindow>();
-        _dispenserWindow.ItemDataList = itemDataList;
+        _dispenserWindow.ItemDataList = _itemDataList;
         _dispenserWindow.Closed += OnDispenserWindowClosed;
+    }
+
+    internal void InitializeItemCatalog(ItemDataList catalog)
+    {
+        _itemDataList = catalog ?? throw new ArgumentNullException(nameof(catalog));
+        InventoryViewModel.Instance.SetItemCatalog(_itemDataList);
+        _saveGameService = new SaveGameService(this, _itemDataList);
     }
 
     private void OnDispenserWindowClosed()
@@ -643,6 +709,11 @@ public class PlayerMock : MonoBehaviour
             _saveGameWindow.RetrySyncRequested -= OnRetrySaveSyncRequested;
             _saveGameWindow.LoadRequested -= OnLoadSaveRequested;
             _saveGameWindow = null;
+        }
+        if (_npcLibraryWindow != null)
+        {
+            _npcLibraryWindow.Closed -= OnNpcLibraryClosed;
+            _npcLibraryWindow = null;
         }
     }
 }

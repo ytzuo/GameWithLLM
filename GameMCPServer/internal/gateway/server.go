@@ -12,6 +12,7 @@ import (
 	"sync"
 	"sync/atomic"
 
+	"GameMCPServer/internal/agent"
 	"GameMCPServer/internal/mcp"
 
 	"github.com/coder/websocket"
@@ -22,10 +23,11 @@ const maxMessageBytes = 1 << 20
 const maxPendingPerRuntime = 32
 
 type Manifest struct {
-	InstanceID string     `json:"instanceId"`
-	Entities   []string   `json:"entities"`
-	Tools      []mcp.Tool `json:"tools"`
-	Revision   int64      `json:"revision"`
+	NPCContents []agent.NPCContentBinding `json:"npcContents,omitempty"`
+	InstanceID  string                    `json:"instanceId"`
+	Entities    []string                  `json:"entities"`
+	Tools       []mcp.Tool                `json:"tools"`
+	Revision    int64                     `json:"revision"`
 }
 type initializeParams struct {
 	Token    string   `json:"token"`
@@ -288,6 +290,17 @@ func validateManifest(manifest Manifest) error {
 		}
 		entities[entityID] = struct{}{}
 	}
+
+	bindings := make(map[string]bool)
+	for _, binding := range manifest.NPCContents {
+		if binding.Validate() != nil {
+			return errors.New("invalid NPC content binding")
+		}
+		if _, ok := entities[binding.EntityID]; !ok || bindings[binding.EntityID] {
+			return errors.New("NPC binding must identify a unique manifest entity")
+		}
+		bindings[binding.EntityID] = true
+	}
 	tools := make(map[string]struct{}, len(manifest.Tools))
 	for _, tool := range manifest.Tools {
 		if strings.TrimSpace(tool.Name) == "" {
@@ -320,7 +333,9 @@ func (s *runtimeSession) readLoop() {
 			if json.Unmarshal(message.Params, &manifest) == nil &&
 				manifest.InstanceID == instanceID && validateManifest(manifest) == nil {
 				s.manifestMu.Lock()
-				s.manifest = manifest
+				if unchangedNPCBindings(s.manifest, manifest) {
+					s.manifest = manifest
+				}
 				s.manifestMu.Unlock()
 			}
 			continue
@@ -374,4 +389,58 @@ func writeMCPResult(w http.ResponseWriter, id string, result any) {
 func writeMCPError(w http.ResponseWriter, id any, code int, message string) {
 	w.Header().Set("Content-Type", "application/json")
 	_ = json.NewEncoder(w).Encode(map[string]any{"jsonrpc": "2.0", "id": id, "error": mcp.RPCError{Code: code, Message: message}})
+}
+
+// NPCContentBinding snapshots the active entity binding without holding locks during HTTP.
+func (r *Registry) NPCContentBinding(ctx context.Context, instanceID, entityID string) (*agent.NPCContentBinding, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	r.mu.RLock()
+	session := r.runtimes[instanceID]
+	r.mu.RUnlock()
+	if session == nil || session.closed.Load() {
+		return nil, errors.New("runtime unavailable")
+	}
+	session.manifestMu.RLock()
+	defer session.manifestMu.RUnlock()
+	found := false
+	for _, id := range session.manifest.Entities {
+		if id == entityID {
+			found = true
+			break
+		}
+	}
+	if !found {
+		return nil, errors.New("runtime entity unavailable")
+	}
+	for _, binding := range session.manifest.NPCContents {
+		if binding.EntityID == entityID {
+			copy := binding
+			return &copy, nil
+		}
+	}
+	return nil, nil
+}
+
+// A retained entity cannot switch content while running. Reconnects are checked by Context ownership.
+func unchangedNPCBindings(previous, next Manifest) bool {
+	oldEntities := map[string]bool{}
+	oldBindings := map[string]agent.NPCContentBinding{}
+	nextBindings := map[string]agent.NPCContentBinding{}
+	for _, id := range previous.Entities {
+		oldEntities[id] = true
+	}
+	for _, b := range previous.NPCContents {
+		oldBindings[b.EntityID] = b
+	}
+	for _, b := range next.NPCContents {
+		nextBindings[b.EntityID] = b
+	}
+	for _, id := range next.Entities {
+		if oldEntities[id] && oldBindings[id] != nextBindings[id] {
+			return false
+		}
+	}
+	return true
 }

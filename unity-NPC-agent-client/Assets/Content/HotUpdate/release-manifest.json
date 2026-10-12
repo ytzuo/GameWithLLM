@@ -1,0 +1,360 @@
+{
+  "schemaVersion": 1,
+  "releaseId": "h8-production-2.0.0",
+  "contentVersion": "2026.10.001",
+  "toolSetVersion": "6.0.0",
+  "catalogVersion": "2026.10.001",
+  "playerBuildId": "windows-x64-0.2.0",
+  "minPlayerVersion": "0.2.0",
+  "maxPlayerVersion": "0.2.0",
+  "catalogs": [
+    {
+      "address": "config/tool-metadata/zh-CN",
+      "fileName": "tool_metadata.zh-CN.json",
+      "length": 3769,
+      "sha256": "0f3275ab0cb0fdee1f18672d5c39cc3031b204872992e9846bf49940daad89fa",
+      "catalogId": "tool_metadata.zh-CN"
+    },
+    {
+      "address": "config/agent-messages/zh-CN",
+      "fileName": "agent_messages.zh-CN.json",
+      "length": 1282,
+      "sha256": "fc6b41c9321472e2eb8a529c432a343fd74e61a11cc02f03801981bd02ec74f8",
+      "catalogId": "agent_messages.zh-CN"
+    },
+    {
+      "address": "config/ui/zh-CN",
+      "fileName": "ui.zh-CN.json",
+      "length": 495,
+      "sha256": "6a810a8872c3b6698951fec52c808615107440f30a6b7c5b72c96e2b03d57735",
+      "catalogId": "ui.zh-CN"
+    }
+  ],
+  "aotMetadata": [
+    {
+      "address": "hotfix/aot/windows-x64-0.2.0/mscorlib",
+      "fileName": "mscorlib.dll.bytes",
+      "length": 2248704,
+      "sha256": "4df3bf2459a5564b60bed185095547ee84978b448917ded11c01891851870e09"
+    },
+    {
+      "address": "hotfix/aot/windows-x64-0.2.0/System",
+      "fileName": "System.dll.bytes",
+      "length": 902656,
+      "sha256": "f1b33a898a2884cc53813f610fae67030d42cb2b3c681ac74cd0f08d8feb1ff7"
+    },
+    {
+      "address": "hotfix/aot/windows-x64-0.2.0/System.Core",
+      "fileName": "System.Core.dll.bytes",
+      "length": 401920,
+      "sha256": "ddc06dfa2701b081826b1d22ba0faddf91261aab3ced7e1fd50a2df06d061240"
+    },
+    {
+      "address": "hotfix/aot/windows-x64-0.2.0/GameWithLLM.AgentRuntime",
+      "fileName": "GameWithLLM.AgentRuntime.dll.bytes",
+      "length": 13312,
+      "sha256": "17aeff8e07904ccf43fff6a22564a893f7a15ea18ab68b351bf4d0b775532797"
+    },
+    {
+      "address": "hotfix/aot/windows-x64-0.2.0/GameWithLLM.Client.Gameplay",
+      "fileName": "GameWithLLM.Client.Gameplay.dll.bytes",
+      "length": 47104,
+      "sha256": "1802cb5e5be1153bf7c5c458d1fa13bd0bedc95f387b057bebba4fce2e63f165"
+    },
+    {
+      "address": "hotfix/aot/windows-x64-0.2.0/GameWithLLM.Client.ToolFramework",
+      "fileName": "GameWithLLM.Client.ToolFramework.dll.bytes",
+      "length": 67584,
+      "sha256": "ae3129211039da023d3322aaaeaf801a6158aa6430f2dd3a7380b1df8506e548"
+    },
+    {
+      "address": "hotfix/aot/windows-x64-0.2.0/Newtonsoft.Json",
+      "fileName": "Newtonsoft.Json.dll.bytes",
+      "length": 688128,
+      "sha256": "154c301306fc045c1f4137bd99a1c51c3ed98676505c2c7f9b5b7b03755f83a2"
+    }
+  ],
+  "toolPackages": [
+    {
+      "packageId": "smoke-test",
+      "packageVersion": "1.5.0",
+      "assemblyName": "GameWithLLM.Tools.Pack.SmokeTest",
+      "assembly": {
+        "address": "hotfix/tools/smoke-test/1.5.0/assembly",
+        "fileName": "GameWithLLM.Tools.Pack.SmokeTest.dll.bytes",
+        "length": 8704,
+        "sha256": "7db587b949c16a7955caae48e988534218f469bd1bbfcb2401daa20ba13b887f"
+      },
+      "debugSymbols": null
+    }
+  ],
+  "activeTools": [
+    {
+      "name": "game_hotfix_smoke_package_info",
+      "toolIdentity": "game_hotfix_smoke_package_info",
+      "source": "hot-update",
+      "implementationVersion": "6.0.0",
+      "contractVersion": "1.0.0",
+      "packageId": "smoke-test",
+      "packageVersion": "1.5.0",
+      "assemblyName": "GameWithLLM.Tools.Pack.SmokeTest",
+      "assemblyHash": "7db587b949c16a7955caae48e988534218f469bd1bbfcb2401daa20ba13b887f",
+      "schemaHash": "99334726611ccf58a148b0814696bfa6fe08c1b2d027e946beccf5a74331c9aa"
+    },
+    {
+      "name": "game_hotfix_smoke_query",
+      "toolIdentity": "game_hotfix_smoke_query",
+      "source": "hot-update",
+      "implementationVersion": "6.0.0",
+      "contractVersion": "1.0.0",
+      "packageId": "smoke-test",
+      "packageVersion": "1.5.0",
+      "assemblyName": "GameWithLLM.Tools.Pack.SmokeTest",
+      "assemblyHash": "7db587b949c16a7955caae48e988534218f469bd1bbfcb2401daa20ba13b887f",
+      "schemaHash": "294af3fe6962f94c90794f4e04646c2551b2604deb4ce909ad30e9bd7f2c32f9"
+    },
+    {
+      "name": "game_inventory_get_container",
+      "toolIdentity": "game_inventory_get_container",
+      "source": "builtin",
+      "implementationVersion": "1.0.0",
+      "contractVersion": "1.0.0",
+      "packageId": null,
+      "packageVersion": null,
+      "assemblyName": "GameWithLLM.Client.BuiltinTools",
+      "assemblyHash": null,
+      "schemaHash": "6d2690be661cc055b029e27bd4b36ae3f6b863951b58b575f116eede4bf5daaa"
+    },
+    {
+      "name": "game_inventory_get_item_definitions",
+      "toolIdentity": "game_inventory_get_item_definitions",
+      "source": "builtin",
+      "implementationVersion": "1.0.0",
+      "contractVersion": "1.0.0",
+      "packageId": null,
+      "packageVersion": null,
+      "assemblyName": "GameWithLLM.Client.BuiltinTools",
+      "assemblyHash": null,
+      "schemaHash": "99334726611ccf58a148b0814696bfa6fe08c1b2d027e946beccf5a74331c9aa"
+    },
+    {
+      "name": "game_inventory_get_nearby_containers",
+      "toolIdentity": "game_inventory_get_nearby_containers",
+      "source": "builtin",
+      "implementationVersion": "1.0.0",
+      "contractVersion": "1.0.0",
+      "packageId": null,
+      "packageVersion": null,
+      "assemblyName": "GameWithLLM.Client.BuiltinTools",
+      "assemblyHash": null,
+      "schemaHash": "814a646e80e6884d8bd362dea6055f17b87717db803fe6c6c58b214adccff2a9"
+    },
+    {
+      "name": "game_inventory_get_self",
+      "toolIdentity": "game_inventory_get_self",
+      "source": "builtin",
+      "implementationVersion": "1.0.0",
+      "contractVersion": "1.0.0",
+      "packageId": null,
+      "packageVersion": null,
+      "assemblyName": "GameWithLLM.Client.BuiltinTools",
+      "assemblyHash": null,
+      "schemaHash": "99334726611ccf58a148b0814696bfa6fe08c1b2d027e946beccf5a74331c9aa"
+    },
+    {
+      "name": "game_inventory_put_item",
+      "toolIdentity": "game_inventory_put_item",
+      "source": "builtin",
+      "implementationVersion": "1.0.0",
+      "contractVersion": "1.0.0",
+      "packageId": null,
+      "packageVersion": null,
+      "assemblyName": "GameWithLLM.Client.BuiltinTools",
+      "assemblyHash": null,
+      "schemaHash": "79c70f0df25e761e47240744a80b556ee80b70c422f4e5e806f1771fe68e3468"
+    },
+    {
+      "name": "game_inventory_take_item",
+      "toolIdentity": "game_inventory_take_item",
+      "source": "builtin",
+      "implementationVersion": "1.0.0",
+      "contractVersion": "1.0.0",
+      "packageId": null,
+      "packageVersion": null,
+      "assemblyName": "GameWithLLM.Client.BuiltinTools",
+      "assemblyHash": null,
+      "schemaHash": "79c70f0df25e761e47240744a80b556ee80b70c422f4e5e806f1771fe68e3468"
+    },
+    {
+      "name": "game_npc_get_state",
+      "toolIdentity": "game_npc_get_state",
+      "source": "builtin",
+      "implementationVersion": "1.0.0",
+      "contractVersion": "1.0.0",
+      "packageId": null,
+      "packageVersion": null,
+      "assemblyName": "GameWithLLM.Client.BuiltinTools",
+      "assemblyHash": null,
+      "schemaHash": "99334726611ccf58a148b0814696bfa6fe08c1b2d027e946beccf5a74331c9aa"
+    },
+    {
+      "name": "game_npc_move",
+      "toolIdentity": "game_npc_move",
+      "source": "builtin",
+      "implementationVersion": "1.0.0",
+      "contractVersion": "1.0.0",
+      "packageId": null,
+      "packageVersion": null,
+      "assemblyName": "GameWithLLM.Client.BuiltinTools",
+      "assemblyHash": null,
+      "schemaHash": "dd0310f8b7f5b855674ad5cd069166d9211641417fbf5d16331f67adb1364d04"
+    },
+    {
+      "name": "game_scene_get_targets",
+      "toolIdentity": "game_scene_get_targets",
+      "source": "builtin",
+      "implementationVersion": "1.0.0",
+      "contractVersion": "1.0.0",
+      "packageId": null,
+      "packageVersion": null,
+      "assemblyName": "GameWithLLM.Client.BuiltinTools",
+      "assemblyHash": null,
+      "schemaHash": "0428d9b2210319b7b15c12c140ba653983141bfbead31cc05cc8c41c4e5a450c"
+    }
+  ],
+  "retiredTools": [],
+  "toolHistory": [
+    {
+      "name": "game_hotfix_smoke_package_info",
+      "toolIdentity": "game_hotfix_smoke_package_info",
+      "source": "hot-update",
+      "implementationVersion": "6.0.0",
+      "contractVersion": "1.0.0",
+      "schemaHash": "99334726611ccf58a148b0814696bfa6fe08c1b2d027e946beccf5a74331c9aa",
+      "assemblyHash": "7db587b949c16a7955caae48e988534218f469bd1bbfcb2401daa20ba13b887f",
+      "firstReleaseId": "h4-local-1.0.0",
+      "lastReleaseId": "h8-production-2.0.0",
+      "retiredInToolSetVersion": null
+    },
+    {
+      "name": "game_hotfix_smoke_query",
+      "toolIdentity": "game_hotfix_smoke_query",
+      "source": "hot-update",
+      "implementationVersion": "6.0.0",
+      "contractVersion": "1.0.0",
+      "schemaHash": "294af3fe6962f94c90794f4e04646c2551b2604deb4ce909ad30e9bd7f2c32f9",
+      "assemblyHash": "7db587b949c16a7955caae48e988534218f469bd1bbfcb2401daa20ba13b887f",
+      "firstReleaseId": "h4-local-1.0.0",
+      "lastReleaseId": "h8-production-2.0.0",
+      "retiredInToolSetVersion": null
+    },
+    {
+      "name": "game_inventory_get_container",
+      "toolIdentity": "game_inventory_get_container",
+      "source": "builtin",
+      "implementationVersion": "1.0.0",
+      "contractVersion": "1.0.0",
+      "schemaHash": "6d2690be661cc055b029e27bd4b36ae3f6b863951b58b575f116eede4bf5daaa",
+      "assemblyHash": null,
+      "firstReleaseId": "h4-local-1.0.0",
+      "lastReleaseId": "h8-production-2.0.0",
+      "retiredInToolSetVersion": null
+    },
+    {
+      "name": "game_inventory_get_item_definitions",
+      "toolIdentity": "game_inventory_get_item_definitions",
+      "source": "builtin",
+      "implementationVersion": "1.0.0",
+      "contractVersion": "1.0.0",
+      "schemaHash": "99334726611ccf58a148b0814696bfa6fe08c1b2d027e946beccf5a74331c9aa",
+      "assemblyHash": null,
+      "firstReleaseId": "h4-local-1.0.0",
+      "lastReleaseId": "h8-production-2.0.0",
+      "retiredInToolSetVersion": null
+    },
+    {
+      "name": "game_inventory_get_nearby_containers",
+      "toolIdentity": "game_inventory_get_nearby_containers",
+      "source": "builtin",
+      "implementationVersion": "1.0.0",
+      "contractVersion": "1.0.0",
+      "schemaHash": "814a646e80e6884d8bd362dea6055f17b87717db803fe6c6c58b214adccff2a9",
+      "assemblyHash": null,
+      "firstReleaseId": "h4-local-1.0.0",
+      "lastReleaseId": "h8-production-2.0.0",
+      "retiredInToolSetVersion": null
+    },
+    {
+      "name": "game_inventory_get_self",
+      "toolIdentity": "game_inventory_get_self",
+      "source": "builtin",
+      "implementationVersion": "1.0.0",
+      "contractVersion": "1.0.0",
+      "schemaHash": "99334726611ccf58a148b0814696bfa6fe08c1b2d027e946beccf5a74331c9aa",
+      "assemblyHash": null,
+      "firstReleaseId": "h4-local-1.0.0",
+      "lastReleaseId": "h8-production-2.0.0",
+      "retiredInToolSetVersion": null
+    },
+    {
+      "name": "game_inventory_put_item",
+      "toolIdentity": "game_inventory_put_item",
+      "source": "builtin",
+      "implementationVersion": "1.0.0",
+      "contractVersion": "1.0.0",
+      "schemaHash": "79c70f0df25e761e47240744a80b556ee80b70c422f4e5e806f1771fe68e3468",
+      "assemblyHash": null,
+      "firstReleaseId": "h4-local-1.0.0",
+      "lastReleaseId": "h8-production-2.0.0",
+      "retiredInToolSetVersion": null
+    },
+    {
+      "name": "game_inventory_take_item",
+      "toolIdentity": "game_inventory_take_item",
+      "source": "builtin",
+      "implementationVersion": "1.0.0",
+      "contractVersion": "1.0.0",
+      "schemaHash": "79c70f0df25e761e47240744a80b556ee80b70c422f4e5e806f1771fe68e3468",
+      "assemblyHash": null,
+      "firstReleaseId": "h4-local-1.0.0",
+      "lastReleaseId": "h8-production-2.0.0",
+      "retiredInToolSetVersion": null
+    },
+    {
+      "name": "game_npc_get_state",
+      "toolIdentity": "game_npc_get_state",
+      "source": "builtin",
+      "implementationVersion": "1.0.0",
+      "contractVersion": "1.0.0",
+      "schemaHash": "99334726611ccf58a148b0814696bfa6fe08c1b2d027e946beccf5a74331c9aa",
+      "assemblyHash": null,
+      "firstReleaseId": "h4-local-1.0.0",
+      "lastReleaseId": "h8-production-2.0.0",
+      "retiredInToolSetVersion": null
+    },
+    {
+      "name": "game_npc_move",
+      "toolIdentity": "game_npc_move",
+      "source": "builtin",
+      "implementationVersion": "1.0.0",
+      "contractVersion": "1.0.0",
+      "schemaHash": "dd0310f8b7f5b855674ad5cd069166d9211641417fbf5d16331f67adb1364d04",
+      "assemblyHash": null,
+      "firstReleaseId": "h4-local-1.0.0",
+      "lastReleaseId": "h8-production-2.0.0",
+      "retiredInToolSetVersion": null
+    },
+    {
+      "name": "game_scene_get_targets",
+      "toolIdentity": "game_scene_get_targets",
+      "source": "builtin",
+      "implementationVersion": "1.0.0",
+      "contractVersion": "1.0.0",
+      "schemaHash": "0428d9b2210319b7b15c12c140ba653983141bfbead31cc05cc8c41c4e5a450c",
+      "assemblyHash": null,
+      "firstReleaseId": "h4-local-1.0.0",
+      "lastReleaseId": "h8-production-2.0.0",
+      "retiredInToolSetVersion": null
+    }
+  ]
+}

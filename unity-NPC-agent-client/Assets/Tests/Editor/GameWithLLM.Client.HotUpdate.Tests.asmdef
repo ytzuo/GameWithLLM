@@ -1,0 +1,29 @@
+{
+  "name": "GameWithLLM.Client.HotUpdate.Tests",
+  "rootNamespace": "",
+  "references": [
+    "GameWithLLM.AgentRuntime",
+    "GameWithLLM.Client.Core",
+    "GameWithLLM.Client.Gameplay",
+    "GameWithLLM.Client.ToolFramework",
+    "GameWithLLM.Client.BuiltinTools"
+  ],
+  "includePlatforms": [
+    "Editor"
+  ],
+  "excludePlatforms": [],
+  "allowUnsafeCode": false,
+  "overrideReferences": false,
+  "precompiledReferences": [
+    "Newtonsoft.Json.dll"
+  ],
+  "autoReferenced": false,
+  "defineConstraints": [
+    "UNITY_INCLUDE_TESTS"
+  ],
+  "versionDefines": [],
+  "noEngineReferences": false,
+  "optionalUnityReferences": [
+    "TestAssemblies"
+  ]
+}

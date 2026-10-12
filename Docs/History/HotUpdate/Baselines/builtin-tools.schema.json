@@ -1,0 +1,170 @@
+{
+  "schemaVersion": 1,
+  "tools": [
+    {
+      "name": "game_inventory_get_container",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "containerId": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": [
+          "containerId"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "game_inventory_get_item_definitions",
+      "inputSchema": {
+        "type": "object",
+        "properties": {},
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "game_inventory_get_nearby_containers",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "inRangeOnly": {
+            "type": "boolean"
+          },
+          "maxDistance": {
+            "type": "number",
+            "minimum": 0.0
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "game_inventory_get_self",
+      "inputSchema": {
+        "type": "object",
+        "properties": {},
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "game_inventory_put_item",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "containerId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "itemId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "quantity": {
+            "type": "integer",
+            "minimum": 1.0
+          }
+        },
+        "required": [
+          "containerId",
+          "itemId",
+          "quantity"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "game_inventory_take_item",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "containerId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "itemId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "quantity": {
+            "type": "integer",
+            "minimum": 1.0
+          }
+        },
+        "required": [
+          "containerId",
+          "itemId",
+          "quantity"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "game_npc_get_state",
+      "inputSchema": {
+        "type": "object",
+        "properties": {},
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "game_npc_move",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "approachDistance": {
+            "type": "number",
+            "minimum": 0.0,
+            "maximum": 10.0
+          },
+          "targetId": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": [
+          "targetId"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "game_scene_get_targets",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "categories": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "npc",
+                "player",
+                "landmark"
+              ]
+            },
+            "uniqueItems": true
+          },
+          "maxDistance": {
+            "type": "number",
+            "minimum": 0.0
+          },
+          "reachableOnly": {
+            "type": "boolean"
+          },
+          "targetIds": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            },
+            "uniqueItems": true
+          }
+        },
+        "additionalProperties": false
+      }
+    }
+  ]
+}

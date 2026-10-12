@@ -1,0 +1,69 @@
+name: Content release candidate
+
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: Candidate type
+        required: true
+        type: choice
+        options: [Full, ContentUpdate]
+      baseline_content_state:
+        description: Absolute archived content_state.bin path for ContentUpdate
+        required: false
+        type: string
+  push:
+    branches: [main]
+    paths:
+      - "unity-NPC-agent-client/Assets/Content/**"
+      - "unity-NPC-agent-client/Assets/Editor/HotUpdate/**"
+      - "unity-NPC-agent-client/Assets/Scripts/**"
+      - "unity-NPC-agent-client/Packages/**"
+      - "Scripts/Build-ContentRelease.ps1"
+      - ".github/workflows/content-release-candidate.yml"
+
+jobs:
+  candidate:
+    runs-on: [self-hosted, Windows, X64, unity-6000.3.19f1]
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          lfs: true
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - name: Verify publish and rollback transaction
+        shell: pwsh
+        run: ./Scripts/Test-ContentReleaseTransaction.ps1
+      - name: Resolve candidate mode
+        id: candidate
+        shell: pwsh
+        run: |
+          $mode = '${{ inputs.mode }}'
+          if (-not $mode) { $mode = 'Full' }
+          "mode=$mode" >> $env:GITHUB_OUTPUT
+      - name: Build and gate candidate
+        shell: pwsh
+        env:
+          CONTENT_UNITY_EXE: ${{ vars.UNITY_6000_3_19F1_EXE }}
+          CONTENT_LICENSING_IPC: ${{ vars.UNITY_LICENSING_IPC }}
+          CONTENT_MODE: ${{ steps.candidate.outputs.mode }}
+          CONTENT_BASELINE: ${{ inputs.baseline_content_state }}
+        run: |
+          ./Scripts/Build-ContentRelease.ps1 `
+            -UnityExe $env:CONTENT_UNITY_EXE `
+            -LicensingIpc $env:CONTENT_LICENSING_IPC `
+            -Mode $env:CONTENT_MODE `
+            -BaselineContentState $env:CONTENT_BASELINE
+      - name: Upload immutable candidate for environment smoke tests
+        uses: actions/upload-artifact@v4
+        with:
+          name: content-release-${{ github.sha }}
+          if-no-files-found: error
+          retention-days: 30
+          path: |
+            Artifacts/Content/**
+            unity-NPC-agent-client/Builds/ContentReleaseProduction/**
+            unity-NPC-agent-client/ServerData/production/StandaloneWindows64/**
+            unity-NPC-agent-client/Logs/content-*.log
