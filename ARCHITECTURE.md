@@ -650,7 +650,13 @@ hash URL 保持 immutable。发布先校验、复制整体归档，再提交当�
 NavMesh 前置条件，场景 Agent 在 Surface 注册后启用，现有 NavMesh 资产 GUID 保留。
 SampleScene 地面位于 y=0，并保持覆盖 x=-8.09/7.68 两个地标的宽度；显式场景准备入口
 分别使用 SampleScene 与 WarehouseRemote 的作者布局，不在启动时动态烘焙或放宽生成条件。
-旧简化计划和阶段二一次性迁移脚本已移到 `Docs/History/RemoteNpc`，不参与构建。
+旧简化计划保留在 `Docs/History/RemoteNpc`。已完成迁移的 RoundOne、阶段二场景测试、
+阶段一/二一次性校验和阶段二迁移脚本已删除；对应旧运行环境配置不再保留。
+当前 SampleScene 回归使用 `Scripts/Test-NpcPresentationStage3.py` 与
+`NpcPresentationStage3SceneSmoke.RunFromCommandLine`，Player 验收使用
+`Scripts/Test-NpcPresentationStage4.py`。阶段夹具、GUID 迁移清单和验收证据仍作为历史记录保留。
+无依赖的空资源/脚本目录连同 `.meta` 清理；工具包 smoke staging 依赖的空
+`Assets/StreamingAssets` 目录保留。
 共享 URP Shader 由 Remote_Materials 持有，避免场景和逐 NPC Bundle 重复打包。
 
 ## 7. 代码地图
@@ -700,7 +706,7 @@ SampleScene 地面位于 y=0，并保持覆盖 x=-8.09/7.68 两个地标的宽�
 | `Assets/Editor/HotUpdate/Migrations` | 显式项目修复、资产迁移和候选 staging；生产 Pipeline 不隐式调用 Setup |
 | `Assets/Editor/HotUpdate/Tests` | 分层 smoke 编排及不进入 Production 的测试数据 |
 | `Assets/Editor/HotUpdate/Release` | 唯一 Production 候选构建与工具包门禁 |
-| `Assets/Tests/Editor/ToolPackRegistrationTests.cs` | 工具发现、原子提交、冲突拒绝和幂等验证 |
+| `Assets/Tests/Editor/ToolSetActivationTests.cs` | 工具发现、ToolSet 原子激活、冲突拒绝和幂等验证 |
 | `Packages/com.gamewithllm.agent-runtime/Runtime` | SDK 公共契约 |
 
 移动或重命名 Unity 资源时必须同时移动 `.meta` 并保留 GUID。

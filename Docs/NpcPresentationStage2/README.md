@@ -37,17 +37,17 @@ Unity 日志路径相对 unity-NPC-agent-client；运行报告为 Artifacts/NpcP
 
 Windows 原生 race 仍在测试进程启动时退出 0xc0000139，未进入用例；未将它记为原生通过。WSL 使用临时解压的相同 Go 工具链与已有模块缓存。Unity 日志中的已有授权握手/access-token 提示不作为 C# 或运行时协议错误；实际批处理退出码与测试、业务标记通过。
 
-可复现入口：
+阶段二的场景协调器、Editor 入口、一次性资产审计和迁移脚本已在项目清理中删除。
+当前 SampleScene 回归入口见 [阶段三记录](../NpcPresentationStage3/README.md)：
 
 ```powershell
 # 仓库根；启动协调器后，在另一个 PowerShell 为本次 Unity 子进程应用生成的 runtime-env.json。
-python -X utf8 Scripts/Test-NpcPresentationStage2.py
+python -X utf8 Scripts/Test-NpcPresentationStage3.py
 # 通过 unity-launch 的 Run-UnityBatch.ps1 执行以下异步方法，不加 -quit：
-# NpcPresentationStage2SceneSmoke.RunFromCommandLine
-python -X utf8 Docs/NpcPresentationStage2/verify_assets.py
+# NpcPresentationStage3SceneSmoke.RunFromCommandLine
 ```
 
-一次性资源迁移入口为 NpcPresentationStage2Migration.Run，场景准备入口为 PrepareSampleScene；二者不被生产构建隐式调用。常规作者构建继续使用 NpcContentRelease.BuildDefinitions。
+本阶段一次性资源迁移已完成，旧 runtime-env.json 已清理。常规作者构建继续使用 NpcContentRelease.BuildDefinitions。
 
 ## 下一阶段边界
 

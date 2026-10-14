@@ -18,7 +18,7 @@
 | `cleanup-candidates.json` | 88 个已跟踪旧源资产、动画源码和静态交付文件的清理候选，不是删除脚本 |
 | `Fixtures/` | 固定新契约的索引、两份清单、绑定、安装索引、世界存档和对话快照 |
 | `acceptance-cases.json` | 后续解析测试、迁移验收与生产 smoke 的目标场景 |
-| `verify_stage1.py` | 仅校验本阶段夹具、路径/GUID 与盘点一致性，不证明未来运行时实现已通过 |
+| 原阶段一校验脚本（已删除） | 依赖迁移前源路径与盘点，仅用于当时交接；迁移完成后不再适用 |
 
 盘点针对 git 跟踪的 Go、Unity Assets/Packages、Scripts 和 NpcContent 文本文件，
 检索 `NpcContent/NPCContent/npcContent/RemoteNpc/npc/merchant_001/guide_001`。
@@ -141,8 +141,9 @@ Prefab 依赖的共享 URP Shader/Gameplay MonoScript 属于保留项。
 
 ## 6. 阶段一验证与阶段二交接
 
-执行 `python Docs/NpcPresentationStage1/verify_stage1.py` 校验 JSON、跨夹具名称/路径、
-无版本字段、源 GUID、地址迁移和当前依赖盘点；执行 `git diff --check` 检查补丁。
+当时的一次性脚本校验 JSON、跨夹具名称/路径、无版本字段、源 GUID、地址迁移和
+迁移前依赖盘点，并执行 `git diff --check`。迁移完成后该脚本已删除；夹具与验证记录
+保留为历史交接资料，当前契约由 Go 和 Unity 测试验证。
 
 基线 C# 验证最初因现有生成 csproj 漏列 Gameplay 动画事件类型失败；类型源文件存在，
 这不是本阶段引入的变更。随后 Unity 6000.3.19f1 批处理重新导入/编译，退出码 0、

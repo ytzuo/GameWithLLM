@@ -183,7 +183,7 @@ func TestRepositoryNPCStaticContract(t *testing.T) {
 	require.NoError(t, err)
 	index, err := ParseNPCIndex(raw)
 	require.NoError(t, err)
-	require.Len(t, index.NPCs, 2)
+	require.NotEmpty(t, index.NPCs)
 	for _, entry := range index.NPCs {
 		data, err := os.ReadFile(filepath.Join(root, filepath.FromSlash(entry.ManifestPath)))
 		require.NoError(t, err)

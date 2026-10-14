@@ -276,13 +276,13 @@ Go 运行 `go test ./...`、`go vet ./...`、`go test -race ./...`；完成 Unit
 | SampleScene 七项基线 | 注册、普通/流式对话、warehouse/gate 移动、取消 Task/移动、Go 重启重连/Manifest、Inventory/世界及对话恢复、无 Console 错误/Missing Script 全部通过；Artifacts/NpcRound1/scene-report.json、go-scene.log、Logs/npc-round1-scene.log |
 | 发布事务 | Scripts/Test-ContentReleaseTransaction.ps1 通过：原链路、篡改拒绝、NPC 版本不可变、指针保留与索引回滚 |
 
-场景回归由 `Scripts/Test-NpcRoundOne.py` 配合 Editor 入口
-`NpcRoundOneSceneSmoke.RunFromCommandLine` 完成。测试先启动本地 HTTP 内容托管、
+本轮场景回归曾由 RoundOne 协调器配合对应 Editor 入口完成；这两个一次性入口已删除。
+当前回归见 `Scripts/Test-NpcPresentationStage3.py` 和阶段三记录。当时测试先启动本地 HTTP 内容托管、
 固定响应的 OpenAI 兼容测试服务和真实 Go 进程，写 runtime-env.json；以该测试环境
 启动 Unity 入口后，协调脚本驱动真实 A2A/MCP/Save API，并在主线程观测移动和保存/
 恢复世界。完成后停止自建服务/Editor。模型正确性由本地 fixture 验证，不依赖外部
 LLM；真实游戏行为由 Unity SampleScene 执行。测试生成的运行期证据位于忽略目录
-Artifacts 和 Unity Logs，源测试入口只在 Editor 编译。
+Artifacts 和 Unity Logs；旧 runtime-env.json 已在项目清理中删除。
 
 尚未执行：真实远端生产提升、基础 IL2CPP Player 裁剪与动画 driver 下载执行。
 这些属于第二/三轮，本轮没有将它们标记为通过。开发样例沿用旧 0.1.0 release 身份，
