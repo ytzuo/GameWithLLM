@@ -1,0 +1,226 @@
+[
+  {
+    "source": "unity-NPC-agent-client/Assets/Content/Npcs/merchant_001/3/avatar.png",
+    "sourceMeta": "unity-NPC-agent-client/Assets/Content/Npcs/merchant_001/3/avatar.png.meta",
+    "target": "unity-NPC-agent-client/Assets/Content/Npcs/Merchant/Avatar.png",
+    "guid": "b6ced8aa233181240be97d4d34526539",
+    "references": [
+      "unity-NPC-agent-client/Assets/Content/Npcs/merchant_001/3/merchant_001_v3.asset"
+    ],
+    "dependencies": []
+  },
+  {
+    "source": "unity-NPC-agent-client/Assets/Content/Npcs/merchant_001/3/controller.controller",
+    "sourceMeta": "unity-NPC-agent-client/Assets/Content/Npcs/merchant_001/3/controller.controller.meta",
+    "target": "unity-NPC-agent-client/Assets/Content/Npcs/Merchant/Animations/Controller.controller",
+    "guid": "66e6c722da9905d41a52b82867ff1351",
+    "references": [
+      "unity-NPC-agent-client/Assets/Content/Npcs/merchant_001/3/visual.prefab"
+    ],
+    "dependencies": [
+      {
+        "guid": "83b0028ba529e1d44b2c7172cd9b1e2d",
+        "path": "unity-NPC-agent-client/Assets/Content/Npcs/merchant_001/3/idle.anim"
+      }
+    ]
+  },
+  {
+    "source": "unity-NPC-agent-client/Assets/Content/Npcs/merchant_001/3/idle.anim",
+    "sourceMeta": "unity-NPC-agent-client/Assets/Content/Npcs/merchant_001/3/idle.anim.meta",
+    "target": "unity-NPC-agent-client/Assets/Content/Npcs/Merchant/Animations/Idle.anim",
+    "guid": "83b0028ba529e1d44b2c7172cd9b1e2d",
+    "references": [
+      "unity-NPC-agent-client/Assets/Content/Npcs/merchant_001/3/controller.controller"
+    ],
+    "dependencies": []
+  },
+  {
+    "source": "unity-NPC-agent-client/Assets/Content/Npcs/merchant_001/3/material.mat",
+    "sourceMeta": "unity-NPC-agent-client/Assets/Content/Npcs/merchant_001/3/material.mat.meta",
+    "target": "unity-NPC-agent-client/Assets/Content/Npcs/Merchant/Materials/Body.mat",
+    "guid": "4fbc0756b5a0f3f49a38e1e5b1062830",
+    "references": [
+      "unity-NPC-agent-client/Assets/Content/Npcs/merchant_001/3/visual.prefab"
+    ],
+    "dependencies": []
+  },
+  {
+    "source": "unity-NPC-agent-client/Assets/Content/Npcs/merchant_001/3/merchant_001_v3.asset",
+    "sourceMeta": "unity-NPC-agent-client/Assets/Content/Npcs/merchant_001/3/merchant_001_v3.asset.meta",
+    "target": "unity-NPC-agent-client/Assets/Content/Npcs/Merchant/Definition.asset",
+    "guid": "5c85cbed568ba9642ac15ad882facb77",
+    "references": [],
+    "dependencies": [
+      {
+        "guid": "25cbefa25050b4b4da67b060f87ca04a",
+        "path": "unity-NPC-agent-client/Assets/Content/Npcs/merchant_001/3/visual.prefab"
+      },
+      {
+        "guid": "793830683b754e1e9561de30ee69741d",
+        "path": "unity-NPC-agent-client/Assets/Editor/HotUpdate/Release/NpcContentDefinition.cs"
+      },
+      {
+        "guid": "b6ced8aa233181240be97d4d34526539",
+        "path": "unity-NPC-agent-client/Assets/Content/Npcs/merchant_001/3/avatar.png"
+      }
+    ]
+  },
+  {
+    "source": "unity-NPC-agent-client/Assets/Content/Npcs/merchant_001/3/texture.asset",
+    "sourceMeta": "unity-NPC-agent-client/Assets/Content/Npcs/merchant_001/3/texture.asset.meta",
+    "target": "unity-NPC-agent-client/Assets/Content/Npcs/Merchant/Materials/Texture.asset",
+    "guid": "aff3ef21f5a144c4a90c83e69cf56ec4",
+    "references": [],
+    "dependencies": []
+  },
+  {
+    "source": "unity-NPC-agent-client/Assets/Content/Npcs/merchant_001/3/visual-avatar.asset",
+    "sourceMeta": "unity-NPC-agent-client/Assets/Content/Npcs/merchant_001/3/visual-avatar.asset.meta",
+    "target": "unity-NPC-agent-client/Assets/Content/Npcs/Merchant/Models/Avatar.asset",
+    "guid": "88fa2db342ec3d14eb5207de647cf62f",
+    "references": [
+      "unity-NPC-agent-client/Assets/Content/Npcs/merchant_001/3/visual.prefab"
+    ],
+    "dependencies": []
+  },
+  {
+    "source": "unity-NPC-agent-client/Assets/Content/Npcs/merchant_001/3/visual.prefab",
+    "sourceMeta": "unity-NPC-agent-client/Assets/Content/Npcs/merchant_001/3/visual.prefab.meta",
+    "target": "unity-NPC-agent-client/Assets/Content/Npcs/Merchant/Visual.prefab",
+    "guid": "25cbefa25050b4b4da67b060f87ca04a",
+    "references": [
+      "unity-NPC-agent-client/Assets/AddressableAssetsData/AssetGroups/Remote_Characters.asset",
+      "unity-NPC-agent-client/Assets/Content/Npcs/merchant_001/3/merchant_001_v3.asset"
+    ],
+    "dependencies": [
+      {
+        "guid": "0000000000000000e000000000000000",
+        "path": "external-or-package"
+      },
+      {
+        "guid": "4fbc0756b5a0f3f49a38e1e5b1062830",
+        "path": "unity-NPC-agent-client/Assets/Content/Npcs/merchant_001/3/material.mat"
+      },
+      {
+        "guid": "66e6c722da9905d41a52b82867ff1351",
+        "path": "unity-NPC-agent-client/Assets/Content/Npcs/merchant_001/3/controller.controller"
+      },
+      {
+        "guid": "88fa2db342ec3d14eb5207de647cf62f",
+        "path": "unity-NPC-agent-client/Assets/Content/Npcs/merchant_001/3/visual-avatar.asset"
+      }
+    ]
+  },
+  {
+    "source": "unity-NPC-agent-client/Assets/Content/Npcs/guide_001/3/avatar.png",
+    "sourceMeta": "unity-NPC-agent-client/Assets/Content/Npcs/guide_001/3/avatar.png.meta",
+    "target": "unity-NPC-agent-client/Assets/Content/Npcs/Guide/Avatar.png",
+    "guid": "3951f580f408e024dbfa1089db547360",
+    "references": [
+      "unity-NPC-agent-client/Assets/Content/Npcs/guide_001/3/guide_001_v3.asset"
+    ],
+    "dependencies": []
+  },
+  {
+    "source": "unity-NPC-agent-client/Assets/Content/Npcs/guide_001/3/controller.controller",
+    "sourceMeta": "unity-NPC-agent-client/Assets/Content/Npcs/guide_001/3/controller.controller.meta",
+    "target": "unity-NPC-agent-client/Assets/Content/Npcs/Guide/Animations/Controller.controller",
+    "guid": "d7ac31c87f63c004fb90425bbca2d60c",
+    "references": [
+      "unity-NPC-agent-client/Assets/Content/Npcs/guide_001/3/visual.prefab"
+    ],
+    "dependencies": [
+      {
+        "guid": "996f2cb890f43274c9d905c9ad778a6a",
+        "path": "unity-NPC-agent-client/Assets/Content/Npcs/guide_001/3/idle.anim"
+      }
+    ]
+  },
+  {
+    "source": "unity-NPC-agent-client/Assets/Content/Npcs/guide_001/3/guide_001_v3.asset",
+    "sourceMeta": "unity-NPC-agent-client/Assets/Content/Npcs/guide_001/3/guide_001_v3.asset.meta",
+    "target": "unity-NPC-agent-client/Assets/Content/Npcs/Guide/Definition.asset",
+    "guid": "698ecbd8bb6bc0a42ab2789794b1436a",
+    "references": [],
+    "dependencies": [
+      {
+        "guid": "3951f580f408e024dbfa1089db547360",
+        "path": "unity-NPC-agent-client/Assets/Content/Npcs/guide_001/3/avatar.png"
+      },
+      {
+        "guid": "4f2704ed01e0b484b8133aee76e879d4",
+        "path": "unity-NPC-agent-client/Assets/Content/Npcs/guide_001/3/visual.prefab"
+      },
+      {
+        "guid": "793830683b754e1e9561de30ee69741d",
+        "path": "unity-NPC-agent-client/Assets/Editor/HotUpdate/Release/NpcContentDefinition.cs"
+      }
+    ]
+  },
+  {
+    "source": "unity-NPC-agent-client/Assets/Content/Npcs/guide_001/3/idle.anim",
+    "sourceMeta": "unity-NPC-agent-client/Assets/Content/Npcs/guide_001/3/idle.anim.meta",
+    "target": "unity-NPC-agent-client/Assets/Content/Npcs/Guide/Animations/Idle.anim",
+    "guid": "996f2cb890f43274c9d905c9ad778a6a",
+    "references": [
+      "unity-NPC-agent-client/Assets/Content/Npcs/guide_001/3/controller.controller"
+    ],
+    "dependencies": []
+  },
+  {
+    "source": "unity-NPC-agent-client/Assets/Content/Npcs/guide_001/3/material.mat",
+    "sourceMeta": "unity-NPC-agent-client/Assets/Content/Npcs/guide_001/3/material.mat.meta",
+    "target": "unity-NPC-agent-client/Assets/Content/Npcs/Guide/Materials/Body.mat",
+    "guid": "43ade5a5fd6aba848b88c8375c2f7c70",
+    "references": [
+      "unity-NPC-agent-client/Assets/Content/Npcs/guide_001/3/visual.prefab"
+    ],
+    "dependencies": []
+  },
+  {
+    "source": "unity-NPC-agent-client/Assets/Content/Npcs/guide_001/3/texture.asset",
+    "sourceMeta": "unity-NPC-agent-client/Assets/Content/Npcs/guide_001/3/texture.asset.meta",
+    "target": "unity-NPC-agent-client/Assets/Content/Npcs/Guide/Materials/Texture.asset",
+    "guid": "49b50b71394322e46b5561ab1f1a03b9",
+    "references": [],
+    "dependencies": []
+  },
+  {
+    "source": "unity-NPC-agent-client/Assets/Content/Npcs/guide_001/3/visual-avatar.asset",
+    "sourceMeta": "unity-NPC-agent-client/Assets/Content/Npcs/guide_001/3/visual-avatar.asset.meta",
+    "target": "unity-NPC-agent-client/Assets/Content/Npcs/Guide/Models/Avatar.asset",
+    "guid": "badaa21c4f5a63848a0ef311bda2919a",
+    "references": [
+      "unity-NPC-agent-client/Assets/Content/Npcs/guide_001/3/visual.prefab"
+    ],
+    "dependencies": []
+  },
+  {
+    "source": "unity-NPC-agent-client/Assets/Content/Npcs/guide_001/3/visual.prefab",
+    "sourceMeta": "unity-NPC-agent-client/Assets/Content/Npcs/guide_001/3/visual.prefab.meta",
+    "target": "unity-NPC-agent-client/Assets/Content/Npcs/Guide/Visual.prefab",
+    "guid": "4f2704ed01e0b484b8133aee76e879d4",
+    "references": [
+      "unity-NPC-agent-client/Assets/AddressableAssetsData/AssetGroups/Remote_Characters.asset",
+      "unity-NPC-agent-client/Assets/Content/Npcs/guide_001/3/guide_001_v3.asset"
+    ],
+    "dependencies": [
+      {
+        "guid": "0000000000000000e000000000000000",
+        "path": "external-or-package"
+      },
+      {
+        "guid": "43ade5a5fd6aba848b88c8375c2f7c70",
+        "path": "unity-NPC-agent-client/Assets/Content/Npcs/guide_001/3/material.mat"
+      },
+      {
+        "guid": "badaa21c4f5a63848a0ef311bda2919a",
+        "path": "unity-NPC-agent-client/Assets/Content/Npcs/guide_001/3/visual-avatar.asset"
+      },
+      {
+        "guid": "d7ac31c87f63c004fb90425bbca2d60c",
+        "path": "unity-NPC-agent-client/Assets/Content/Npcs/guide_001/3/controller.controller"
+      }
+    ]
+  }
+]

@@ -1,0 +1,36 @@
+{
+  "date": "2026-10-14",
+  "stage": 1,
+  "runtimeSwitched": false,
+  "productionAssetsMovedOrDeleted": false,
+  "handoffValidation": {
+    "command": "python Docs/NpcPresentationStage1/verify_stage1.py",
+    "result": "passed",
+    "npcCount": 2,
+    "assetMoves": 16,
+    "addressReplacements": 2,
+    "addressRemovals": 24,
+    "dependencyFiles": 44,
+    "cleanupCandidateFiles": 88
+  },
+  "csharpBaseline": {
+    "dotnetBuild": "passed-after-regenerating-project-files",
+    "dotnetCommand": "dotnet build Assembly-CSharp-Editor.csproj --no-restore --verbosity quiet",
+    "dotnetExitCode": 0,
+    "dotnetErrors": 0,
+    "dotnetWarnings": 3,
+    "dotnetWarningCodes": ["MSB3277", "CS0618"],
+    "originalDotnetAttempt": "failed-existing-generated-csproj-missing-animation-event-source-includes",
+    "projectRegenerationMethod": "Packages.Rider.Editor.RiderScriptEditor.SyncSolution",
+    "projectRegenerationLog": "unity-NPC-agent-client/Logs/npc-stage1-regenerate-csproj.log",
+    "unityEditorVersion": "6000.3.19f1",
+    "unityBatchArguments": ["-batchmode", "-nographics", "-quit"],
+    "exitCode": 0,
+    "timedOut": false,
+    "csharpErrors": 0,
+    "log": "unity-NPC-agent-client/Logs/npc-presentation-stage1-compile.log",
+    "completionMarker": "Exiting batchmode successfully now!",
+    "nonCompilationMessages": ["licensing-access-token-update-failed", "curl-42-on-exit"]
+  },
+  "notRun": ["Go-full-test-vet-race-no-Go-source-changes", "SampleScene-runtime-smoke", "Windows-IL2CPP-player-build", "production-deployment-smoke"]
+}

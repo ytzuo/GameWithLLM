@@ -1,0 +1,42 @@
+{
+  "fixtureStatus": "target-contract-only-not-production-input",
+  "parserCases": [
+    {"name": "current-builtin", "input": "Fixtures/Merchant.npc.json", "expected": "accept"},
+    {"name": "current-index", "input": "Fixtures/index.json", "expected": "accept"},
+    {"name": "current-save", "input": "Fixtures/world-save.json", "expected": "accept-format-3"},
+    {"name": "current-snapshot", "input": "Fixtures/conversation-snapshot.json", "expected": "accept-format-2"},
+    {"name": "legacy-manifest", "input": "NpcContent/npc/merchant_001/3/npc.json", "pathBase": "repository-root", "expected": "reject-legacy-fields"},
+    {"name": "legacy-index", "input": "NpcContent/npc/index.json", "pathBase": "repository-root", "expected": "reject-legacy-fields"},
+    {"name": "legacy-binding", "input": {"entityId": "merchant_001", "contentVersion": "3", "manifestSha256": "legacy"}, "expected": "reject-unknown-fields"},
+    {"name": "legacy-save", "input": "Fixtures/world-save.json", "mutation": "set version to 2", "expected": "reject-before-world-mutation"},
+    {"name": "legacy-snapshot", "input": "Fixtures/conversation-snapshot.json", "mutation": "set snapshotVersion to 1", "expected": "reject-before-context-replacement"},
+    {"name": "case-collision", "input": "Fixtures/index.json", "mutation": "append another complete item named merchant", "expected": "reject-case-insensitive-duplicate"},
+    {"name": "non-ascii-name", "input": "Fixtures/Merchant.npc.json", "mutation": "set name to 旅行商人", "expected": "reject-invalid-name"},
+    {"name": "windows-reserved-name", "input": "Fixtures/Merchant.npc.json", "mutation": "set name to CON", "expected": "reject-invalid-directory-name"},
+    {"name": "unknown-or-duplicate-field", "input": "Fixtures/Merchant.npc.json", "mutation": "add unknown field, or repeat name in raw JSON", "expected": "reject-invalid-content"},
+    {"name": "profile-identity", "input": "Fixtures/Merchant.npc.json", "mutation": "set profile.npcId to Guide", "expected": "reject-identity-mismatch"},
+    {"name": "missing-placeholder", "input": "Fixtures/Merchant.npc.json", "mutation": "remove {{identity}}", "expected": "reject-invalid-template"},
+    {"name": "path-escape", "input": "Fixtures/index.json", "mutation": "set manifestPath to npc/../private.json", "expected": "reject-before-http-request"},
+    {"name": "localized-display-name", "input": "Fixtures/index.json", "mutation": "change Merchant displayName and matching profile displayName", "expected": "accept-same-identity-and-address"}
+  ],
+  "runtimeCases": [
+    {"name": "offline-complete", "setup": "new installed-current index and loadable cached dependencies; no HTTP", "expected": "spawn-without-version-comparison"},
+    {"name": "offline-incomplete", "setup": "new install record but missing cached dependency; no HTTP", "expected": "repair-needed-no-success-commit"},
+    {"name": "old-install-index", "setup": "only installed.json exists", "expected": "prompt-reinstall-leave-old-file-untouched"},
+    {"name": "old-catalog-cache", "setup": "only catalog-cache.json exists; remote unavailable", "expected": "do-not-parse-old-cache-report-fetch-failure"},
+    {"name": "current-personality", "setup": "create Context A; modify current Profile/Prompt; create Context B", "expected": "A-fixed-B-current"},
+    {"name": "restore-current-personality", "setup": "restore new-format snapshot after current Profile/Prompt changes", "expected": "restore-with-current-prompt-and-saved-history"},
+    {"name": "zero-download-invalid-prefab", "setup": "GetDownloadSizeAsync returns zero but Prefab fails actual load or component validation", "expected": "resource-incomplete-no-install-or-entity-commit"},
+    {"name": "remove-definition", "setup": "delete NPC definition then rebuild dedicated static output", "expected": "remove-obsolete-NPC-output-preserve-shared-assets"}
+  ],
+  "productionSmoke": [
+    {"name": "dynamic-download", "expected": "current-name-install-spawn-register"},
+    {"name": "animation-driver", "expected": "builtin-and-valid-test-DLL-work-corrupt-DLL-rejected"},
+    {"name": "save-restore", "expected": "format-3-and-2-restore-after-visual-change"},
+    {"name": "resource-integrity", "replaces": "version-conflict", "expected": "missing-dependency-corrupt-Prefab-wrong-Animator-parameters-no-partial-success"},
+    {"name": "cache-repair", "expected": "eviction-detected-repair-actually-loads"},
+    {"name": "catalog-address-missing", "replaces": "catalog-restart-required", "expected": "missing-address-prompts-restart-current-startup-catalog-resolves-address"},
+    {"name": "scene-cancel", "expected": "cancel-and-wait-no-late-commit"},
+    {"name": "manifest-reregister", "expected": "Go-restart-reconnect-full-identity-only-bindings"}
+  ]
+}

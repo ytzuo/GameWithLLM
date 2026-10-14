@@ -1,0 +1,2744 @@
+[
+  {
+    "path": "GameMCPServer/cmd/npc-content-validate/main.go",
+    "matches": [
+      {
+        "line": 37,
+        "tokens": [
+          "NPCContent"
+        ]
+      }
+    ]
+  },
+  {
+    "path": "GameMCPServer/internal/agent/conversation.go",
+    "matches": [
+      {
+        "line": 46,
+        "tokens": [
+          "NPCContent"
+        ]
+      },
+      {
+        "line": 47,
+        "tokens": [
+          "NPCContent"
+        ]
+      },
+      {
+        "line": 112,
+        "tokens": [
+          "NPCContent"
+        ]
+      },
+      {
+        "line": 132,
+        "tokens": [
+          "NPCContent"
+        ]
+      },
+      {
+        "line": 136,
+        "tokens": [
+          "NPCContent"
+        ]
+      }
+    ]
+  },
+  {
+    "path": "GameMCPServer/internal/agent/conversation_archive.go",
+    "matches": [
+      {
+        "line": 104,
+        "tokens": [
+          "NPCContent",
+          "npcContent"
+        ]
+      },
+      {
+        "line": 245,
+        "tokens": [
+          "NPCContent"
+        ]
+      },
+      {
+        "line": 364,
+        "tokens": [
+          "NPCContent"
+        ]
+      },
+      {
+        "line": 403,
+        "tokens": [
+          "NPCContent"
+        ]
+      },
+      {
+        "line": 406,
+        "tokens": [
+          "NPCContent"
+        ]
+      },
+      {
+        "line": 410,
+        "tokens": [
+          "NPCContent"
+        ]
+      },
+      {
+        "line": 413,
+        "tokens": [
+          "NPCContent"
+        ]
+      },
+      {
+        "line": 423,
+        "tokens": [
+          "NPCContent"
+        ]
+      },
+      {
+        "line": 453,
+        "tokens": [
+          "NPCContent"
+        ]
+      }
+    ]
+  },
+  {
+    "path": "GameMCPServer/internal/agent/npc_content.go",
+    "matches": [
+      {
+        "line": 19,
+        "tokens": [
+          "NPCContent"
+        ]
+      },
+      {
+        "line": 24,
+        "tokens": [
+          "NPCContent"
+        ]
+      },
+      {
+        "line": 30,
+        "tokens": [
+          "NPCContent"
+        ]
+      },
+      {
+        "line": 31,
+        "tokens": [
+          "NPCContent"
+        ]
+      },
+      {
+        "line": 41,
+        "tokens": [
+          "NPCContent"
+        ]
+      },
+      {
+        "line": 45,
+        "tokens": [
+          "NPCContent"
+        ]
+      },
+      {
+        "line": 75,
+        "tokens": [
+          "NPCContent"
+        ]
+      },
+      {
+        "line": 87,
+        "tokens": [
+          "npcContent"
+        ]
+      },
+      {
+        "line": 100,
+        "tokens": [
+          "NPCContent"
+        ]
+      },
+      {
+        "line": 101,
+        "tokens": [
+          "NPCContent"
+        ]
+      },
+      {
+        "line": 117,
+        "tokens": [
+          "NPCContent"
+        ]
+      },
+      {
+        "line": 132,
+        "tokens": [
+          "npcContent"
+        ]
+      },
+      {
+        "line": 138,
+        "tokens": [
+          "NPCContent"
+        ]
+      },
+      {
+        "line": 151,
+        "tokens": [
+          "npc/"
+        ]
+      },
+      {
+        "line": 184,
+        "tokens": [
+          "NPCContent"
+        ]
+      },
+      {
+        "line": 188,
+        "tokens": [
+          "NPCContent"
+        ]
+      },
+      {
+        "line": 191,
+        "tokens": [
+          "NPCContent"
+        ]
+      },
+      {
+        "line": 197,
+        "tokens": [
+          "NPCContent"
+        ]
+      },
+      {
+        "line": 199,
+        "tokens": [
+          "NPCContent"
+        ]
+      },
+      {
+        "line": 213,
+        "tokens": [
+          "NPCContent"
+        ]
+      },
+      {
+        "line": 216,
+        "tokens": [
+          "npc/"
+        ]
+      },
+      {
+        "line": 229,
+        "tokens": [
+          "NPCContent"
+        ]
+      },
+      {
+        "line": 233,
+        "tokens": [
+          "NPCContent"
+        ]
+      },
+      {
+        "line": 243,
+        "tokens": [
+          "NPCContent"
+        ]
+      },
+      {
+        "line": 244,
+        "tokens": [
+          "NPCContent"
+        ]
+      },
+      {
+        "line": 247,
+        "tokens": [
+          "NPCContent"
+        ]
+      },
+      {
+        "line": 248,
+        "tokens": [
+          "NPCContent"
+        ]
+      },
+      {
+        "line": 252,
+        "tokens": [
+          "NPCContent"
+        ]
+      },
+      {
+        "line": 254,
+        "tokens": [
+          "NPCContent"
+        ]
+      },
+      {
+        "line": 263,
+        "tokens": [
+          "NPCContent"
+        ]
+      },
+      {
+        "line": 280,
+        "tokens": [
+          "NPCContent"
+        ]
+      }
+    ]
+  },
+  {
+    "path": "GameMCPServer/internal/agent/npc_content_test.go",
+    "matches": [
+      {
+        "line": 21,
+        "tokens": [
+          "NPCContent"
+        ]
+      },
+      {
+        "line": 23,
+        "tokens": [
+          "NPCContent"
+        ]
+      },
+      {
+        "line": 30,
+        "tokens": [
+          "NPCContent"
+        ]
+      },
+      {
+        "line": 31,
+        "tokens": [
+          "npc/"
+        ]
+      },
+      {
+        "line": 35,
+        "tokens": [
+          "NPCContent"
+        ]
+      },
+      {
+        "line": 39,
+        "tokens": [
+          "NPCContent"
+        ]
+      },
+      {
+        "line": 41,
+        "tokens": [
+          "NPCContent"
+        ]
+      },
+      {
+        "line": 45,
+        "tokens": [
+          "merchant_001"
+        ]
+      },
+      {
+        "line": 46,
+        "tokens": [
+          "guide_001"
+        ]
+      },
+      {
+        "line": 51,
+        "tokens": [
+          "merchant_001",
+          "npc/"
+        ]
+      },
+      {
+        "line": 53,
+        "tokens": [
+          "guide_001",
+          "npc/"
+        ]
+      },
+      {
+        "line": 60,
+        "tokens": [
+          "NPCContent"
+        ]
+      },
+      {
+        "line": 70,
+        "tokens": [
+          "NPCContent"
+        ]
+      },
+      {
+        "line": 80,
+        "tokens": [
+          "merchant_001"
+        ]
+      },
+      {
+        "line": 81,
+        "tokens": [
+          "guide_001"
+        ]
+      },
+      {
+        "line": 84,
+        "tokens": [
+          "NPCContent"
+        ]
+      },
+      {
+        "line": 102,
+        "tokens": [
+          "NPCContent"
+        ]
+      },
+      {
+        "line": 103,
+        "tokens": [
+          "merchant_001"
+        ]
+      },
+      {
+        "line": 112,
+        "tokens": [
+          "NPCContent"
+        ]
+      },
+      {
+        "line": 115,
+        "tokens": [
+          "NPCContent"
+        ]
+      },
+      {
+        "line": 137,
+        "tokens": [
+          "merchant_001"
+        ]
+      },
+      {
+        "line": 142,
+        "tokens": [
+          "NPCContent"
+        ]
+      },
+      {
+        "line": 156,
+        "tokens": [
+          "NPCContent"
+        ]
+      },
+      {
+        "line": 159,
+        "tokens": [
+          "NPCContent",
+          "merchant_001"
+        ]
+      },
+      {
+        "line": 161,
+        "tokens": [
+          "NPCContent"
+        ]
+      },
+      {
+        "line": 172,
+        "tokens": [
+          "merchant_001"
+        ]
+      },
+      {
+        "line": 173,
+        "tokens": [
+          "NPCContent"
+        ]
+      },
+      {
+        "line": 180,
+        "tokens": [
+          "NPCContent"
+        ]
+      },
+      {
+        "line": 189,
+        "tokens": [
+          "NpcContent"
+        ]
+      },
+      {
+        "line": 199,
+        "tokens": [
+          "NPCContent"
+        ]
+      },
+      {
+        "line": 202,
+        "tokens": [
+          "merchant_001"
+        ]
+      },
+      {
+        "line": 207,
+        "tokens": [
+          "merchant_001"
+        ]
+      },
+      {
+        "line": 208,
+        "tokens": [
+          "guide_001"
+        ]
+      }
+    ]
+  },
+  {
+    "path": "GameMCPServer/internal/agent/npc_index.go",
+    "matches": [
+      {
+        "line": 32,
+        "tokens": [
+          "NPCContent"
+        ]
+      },
+      {
+        "line": 54,
+        "tokens": [
+          "NPCContent"
+        ]
+      },
+      {
+        "line": 55,
+        "tokens": [
+          "npc/"
+        ]
+      }
+    ]
+  },
+  {
+    "path": "GameMCPServer/internal/agent/session.go",
+    "matches": [
+      {
+        "line": 15,
+        "tokens": [
+          "NPCContent"
+        ]
+      }
+    ]
+  },
+  {
+    "path": "GameMCPServer/internal/config/config.go",
+    "matches": [
+      {
+        "line": 43,
+        "tokens": [
+          "NPCContent"
+        ]
+      },
+      {
+        "line": 70,
+        "tokens": [
+          "NPCContent"
+        ]
+      }
+    ]
+  },
+  {
+    "path": "GameMCPServer/internal/config/config_test.go",
+    "matches": [
+      {
+        "line": 29,
+        "tokens": [
+          "NPCContent"
+        ]
+      }
+    ]
+  },
+  {
+    "path": "GameMCPServer/internal/gateway/npc_content_test.go",
+    "matches": [
+      {
+        "line": 12,
+        "tokens": [
+          "NPCContent",
+          "merchant_001"
+        ]
+      },
+      {
+        "line": 13,
+        "tokens": [
+          "NPCContent",
+          "merchant_001"
+        ]
+      },
+      {
+        "line": 18,
+        "tokens": [
+          "NPCContent",
+          "merchant_001"
+        ]
+      },
+      {
+        "line": 22,
+        "tokens": [
+          "NPCContent",
+          "merchant_001"
+        ]
+      },
+      {
+        "line": 25,
+        "tokens": [
+          "NPCContent"
+        ]
+      },
+      {
+        "line": 28,
+        "tokens": [
+          "NPCContent"
+        ]
+      },
+      {
+        "line": 34,
+        "tokens": [
+          "NPCContent"
+        ]
+      },
+      {
+        "line": 39,
+        "tokens": [
+          "NPCContent"
+        ]
+      }
+    ]
+  },
+  {
+    "path": "GameMCPServer/internal/gateway/server.go",
+    "matches": [
+      {
+        "line": 26,
+        "tokens": [
+          "NPCContent",
+          "npcContent"
+        ]
+      },
+      {
+        "line": 295,
+        "tokens": [
+          "NPCContent"
+        ]
+      },
+      {
+        "line": 394,
+        "tokens": [
+          "NPCContent"
+        ]
+      },
+      {
+        "line": 395,
+        "tokens": [
+          "NPCContent"
+        ]
+      },
+      {
+        "line": 417,
+        "tokens": [
+          "NPCContent"
+        ]
+      },
+      {
+        "line": 429,
+        "tokens": [
+          "NPCContent"
+        ]
+      },
+      {
+        "line": 430,
+        "tokens": [
+          "NPCContent"
+        ]
+      },
+      {
+        "line": 434,
+        "tokens": [
+          "NPCContent"
+        ]
+      },
+      {
+        "line": 437,
+        "tokens": [
+          "NPCContent"
+        ]
+      }
+    ]
+  },
+  {
+    "path": "GameMCPServer/internal/handler/router.go",
+    "matches": [
+      {
+        "line": 47,
+        "tokens": [
+          "NPCContent"
+        ]
+      },
+      {
+        "line": 48,
+        "tokens": [
+          "NPCContent"
+        ]
+      },
+      {
+        "line": 49,
+        "tokens": [
+          "NPCContent"
+        ]
+      },
+      {
+        "line": 54,
+        "tokens": [
+          "NPCContent"
+        ]
+      }
+    ]
+  },
+  {
+    "path": "NpcContent/npc/guide_001/1/npc.json",
+    "matches": [
+      {
+        "line": 3,
+        "tokens": [
+          "guide_001"
+        ]
+      },
+      {
+        "line": 7,
+        "tokens": [
+          "guide_001",
+          "npc/"
+        ]
+      },
+      {
+        "line": 8,
+        "tokens": [
+          "guide_001",
+          "npc/"
+        ]
+      },
+      {
+        "line": 10,
+        "tokens": [
+          "guide_001",
+          "npc/"
+        ]
+      },
+      {
+        "line": 13,
+        "tokens": [
+          "guide_001",
+          "npc/"
+        ]
+      },
+      {
+        "line": 16,
+        "tokens": [
+          "guide_001",
+          "npc/"
+        ]
+      },
+      {
+        "line": 20,
+        "tokens": [
+          "guide_001",
+          "npc/"
+        ]
+      },
+      {
+        "line": 27,
+        "tokens": [
+          "guide_001"
+        ]
+      }
+    ]
+  },
+  {
+    "path": "NpcContent/npc/guide_001/2/npc.json",
+    "matches": [
+      {
+        "line": 3,
+        "tokens": [
+          "guide_001"
+        ]
+      },
+      {
+        "line": 7,
+        "tokens": [
+          "guide_001",
+          "npc/"
+        ]
+      },
+      {
+        "line": 8,
+        "tokens": [
+          "guide_001",
+          "npc/"
+        ]
+      },
+      {
+        "line": 10,
+        "tokens": [
+          "guide_001",
+          "npc/"
+        ]
+      },
+      {
+        "line": 13,
+        "tokens": [
+          "guide_001",
+          "npc/"
+        ]
+      },
+      {
+        "line": 16,
+        "tokens": [
+          "guide_001",
+          "npc/"
+        ]
+      },
+      {
+        "line": 20,
+        "tokens": [
+          "guide_001",
+          "npc/"
+        ]
+      },
+      {
+        "line": 27,
+        "tokens": [
+          "guide_001"
+        ]
+      }
+    ]
+  },
+  {
+    "path": "NpcContent/npc/guide_001/3/npc.json",
+    "matches": [
+      {
+        "line": 3,
+        "tokens": [
+          "guide_001"
+        ]
+      },
+      {
+        "line": 7,
+        "tokens": [
+          "guide_001",
+          "npc/"
+        ]
+      },
+      {
+        "line": 14,
+        "tokens": [
+          "guide_001"
+        ]
+      }
+    ]
+  },
+  {
+    "path": "NpcContent/npc/index.json",
+    "matches": [
+      {
+        "line": 30,
+        "tokens": [
+          "merchant_001"
+        ]
+      },
+      {
+        "line": 34,
+        "tokens": [
+          "merchant_001",
+          "npc/"
+        ]
+      },
+      {
+        "line": 35,
+        "tokens": [
+          "merchant_001",
+          "npc/"
+        ]
+      },
+      {
+        "line": 41,
+        "tokens": [
+          "guide_001"
+        ]
+      },
+      {
+        "line": 45,
+        "tokens": [
+          "guide_001",
+          "npc/"
+        ]
+      },
+      {
+        "line": 46,
+        "tokens": [
+          "guide_001",
+          "npc/"
+        ]
+      }
+    ]
+  },
+  {
+    "path": "NpcContent/npc/merchant_001/1/npc.json",
+    "matches": [
+      {
+        "line": 3,
+        "tokens": [
+          "merchant_001"
+        ]
+      },
+      {
+        "line": 7,
+        "tokens": [
+          "merchant_001",
+          "npc/"
+        ]
+      },
+      {
+        "line": 8,
+        "tokens": [
+          "merchant_001",
+          "npc/"
+        ]
+      },
+      {
+        "line": 10,
+        "tokens": [
+          "merchant_001",
+          "npc/"
+        ]
+      },
+      {
+        "line": 13,
+        "tokens": [
+          "merchant_001",
+          "npc/"
+        ]
+      },
+      {
+        "line": 16,
+        "tokens": [
+          "merchant_001",
+          "npc/"
+        ]
+      },
+      {
+        "line": 20,
+        "tokens": [
+          "merchant_001",
+          "npc/"
+        ]
+      },
+      {
+        "line": 27,
+        "tokens": [
+          "merchant_001"
+        ]
+      }
+    ]
+  },
+  {
+    "path": "NpcContent/npc/merchant_001/2/npc.json",
+    "matches": [
+      {
+        "line": 3,
+        "tokens": [
+          "merchant_001"
+        ]
+      },
+      {
+        "line": 7,
+        "tokens": [
+          "merchant_001",
+          "npc/"
+        ]
+      },
+      {
+        "line": 8,
+        "tokens": [
+          "merchant_001",
+          "npc/"
+        ]
+      },
+      {
+        "line": 10,
+        "tokens": [
+          "merchant_001",
+          "npc/"
+        ]
+      },
+      {
+        "line": 13,
+        "tokens": [
+          "merchant_001",
+          "npc/"
+        ]
+      },
+      {
+        "line": 16,
+        "tokens": [
+          "merchant_001",
+          "npc/"
+        ]
+      },
+      {
+        "line": 20,
+        "tokens": [
+          "merchant_001",
+          "npc/"
+        ]
+      },
+      {
+        "line": 27,
+        "tokens": [
+          "merchant_001"
+        ]
+      }
+    ]
+  },
+  {
+    "path": "NpcContent/npc/merchant_001/3/npc.json",
+    "matches": [
+      {
+        "line": 3,
+        "tokens": [
+          "merchant_001"
+        ]
+      },
+      {
+        "line": 7,
+        "tokens": [
+          "merchant_001",
+          "npc/"
+        ]
+      },
+      {
+        "line": 14,
+        "tokens": [
+          "merchant_001"
+        ]
+      }
+    ]
+  },
+  {
+    "path": "Scripts/Build-ContentRelease.ps1",
+    "matches": [
+      {
+        "line": 93,
+        "tokens": [
+          "NpcContent"
+        ]
+      }
+    ]
+  },
+  {
+    "path": "Scripts/Publish-ContentRelease.ps1",
+    "matches": [
+      {
+        "line": 57,
+        "tokens": [
+          "npcContent"
+        ]
+      },
+      {
+        "line": 146,
+        "tokens": [
+          "npcContent"
+        ]
+      },
+      {
+        "line": 147,
+        "tokens": [
+          "npcContent"
+        ]
+      },
+      {
+        "line": 148,
+        "tokens": [
+          "npc/"
+        ]
+      },
+      {
+        "line": 150,
+        "tokens": [
+          "npc/",
+          "npcContent"
+        ]
+      },
+      {
+        "line": 154,
+        "tokens": [
+          "npc/",
+          "npcContent"
+        ]
+      },
+      {
+        "line": 155,
+        "tokens": [
+          "npc/",
+          "npcContent"
+        ]
+      },
+      {
+        "line": 159,
+        "tokens": [
+          "npcContent"
+        ]
+      },
+      {
+        "line": 169,
+        "tokens": [
+          "npcContent"
+        ]
+      },
+      {
+        "line": 198,
+        "tokens": [
+          "npc/"
+        ]
+      },
+      {
+        "line": 199,
+        "tokens": [
+          "npc/"
+        ]
+      }
+    ]
+  },
+  {
+    "path": "Scripts/Test-ContentReleaseTransaction.ps1",
+    "matches": [
+      {
+        "line": 34,
+        "tokens": [
+          "NpcContent",
+          "merchant_001",
+          "npc/"
+        ]
+      },
+      {
+        "line": 37,
+        "tokens": [
+          "NpcContent",
+          "npc/"
+        ]
+      },
+      {
+        "line": 39,
+        "tokens": [
+          "NpcContent",
+          "npcContent"
+        ]
+      },
+      {
+        "line": 103,
+        "tokens": [
+          "npc/"
+        ]
+      },
+      {
+        "line": 116,
+        "tokens": [
+          "npc/"
+        ]
+      },
+      {
+        "line": 123,
+        "tokens": [
+          "npc/"
+        ]
+      }
+    ]
+  },
+  {
+    "path": "unity-NPC-agent-client/Assets/AddressableAssetsData/AddressableAssetSettings.asset",
+    "matches": [
+      {
+        "line": 207,
+        "tokens": [
+          "merchant_001"
+        ]
+      },
+      {
+        "line": 208,
+        "tokens": [
+          "guide_001"
+        ]
+      }
+    ]
+  },
+  {
+    "path": "unity-NPC-agent-client/Assets/AddressableAssetsData/AssetGroups/Remote_Characters.asset",
+    "matches": [
+      {
+        "line": 19,
+        "tokens": [
+          "merchant_001",
+          "npc/"
+        ]
+      },
+      {
+        "line": 22,
+        "tokens": [
+          "merchant_001"
+        ]
+      },
+      {
+        "line": 25,
+        "tokens": [
+          "guide_001",
+          "npc/"
+        ]
+      },
+      {
+        "line": 28,
+        "tokens": [
+          "guide_001"
+        ]
+      },
+      {
+        "line": 31,
+        "tokens": [
+          "guide_001",
+          "npc/"
+        ]
+      },
+      {
+        "line": 34,
+        "tokens": [
+          "guide_001"
+        ]
+      },
+      {
+        "line": 44,
+        "tokens": [
+          "merchant_001",
+          "npc/"
+        ]
+      },
+      {
+        "line": 47,
+        "tokens": [
+          "merchant_001"
+        ]
+      },
+      {
+        "line": 57,
+        "tokens": [
+          "guide_001",
+          "npc/"
+        ]
+      },
+      {
+        "line": 60,
+        "tokens": [
+          "guide_001"
+        ]
+      },
+      {
+        "line": 63,
+        "tokens": [
+          "merchant_001",
+          "npc/"
+        ]
+      },
+      {
+        "line": 66,
+        "tokens": [
+          "merchant_001"
+        ]
+      },
+      {
+        "line": 76,
+        "tokens": [
+          "guide_001",
+          "npc/"
+        ]
+      },
+      {
+        "line": 79,
+        "tokens": [
+          "guide_001"
+        ]
+      },
+      {
+        "line": 82,
+        "tokens": [
+          "merchant_001",
+          "npc/"
+        ]
+      },
+      {
+        "line": 85,
+        "tokens": [
+          "merchant_001"
+        ]
+      },
+      {
+        "line": 88,
+        "tokens": [
+          "guide_001",
+          "npc/"
+        ]
+      },
+      {
+        "line": 91,
+        "tokens": [
+          "guide_001"
+        ]
+      },
+      {
+        "line": 94,
+        "tokens": [
+          "merchant_001",
+          "npc/"
+        ]
+      },
+      {
+        "line": 97,
+        "tokens": [
+          "merchant_001"
+        ]
+      },
+      {
+        "line": 107,
+        "tokens": [
+          "guide_001",
+          "npc/"
+        ]
+      },
+      {
+        "line": 110,
+        "tokens": [
+          "guide_001"
+        ]
+      },
+      {
+        "line": 120,
+        "tokens": [
+          "guide_001",
+          "npc/"
+        ]
+      },
+      {
+        "line": 123,
+        "tokens": [
+          "guide_001"
+        ]
+      },
+      {
+        "line": 126,
+        "tokens": [
+          "merchant_001",
+          "npc/"
+        ]
+      },
+      {
+        "line": 129,
+        "tokens": [
+          "merchant_001"
+        ]
+      },
+      {
+        "line": 132,
+        "tokens": [
+          "guide_001",
+          "npc/"
+        ]
+      },
+      {
+        "line": 135,
+        "tokens": [
+          "guide_001"
+        ]
+      },
+      {
+        "line": 152,
+        "tokens": [
+          "guide_001",
+          "npc/"
+        ]
+      },
+      {
+        "line": 155,
+        "tokens": [
+          "guide_001"
+        ]
+      },
+      {
+        "line": 158,
+        "tokens": [
+          "merchant_001",
+          "npc/"
+        ]
+      },
+      {
+        "line": 161,
+        "tokens": [
+          "merchant_001"
+        ]
+      },
+      {
+        "line": 164,
+        "tokens": [
+          "merchant_001",
+          "npc/"
+        ]
+      },
+      {
+        "line": 167,
+        "tokens": [
+          "merchant_001"
+        ]
+      },
+      {
+        "line": 177,
+        "tokens": [
+          "merchant_001",
+          "npc/"
+        ]
+      },
+      {
+        "line": 180,
+        "tokens": [
+          "merchant_001"
+        ]
+      },
+      {
+        "line": 183,
+        "tokens": [
+          "guide_001",
+          "npc/"
+        ]
+      },
+      {
+        "line": 186,
+        "tokens": [
+          "guide_001"
+        ]
+      },
+      {
+        "line": 203,
+        "tokens": [
+          "guide_001",
+          "npc/"
+        ]
+      },
+      {
+        "line": 206,
+        "tokens": [
+          "guide_001"
+        ]
+      },
+      {
+        "line": 209,
+        "tokens": [
+          "merchant_001",
+          "npc/"
+        ]
+      },
+      {
+        "line": 212,
+        "tokens": [
+          "merchant_001"
+        ]
+      },
+      {
+        "line": 215,
+        "tokens": [
+          "merchant_001",
+          "npc/"
+        ]
+      },
+      {
+        "line": 218,
+        "tokens": [
+          "merchant_001"
+        ]
+      },
+      {
+        "line": 221,
+        "tokens": [
+          "merchant_001",
+          "npc/"
+        ]
+      },
+      {
+        "line": 224,
+        "tokens": [
+          "merchant_001"
+        ]
+      },
+      {
+        "line": 227,
+        "tokens": [
+          "guide_001",
+          "npc/"
+        ]
+      },
+      {
+        "line": 230,
+        "tokens": [
+          "guide_001"
+        ]
+      },
+      {
+        "line": 233,
+        "tokens": [
+          "merchant_001",
+          "npc/"
+        ]
+      },
+      {
+        "line": 236,
+        "tokens": [
+          "merchant_001"
+        ]
+      },
+      {
+        "line": 266,
+        "tokens": [
+          "guide_001",
+          "npc/"
+        ]
+      },
+      {
+        "line": 269,
+        "tokens": [
+          "guide_001"
+        ]
+      }
+    ]
+  },
+  {
+    "path": "unity-NPC-agent-client/Assets/Content/Npcs/guide_001/3/guide_001_v3.asset",
+    "matches": [
+      {
+        "line": 13,
+        "tokens": [
+          "guide_001"
+        ]
+      },
+      {
+        "line": 14,
+        "tokens": [
+          "NpcContent"
+        ]
+      },
+      {
+        "line": 15,
+        "tokens": [
+          "guide_001"
+        ]
+      }
+    ]
+  },
+  {
+    "path": "unity-NPC-agent-client/Assets/Content/Npcs/merchant_001/3/merchant_001_v3.asset",
+    "matches": [
+      {
+        "line": 13,
+        "tokens": [
+          "merchant_001"
+        ]
+      },
+      {
+        "line": 14,
+        "tokens": [
+          "NpcContent"
+        ]
+      },
+      {
+        "line": 15,
+        "tokens": [
+          "merchant_001"
+        ]
+      }
+    ]
+  },
+  {
+    "path": "unity-NPC-agent-client/Assets/Editor/HotUpdate/Release/ContentReleasePipeline.cs",
+    "matches": [
+      {
+        "line": 44,
+        "tokens": [
+          "NpcContent"
+        ]
+      },
+      {
+        "line": 311,
+        "tokens": [
+          "NpcContent"
+        ]
+      },
+      {
+        "line": 312,
+        "tokens": [
+          "NpcContent"
+        ]
+      },
+      {
+        "line": 350,
+        "tokens": [
+          "NpcContent",
+          "npcContent"
+        ]
+      }
+    ]
+  },
+  {
+    "path": "unity-NPC-agent-client/Assets/Editor/HotUpdate/Release/NpcContentDefinition.cs",
+    "matches": [
+      {
+        "line": 31,
+        "tokens": [
+          "NpcContent"
+        ]
+      },
+      {
+        "line": 33,
+        "tokens": [
+          "NpcContent"
+        ]
+      }
+    ]
+  },
+  {
+    "path": "unity-NPC-agent-client/Assets/Editor/HotUpdate/Release/NpcContentRelease.cs",
+    "matches": [
+      {
+        "line": 15,
+        "tokens": [
+          "NpcContent"
+        ]
+      },
+      {
+        "line": 18,
+        "tokens": [
+          "NpcContent"
+        ]
+      },
+      {
+        "line": 38,
+        "tokens": [
+          "NpcContent"
+        ]
+      },
+      {
+        "line": 40,
+        "tokens": [
+          "NpcContent"
+        ]
+      },
+      {
+        "line": 45,
+        "tokens": [
+          "NpcContent"
+        ]
+      },
+      {
+        "line": 53,
+        "tokens": [
+          "NpcContent"
+        ]
+      },
+      {
+        "line": 71,
+        "tokens": [
+          "NpcContent"
+        ]
+      },
+      {
+        "line": 76,
+        "tokens": [
+          "npc/"
+        ]
+      },
+      {
+        "line": 128,
+        "tokens": [
+          "NpcContent"
+        ]
+      },
+      {
+        "line": 147,
+        "tokens": [
+          "RemoteNpc"
+        ]
+      },
+      {
+        "line": 151,
+        "tokens": [
+          "NpcContent"
+        ]
+      },
+      {
+        "line": 205,
+        "tokens": [
+          "RemoteNpc"
+        ]
+      },
+      {
+        "line": 225,
+        "tokens": [
+          "RemoteNpc"
+        ]
+      }
+    ]
+  },
+  {
+    "path": "unity-NPC-agent-client/Assets/Editor/HotUpdate/Validation/ContentValidationRunner.cs",
+    "matches": [
+      {
+        "line": 34,
+        "tokens": [
+          "NpcContent"
+        ]
+      }
+    ]
+  },
+  {
+    "path": "unity-NPC-agent-client/Assets/Editor/HotUpdate/Validation/ModuleValidators.cs",
+    "matches": [
+      {
+        "line": 101,
+        "tokens": [
+          "NpcContent"
+        ]
+      },
+      {
+        "line": 103,
+        "tokens": [
+          "NpcContent"
+        ]
+      },
+      {
+        "line": 104,
+        "tokens": [
+          "NpcContent"
+        ]
+      },
+      {
+        "line": 105,
+        "tokens": [
+          "NpcContent"
+        ]
+      },
+      {
+        "line": 106,
+        "tokens": [
+          "NpcContent"
+        ]
+      }
+    ]
+  },
+  {
+    "path": "unity-NPC-agent-client/Assets/Scripts/AgentHostClient.cs",
+    "matches": [
+      {
+        "line": 901,
+        "tokens": [
+          "NpcContent"
+        ]
+      },
+      {
+        "line": 904,
+        "tokens": [
+          "NpcContent"
+        ]
+      },
+      {
+        "line": 906,
+        "tokens": [
+          "NpcContent"
+        ]
+      },
+      {
+        "line": 919,
+        "tokens": [
+          "NpcContent"
+        ]
+      }
+    ]
+  },
+  {
+    "path": "unity-NPC-agent-client/Assets/Scripts/GameLogic/PlayerMock.cs",
+    "matches": [
+      {
+        "line": 472,
+        "tokens": [
+          "NpcContent"
+        ]
+      }
+    ]
+  },
+  {
+    "path": "unity-NPC-agent-client/Assets/Scripts/GameLogic/SaveGameService.cs",
+    "matches": [
+      {
+        "line": 22,
+        "tokens": [
+          "NpcContent",
+          "npcContent"
+        ]
+      },
+      {
+        "line": 26,
+        "tokens": [
+          "NpcContent"
+        ]
+      },
+      {
+        "line": 215,
+        "tokens": [
+          "NpcContent"
+        ]
+      },
+      {
+        "line": 327,
+        "tokens": [
+          "NpcContent"
+        ]
+      }
+    ]
+  },
+  {
+    "path": "unity-NPC-agent-client/Assets/Scripts/Gameplay/NpcEntity.cs",
+    "matches": [
+      {
+        "line": 17,
+        "tokens": [
+          "NpcContent"
+        ]
+      },
+      {
+        "line": 20,
+        "tokens": [
+          "NpcContent"
+        ]
+      }
+    ]
+  },
+  {
+    "path": "unity-NPC-agent-client/Assets/Scripts/Networking/CharacterVisualController.cs",
+    "matches": [
+      {
+        "line": 40,
+        "tokens": [
+          "RemoteNpc"
+        ]
+      }
+    ]
+  },
+  {
+    "path": "unity-NPC-agent-client/Assets/Scripts/Networking/RemoteNpcContent.cs",
+    "matches": [
+      {
+        "line": 17,
+        "tokens": [
+          "RemoteNpc"
+        ]
+      },
+      {
+        "line": 22,
+        "tokens": [
+          "RemoteNpc"
+        ]
+      },
+      {
+        "line": 25,
+        "tokens": [
+          "RemoteNpc"
+        ]
+      },
+      {
+        "line": 37,
+        "tokens": [
+          "RemoteNpc"
+        ]
+      },
+      {
+        "line": 41,
+        "tokens": [
+          "RemoteNpc"
+        ]
+      },
+      {
+        "line": 53,
+        "tokens": [
+          "RemoteNpc"
+        ]
+      },
+      {
+        "line": 85,
+        "tokens": [
+          "RemoteNpc"
+        ]
+      },
+      {
+        "line": 99,
+        "tokens": [
+          "RemoteNpc"
+        ]
+      },
+      {
+        "line": 123,
+        "tokens": [
+          "RemoteNpc"
+        ]
+      },
+      {
+        "line": 132,
+        "tokens": [
+          "npc/"
+        ]
+      },
+      {
+        "line": 135,
+        "tokens": [
+          "RemoteNpc"
+        ]
+      },
+      {
+        "line": 146,
+        "tokens": [
+          "RemoteNpc"
+        ]
+      },
+      {
+        "line": 149,
+        "tokens": [
+          "RemoteNpc"
+        ]
+      },
+      {
+        "line": 163,
+        "tokens": [
+          "npc/"
+        ]
+      },
+      {
+        "line": 179,
+        "tokens": [
+          "RemoteNpc"
+        ]
+      },
+      {
+        "line": 224,
+        "tokens": [
+          "RemoteNpc"
+        ]
+      },
+      {
+        "line": 267,
+        "tokens": [
+          "RemoteNpc"
+        ]
+      },
+      {
+        "line": 274,
+        "tokens": [
+          "RemoteNpc"
+        ]
+      },
+      {
+        "line": 281,
+        "tokens": [
+          "RemoteNpc"
+        ]
+      },
+      {
+        "line": 285,
+        "tokens": [
+          "npc/"
+        ]
+      },
+      {
+        "line": 286,
+        "tokens": [
+          "RemoteNpc"
+        ]
+      },
+      {
+        "line": 295,
+        "tokens": [
+          "RemoteNpc"
+        ]
+      },
+      {
+        "line": 298,
+        "tokens": [
+          "RemoteNpc"
+        ]
+      },
+      {
+        "line": 301,
+        "tokens": [
+          "RemoteNpc"
+        ]
+      },
+      {
+        "line": 303,
+        "tokens": [
+          "RemoteNpc"
+        ]
+      },
+      {
+        "line": 308,
+        "tokens": [
+          "RemoteNpc"
+        ]
+      },
+      {
+        "line": 342,
+        "tokens": [
+          "RemoteNpc"
+        ]
+      },
+      {
+        "line": 372,
+        "tokens": [
+          "NpcContent"
+        ]
+      },
+      {
+        "line": 375,
+        "tokens": [
+          "RemoteNpc"
+        ]
+      },
+      {
+        "line": 387,
+        "tokens": [
+          "NpcContent"
+        ]
+      },
+      {
+        "line": 389,
+        "tokens": [
+          "RemoteNpc"
+        ]
+      },
+      {
+        "line": 414,
+        "tokens": [
+          "RemoteNpc"
+        ]
+      },
+      {
+        "line": 431,
+        "tokens": [
+          "RemoteNpc"
+        ]
+      },
+      {
+        "line": 473,
+        "tokens": [
+          "RemoteNpc"
+        ]
+      },
+      {
+        "line": 488,
+        "tokens": [
+          "RemoteNpc"
+        ]
+      },
+      {
+        "line": 489,
+        "tokens": [
+          "RemoteNpc"
+        ]
+      },
+      {
+        "line": 497,
+        "tokens": [
+          "RemoteNpc"
+        ]
+      },
+      {
+        "line": 500,
+        "tokens": [
+          "RemoteNpc"
+        ]
+      },
+      {
+        "line": 511,
+        "tokens": [
+          "RemoteNpc"
+        ]
+      },
+      {
+        "line": 534,
+        "tokens": [
+          "RemoteNpc"
+        ]
+      }
+    ]
+  },
+  {
+    "path": "unity-NPC-agent-client/Assets/Scripts/Networking/RuntimeGatewayClient.cs",
+    "matches": [
+      {
+        "line": 411,
+        "tokens": [
+          "NpcContent"
+        ]
+      },
+      {
+        "line": 426,
+        "tokens": [
+          "NpcContent"
+        ]
+      },
+      {
+        "line": 442,
+        "tokens": [
+          "npcContent"
+        ]
+      },
+      {
+        "line": 443,
+        "tokens": [
+          "NpcContent"
+        ]
+      },
+      {
+        "line": 444,
+        "tokens": [
+          "npcContent"
+        ]
+      },
+      {
+        "line": 448,
+        "tokens": [
+          "npcContent"
+        ]
+      }
+    ]
+  },
+  {
+    "path": "unity-NPC-agent-client/Assets/Scripts/NpcLibraryRuntime.cs",
+    "matches": [
+      {
+        "line": 15,
+        "tokens": [
+          "RemoteNpc"
+        ]
+      },
+      {
+        "line": 16,
+        "tokens": [
+          "NpcContent"
+        ]
+      },
+      {
+        "line": 22,
+        "tokens": [
+          "NpcContent"
+        ]
+      },
+      {
+        "line": 23,
+        "tokens": [
+          "RemoteNpc"
+        ]
+      },
+      {
+        "line": 24,
+        "tokens": [
+          "RemoteNpc"
+        ]
+      },
+      {
+        "line": 26,
+        "tokens": [
+          "NpcContent"
+        ]
+      },
+      {
+        "line": 40,
+        "tokens": [
+          "NpcContent"
+        ]
+      },
+      {
+        "line": 43,
+        "tokens": [
+          "NpcContent"
+        ]
+      },
+      {
+        "line": 48,
+        "tokens": [
+          "NpcContent"
+        ]
+      },
+      {
+        "line": 63,
+        "tokens": [
+          "NpcContent"
+        ]
+      },
+      {
+        "line": 86,
+        "tokens": [
+          "NpcContent"
+        ]
+      },
+      {
+        "line": 89,
+        "tokens": [
+          "NpcContent"
+        ]
+      },
+      {
+        "line": 175,
+        "tokens": [
+          "RemoteNpc"
+        ]
+      },
+      {
+        "line": 192,
+        "tokens": [
+          "NpcContent"
+        ]
+      },
+      {
+        "line": 217,
+        "tokens": [
+          "RemoteNpc"
+        ]
+      },
+      {
+        "line": 285,
+        "tokens": [
+          "NpcContent"
+        ]
+      },
+      {
+        "line": 291,
+        "tokens": [
+          "NpcContent"
+        ]
+      }
+    ]
+  },
+  {
+    "path": "unity-NPC-agent-client/Assets/Scripts/UIManager/View/NpcLibraryWindow.cs",
+    "matches": [
+      {
+        "line": 19,
+        "tokens": [
+          "RemoteNpc"
+        ]
+      },
+      {
+        "line": 20,
+        "tokens": [
+          "RemoteNpc"
+        ]
+      },
+      {
+        "line": 158,
+        "tokens": [
+          "RemoteNpc"
+        ]
+      },
+      {
+        "line": 160,
+        "tokens": [
+          "RemoteNpc"
+        ]
+      },
+      {
+        "line": 162,
+        "tokens": [
+          "RemoteNpc"
+        ]
+      },
+      {
+        "line": 165,
+        "tokens": [
+          "RemoteNpc"
+        ]
+      },
+      {
+        "line": 167,
+        "tokens": [
+          "RemoteNpc"
+        ]
+      },
+      {
+        "line": 171,
+        "tokens": [
+          "RemoteNpc"
+        ]
+      },
+      {
+        "line": 182,
+        "tokens": [
+          "RemoteNpc"
+        ]
+      },
+      {
+        "line": 199,
+        "tokens": [
+          "RemoteNpc"
+        ]
+      },
+      {
+        "line": 225,
+        "tokens": [
+          "RemoteNpc"
+        ]
+      },
+      {
+        "line": 275,
+        "tokens": [
+          "RemoteNpc"
+        ]
+      },
+      {
+        "line": 333,
+        "tokens": [
+          "RemoteNpc"
+        ]
+      },
+      {
+        "line": 436,
+        "tokens": [
+          "RemoteNpc"
+        ]
+      },
+      {
+        "line": 437,
+        "tokens": [
+          "NpcContent"
+        ]
+      }
+    ]
+  },
+  {
+    "path": "unity-NPC-agent-client/Assets/Tests/Editor/NpcContentContractTests.cs",
+    "matches": [
+      {
+        "line": 9,
+        "tokens": [
+          "NpcContent"
+        ]
+      },
+      {
+        "line": 105,
+        "tokens": [
+          "NpcContent",
+          "merchant_001"
+        ]
+      },
+      {
+        "line": 106,
+        "tokens": [
+          "merchant_001"
+        ]
+      },
+      {
+        "line": 110,
+        "tokens": [
+          "merchant_001"
+        ]
+      },
+      {
+        "line": 111,
+        "tokens": [
+          "npcContent"
+        ]
+      },
+      {
+        "line": 112,
+        "tokens": [
+          "npcContent"
+        ]
+      },
+      {
+        "line": 121,
+        "tokens": [
+          "NpcContent"
+        ]
+      },
+      {
+        "line": 128,
+        "tokens": [
+          "NpcContent"
+        ]
+      },
+      {
+        "line": 129,
+        "tokens": [
+          "NpcContent",
+          "merchant_001"
+        ]
+      },
+      {
+        "line": 132,
+        "tokens": [
+          "merchant_001"
+        ]
+      },
+      {
+        "line": 134,
+        "tokens": [
+          "NpcContent"
+        ]
+      }
+    ]
+  },
+  {
+    "path": "unity-NPC-agent-client/Assets/Tests/Editor/RemoteNpcRoundThreeTests.cs",
+    "matches": [
+      {
+        "line": 8,
+        "tokens": [
+          "RemoteNpc"
+        ]
+      },
+      {
+        "line": 11,
+        "tokens": [
+          "RemoteNpc"
+        ]
+      },
+      {
+        "line": 14,
+        "tokens": [
+          "NpcContent"
+        ]
+      },
+      {
+        "line": 23,
+        "tokens": [
+          "merchant_001"
+        ]
+      },
+      {
+        "line": 26,
+        "tokens": [
+          "NpcContent"
+        ]
+      },
+      {
+        "line": 29,
+        "tokens": [
+          "NpcContent"
+        ]
+      },
+      {
+        "line": 32,
+        "tokens": [
+          "merchant_001"
+        ]
+      },
+      {
+        "line": 39,
+        "tokens": [
+          "NpcContent"
+        ]
+      },
+      {
+        "line": 44,
+        "tokens": [
+          "merchant_001"
+        ]
+      }
+    ]
+  },
+  {
+    "path": "unity-NPC-agent-client/Assets/Tests/Editor/RemoteNpcRoundTwoTests.cs",
+    "matches": [
+      {
+        "line": 7,
+        "tokens": [
+          "RemoteNpc"
+        ]
+      },
+      {
+        "line": 12,
+        "tokens": [
+          "NpcContent"
+        ]
+      },
+      {
+        "line": 19,
+        "tokens": [
+          "RemoteNpc"
+        ]
+      },
+      {
+        "line": 21,
+        "tokens": [
+          "RemoteNpc"
+        ]
+      },
+      {
+        "line": 24,
+        "tokens": [
+          "RemoteNpc"
+        ]
+      },
+      {
+        "line": 28,
+        "tokens": [
+          "RemoteNpc"
+        ]
+      },
+      {
+        "line": 29,
+        "tokens": [
+          "merchant_001"
+        ]
+      },
+      {
+        "line": 34,
+        "tokens": [
+          "RemoteNpc"
+        ]
+      },
+      {
+        "line": 35,
+        "tokens": [
+          "guide_001"
+        ]
+      },
+      {
+        "line": 44,
+        "tokens": [
+          "merchant_001"
+        ]
+      },
+      {
+        "line": 45,
+        "tokens": [
+          "RemoteNpc"
+        ]
+      },
+      {
+        "line": 47,
+        "tokens": [
+          "merchant_001",
+          "npc/"
+        ]
+      },
+      {
+        "line": 48,
+        "tokens": [
+          "merchant_001",
+          "npc/"
+        ]
+      },
+      {
+        "line": 49,
+        "tokens": [
+          "RemoteNpc"
+        ]
+      },
+      {
+        "line": 51,
+        "tokens": [
+          "RemoteNpc"
+        ]
+      },
+      {
+        "line": 58,
+        "tokens": [
+          "merchant_001"
+        ]
+      },
+      {
+        "line": 63,
+        "tokens": [
+          "merchant_001"
+        ]
+      },
+      {
+        "line": 64,
+        "tokens": [
+          "merchant_001"
+        ]
+      },
+      {
+        "line": 65,
+        "tokens": [
+          "merchant_001"
+        ]
+      },
+      {
+        "line": 66,
+        "tokens": [
+          "merchant_001"
+        ]
+      },
+      {
+        "line": 67,
+        "tokens": [
+          "merchant_001"
+        ]
+      },
+      {
+        "line": 74,
+        "tokens": [
+          "RemoteNpc"
+        ]
+      },
+      {
+        "line": 76,
+        "tokens": [
+          "RemoteNpc"
+        ]
+      },
+      {
+        "line": 78,
+        "tokens": [
+          "RemoteNpc"
+        ]
+      },
+      {
+        "line": 80,
+        "tokens": [
+          "RemoteNpc"
+        ]
+      },
+      {
+        "line": 81,
+        "tokens": [
+          "npc/"
+        ]
+      },
+      {
+        "line": 82,
+        "tokens": [
+          "RemoteNpc"
+        ]
+      },
+      {
+        "line": 84,
+        "tokens": [
+          "RemoteNpc"
+        ]
+      },
+      {
+        "line": 85,
+        "tokens": [
+          "npc/"
+        ]
+      },
+      {
+        "line": 86,
+        "tokens": [
+          "RemoteNpc"
+        ]
+      },
+      {
+        "line": 95,
+        "tokens": [
+          "RemoteNpc"
+        ]
+      },
+      {
+        "line": 96,
+        "tokens": [
+          "RemoteNpc"
+        ]
+      },
+      {
+        "line": 98,
+        "tokens": [
+          "RemoteNpc"
+        ]
+      },
+      {
+        "line": 100,
+        "tokens": [
+          "RemoteNpc"
+        ]
+      },
+      {
+        "line": 120,
+        "tokens": [
+          "RemoteNpc"
+        ]
+      },
+      {
+        "line": 121,
+        "tokens": [
+          "RemoteNpc"
+        ]
+      }
+    ]
+  },
+  {
+    "path": "unity-NPC-agent-client/Packages/com.gamewithllm.agent-runtime/Runtime/Core/AgentRuntimeContracts.cs",
+    "matches": [
+      {
+        "line": 107,
+        "tokens": [
+          "NpcContent"
+        ]
+      },
+      {
+        "line": 112,
+        "tokens": [
+          "NpcContent"
+        ]
+      },
+      {
+        "line": 129,
+        "tokens": [
+          "NpcContent"
+        ]
+      },
+      {
+        "line": 136,
+        "tokens": [
+          "NpcContent",
+          "npcContent"
+        ]
+      },
+      {
+        "line": 142,
+        "tokens": [
+          "NpcContent",
+          "npcContent"
+        ]
+      },
+      {
+        "line": 145,
+        "tokens": [
+          "NpcContent"
+        ]
+      },
+      {
+        "line": 148,
+        "tokens": [
+          "NpcContent"
+        ]
+      }
+    ]
+  }
+]

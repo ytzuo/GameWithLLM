@@ -1,0 +1,210 @@
+[
+  {
+    "group": "unity-NPC-agent-client/Assets/AddressableAssetsData/AssetGroups/Remote_Characters.asset",
+    "guid": "01c2653f5bd2e7c41bfa402141b9114b",
+    "oldAddress": "npc/merchant_001/1/controller",
+    "action": "remove-entry",
+    "newAddress": null,
+    "assetPath": "unity-NPC-agent-client/Assets/Content/Npcs/merchant_001/1/controller.controller"
+  },
+  {
+    "group": "unity-NPC-agent-client/Assets/AddressableAssetsData/AssetGroups/Remote_Characters.asset",
+    "guid": "18fd8f1dbc1461445878be15575e13a5",
+    "oldAddress": "npc/guide_001/1/visual",
+    "action": "remove-entry",
+    "newAddress": null,
+    "assetPath": "unity-NPC-agent-client/Assets/Content/Npcs/guide_001/1/visual.prefab"
+  },
+  {
+    "group": "unity-NPC-agent-client/Assets/AddressableAssetsData/AssetGroups/Remote_Characters.asset",
+    "guid": "1d5b978a23d10a14cbb24e77b0bd44e7",
+    "oldAddress": "npc/guide_001/1/texture",
+    "action": "remove-entry",
+    "newAddress": null,
+    "assetPath": "unity-NPC-agent-client/Assets/Content/Npcs/guide_001/1/texture.asset"
+  },
+  {
+    "group": "unity-NPC-agent-client/Assets/AddressableAssetsData/AssetGroups/Remote_Characters.asset",
+    "guid": "25cbefa25050b4b4da67b060f87ca04a",
+    "oldAddress": "npc/merchant_001/3/visual",
+    "action": "replace",
+    "newAddress": "npc/Merchant/visual",
+    "assetPath": "unity-NPC-agent-client/Assets/Content/Npcs/merchant_001/3/visual.prefab"
+  },
+  {
+    "group": "unity-NPC-agent-client/Assets/AddressableAssetsData/AssetGroups/Remote_Characters.asset",
+    "guid": "2a03cfeca310b1d47942b5feee2dca89",
+    "oldAddress": "npc/guide_001/1/controller",
+    "action": "remove-entry",
+    "newAddress": null,
+    "assetPath": "unity-NPC-agent-client/Assets/Content/Npcs/guide_001/1/controller.controller"
+  },
+  {
+    "group": "unity-NPC-agent-client/Assets/AddressableAssetsData/AssetGroups/Remote_Characters.asset",
+    "guid": "3261882399461d44ca85818841e3111a",
+    "oldAddress": "npc/merchant_001/1/material",
+    "action": "remove-entry",
+    "newAddress": null,
+    "assetPath": "unity-NPC-agent-client/Assets/Content/Npcs/merchant_001/1/material.mat"
+  },
+  {
+    "group": "unity-NPC-agent-client/Assets/AddressableAssetsData/AssetGroups/Remote_Characters.asset",
+    "guid": "410b65aeb412ea0409860c9a32a1e53d",
+    "oldAddress": "npc/guide_001/2/material",
+    "action": "remove-entry",
+    "newAddress": null,
+    "assetPath": "unity-NPC-agent-client/Assets/Content/Npcs/guide_001/2/material.mat"
+  },
+  {
+    "group": "unity-NPC-agent-client/Assets/AddressableAssetsData/AssetGroups/Remote_Characters.asset",
+    "guid": "414b0e6e93f1bca4e8b0f77f983465d4",
+    "oldAddress": "npc/merchant_001/2/texture",
+    "action": "remove-entry",
+    "newAddress": null,
+    "assetPath": "unity-NPC-agent-client/Assets/Content/Npcs/merchant_001/2/texture.asset"
+  },
+  {
+    "group": "unity-NPC-agent-client/Assets/AddressableAssetsData/AssetGroups/Remote_Characters.asset",
+    "guid": "422a4d59b54b98547929ef4af8a8ab75",
+    "oldAddress": "npc/guide_001/1/idle",
+    "action": "remove-entry",
+    "newAddress": null,
+    "assetPath": "unity-NPC-agent-client/Assets/Content/Npcs/guide_001/1/idle.anim"
+  },
+  {
+    "group": "unity-NPC-agent-client/Assets/AddressableAssetsData/AssetGroups/Remote_Characters.asset",
+    "guid": "49de90c6a5b96d1488cab9c84890781b",
+    "oldAddress": "npc/merchant_001/1/idle",
+    "action": "remove-entry",
+    "newAddress": null,
+    "assetPath": "unity-NPC-agent-client/Assets/Content/Npcs/merchant_001/1/idle.anim"
+  },
+  {
+    "group": "unity-NPC-agent-client/Assets/AddressableAssetsData/AssetGroups/Remote_Characters.asset",
+    "guid": "4f2704ed01e0b484b8133aee76e879d4",
+    "oldAddress": "npc/guide_001/3/visual",
+    "action": "replace",
+    "newAddress": "npc/Guide/visual",
+    "assetPath": "unity-NPC-agent-client/Assets/Content/Npcs/guide_001/3/visual.prefab"
+  },
+  {
+    "group": "unity-NPC-agent-client/Assets/AddressableAssetsData/AssetGroups/Remote_Characters.asset",
+    "guid": "54c0db9c5cce4dd4885e2d53c02c84fe",
+    "oldAddress": "npc/guide_001/2/idle",
+    "action": "remove-entry",
+    "newAddress": null,
+    "assetPath": "unity-NPC-agent-client/Assets/Content/Npcs/guide_001/2/idle.anim"
+  },
+  {
+    "group": "unity-NPC-agent-client/Assets/AddressableAssetsData/AssetGroups/Remote_Characters.asset",
+    "guid": "60c0d2beb05b6294ba828549921569c6",
+    "oldAddress": "npc/merchant_001/1/texture",
+    "action": "remove-entry",
+    "newAddress": null,
+    "assetPath": "unity-NPC-agent-client/Assets/Content/Npcs/merchant_001/1/texture.asset"
+  },
+  {
+    "group": "unity-NPC-agent-client/Assets/AddressableAssetsData/AssetGroups/Remote_Characters.asset",
+    "guid": "6ec9aabfbc11d94448bc7bdce6e33efa",
+    "oldAddress": "npc/guide_001/2/visual",
+    "action": "remove-entry",
+    "newAddress": null,
+    "assetPath": "unity-NPC-agent-client/Assets/Content/Npcs/guide_001/2/visual.prefab"
+  },
+  {
+    "group": "unity-NPC-agent-client/Assets/AddressableAssetsData/AssetGroups/Remote_Characters.asset",
+    "guid": "7918e46f3495efa4bb56965aa2d7e73f",
+    "oldAddress": "npc/guide_001/2/texture",
+    "action": "remove-entry",
+    "newAddress": null,
+    "assetPath": "unity-NPC-agent-client/Assets/Content/Npcs/guide_001/2/texture.asset"
+  },
+  {
+    "group": "unity-NPC-agent-client/Assets/AddressableAssetsData/AssetGroups/Remote_Characters.asset",
+    "guid": "7d10c0cc2a9c8374694da88bdaa2a014",
+    "oldAddress": "npc/merchant_001/2/idle",
+    "action": "remove-entry",
+    "newAddress": null,
+    "assetPath": "unity-NPC-agent-client/Assets/Content/Npcs/merchant_001/2/idle.anim"
+  },
+  {
+    "group": "unity-NPC-agent-client/Assets/AddressableAssetsData/AssetGroups/Remote_Characters.asset",
+    "guid": "81416c4bde2dd34478eb6042acb2e566",
+    "oldAddress": "npc/merchant_001/2/controller",
+    "action": "remove-entry",
+    "newAddress": null,
+    "assetPath": "unity-NPC-agent-client/Assets/Content/Npcs/merchant_001/2/controller.controller"
+  },
+  {
+    "group": "unity-NPC-agent-client/Assets/AddressableAssetsData/AssetGroups/Remote_Characters.asset",
+    "guid": "85d8a039dc4086542847b690150ed67b",
+    "oldAddress": "npc/merchant_001/2/material",
+    "action": "remove-entry",
+    "newAddress": null,
+    "assetPath": "unity-NPC-agent-client/Assets/Content/Npcs/merchant_001/2/material.mat"
+  },
+  {
+    "group": "unity-NPC-agent-client/Assets/AddressableAssetsData/AssetGroups/Remote_Characters.asset",
+    "guid": "89cad1d8a3c3e75419c6266018122fbf",
+    "oldAddress": "npc/guide_001/2/animation-script",
+    "action": "remove-entry",
+    "newAddress": null,
+    "assetPath": "unity-NPC-agent-client/Assets/Content/Npcs/guide_001/2/animation.dll.bytes"
+  },
+  {
+    "group": "unity-NPC-agent-client/Assets/AddressableAssetsData/AssetGroups/Remote_Characters.asset",
+    "guid": "954d2a5b537c9944682084bea6d5d4c0",
+    "oldAddress": "npc/guide_001/2/controller",
+    "action": "remove-entry",
+    "newAddress": null,
+    "assetPath": "unity-NPC-agent-client/Assets/Content/Npcs/guide_001/2/controller.controller"
+  },
+  {
+    "group": "unity-NPC-agent-client/Assets/AddressableAssetsData/AssetGroups/Remote_Characters.asset",
+    "guid": "95e3bf3b9a9f3ff4889378912a238877",
+    "oldAddress": "npc/merchant_001/2/animation-script",
+    "action": "remove-entry",
+    "newAddress": null,
+    "assetPath": "unity-NPC-agent-client/Assets/Content/Npcs/merchant_001/2/animation.dll.bytes"
+  },
+  {
+    "group": "unity-NPC-agent-client/Assets/AddressableAssetsData/AssetGroups/Remote_Characters.asset",
+    "guid": "9c079425d794fdc47a2a09e8f2c31308",
+    "oldAddress": "npc/merchant_001/2/visual",
+    "action": "remove-entry",
+    "newAddress": null,
+    "assetPath": "unity-NPC-agent-client/Assets/Content/Npcs/merchant_001/2/visual.prefab"
+  },
+  {
+    "group": "unity-NPC-agent-client/Assets/AddressableAssetsData/AssetGroups/Remote_Characters.asset",
+    "guid": "ae3ac84fe2342c345be8ccd85f01c7c9",
+    "oldAddress": "npc/merchant_001/1/animation-script",
+    "action": "remove-entry",
+    "newAddress": null,
+    "assetPath": "unity-NPC-agent-client/Assets/Content/Npcs/merchant_001/1/animation.dll.bytes"
+  },
+  {
+    "group": "unity-NPC-agent-client/Assets/AddressableAssetsData/AssetGroups/Remote_Characters.asset",
+    "guid": "b30205033af59e54a8f9e3329267e1d1",
+    "oldAddress": "npc/guide_001/1/animation-script",
+    "action": "remove-entry",
+    "newAddress": null,
+    "assetPath": "unity-NPC-agent-client/Assets/Content/Npcs/guide_001/1/animation.dll.bytes"
+  },
+  {
+    "group": "unity-NPC-agent-client/Assets/AddressableAssetsData/AssetGroups/Remote_Characters.asset",
+    "guid": "ca95387187d477f49b15db09f31ff699",
+    "oldAddress": "npc/merchant_001/1/visual",
+    "action": "remove-entry",
+    "newAddress": null,
+    "assetPath": "unity-NPC-agent-client/Assets/Content/Npcs/merchant_001/1/visual.prefab"
+  },
+  {
+    "group": "unity-NPC-agent-client/Assets/AddressableAssetsData/AssetGroups/Remote_Characters.asset",
+    "guid": "e8b662f2417934647b9fc67750650d1d",
+    "oldAddress": "npc/guide_001/1/material",
+    "action": "remove-entry",
+    "newAddress": null,
+    "assetPath": "unity-NPC-agent-client/Assets/Content/Npcs/guide_001/1/material.mat"
+  }
+]

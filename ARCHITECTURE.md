@@ -299,6 +299,43 @@ Editor-only `NpcContentDefinition` 是生产作者入口，包含稳定 ID/版�
 提升脚本拒绝覆盖已发布版本，先交付不可变文件，最后切换 `npc/index.json`，回滚
 索引同时保留所有已发布版本。真实远端发布与环境证据仍按既有流水线执行。
 
+### 2.8 待实施：NPC 当前资源集契约
+
+状态：2026-10-14 已完成重构阶段一的契约冻结、依赖盘点与迁移清单；尚未切换运行时。
+本节描述目标，不替代 2.7 和 6.3 的当前实现。实施计划见
+`Docs/NPC_PRESENTATION_PIPELINE_REFACTOR_PLAN.md`，阶段一交接及 JSON 夹具见
+`Docs/NpcPresentationStage1/README.md`。
+
+- 一个 NPC 只有一个 ASCII 技术名称 `name`，工程目录为 `Assets/Content/Npcs/{name}/`，
+  静态目录为 `NpcContent/npc/{name}/`，视觉 Address 为 `npc/{name}/visual`。
+  名称满足 `^[A-Za-z][A-Za-z0-9_]{0,63}$`，大小写不敏感唯一并拒绝 Windows 保留名；
+  `displayName` 单独配置且允许中文。协议 `entityId` 与 Profile `npcId` 字段保留，动态
+  NPC 的字段值等于技术名称，每名称最多一个实例。
+- NPC 索引仅含 `texts/npcs`；NPC 清单仅含 `name/visual/animationDriver/profile/systemPrompt`。
+  删除 NPC schema/content/Player/Catalog 版本字段及历史清单 hash 绑定，只有一种固定格式。
+  头像、Prefab、动画、材质、贴图由当前定义与 Prefab 引用图交付，不保存历史版本源资产。
+- SDK `NpcContentBinding` 与 Manifest `npcContents` 每项只保留 `entityId`。名称必须对应
+  同一 Manifest 中的唯一实体；工具 Schema、revision、generation 和生命周期约束保留。
+- 安装和生成只校验字段、身份、路径、Address、依赖与实际加载结果，保留 Animator/Avatar/
+  Controller、必需动画参数、无权威组件等检查。Addressables Bundle hash/CRC 及可选 DLL
+  长度/hash/程序集/接口校验用于资源完整性，不用于历史或 Player 版本相等判断。
+- Catalog 仍在启动时更新；当前 Address 无法解析时提示资源未就绪，不比较 Catalog 版本。
+  离线只使用完整安装记录和可加载缓存，运行中不替换已生成 NPC 或卸载动画程序集。
+- Go 按名称读取可信固定路径 `npc/{name}/npc.json`，每次新建 Context 读取当前人格配置，
+  已创建 Context 固定使用创建时 Prompt；恢复读取当前配置，不按表现版本/hash 拒绝复用。
+  不增加 TTL、长期记忆或背景刷新，不让 Unity 组装模型请求。
+- 新世界存档格式固定为 `version: 3`，对话快照为 `snapshotVersion: 2`，远端 NPC 引用
+  仅含 `entityId`。格式标记识别文件结构，不校验资产版本。新安装与目录缓存分别使用
+  `installed-current.json`、`catalog-cache-current.json`，不读取旧文件，不自动删除用户存档。
+- NPC 构建输出允许覆盖当前文件，校验成功后提交，索引最后切换；删除旧名称和版本
+  目录与旧 Address。整体 release/ToolSet/AOT metadata 及发布事务不因本次重构取消。
+
+阶段二必须在同一个交付单元同步切换 Unity SDK、客户端、Go、静态内容与保存格式，删除
+旧 NPC 解析分支、版本/hash 绑定、旧资产和旧测试夹具，不发布仅修改一端的状态。
+完成相应验收后更新 2.7、6.3 的现状描述；阶段四清理旧 NPC 发布门禁及文档，删除本节
+“待实施”状态，不保留长期双格式兼容。旧发布 Player 不接入新 NPC 文件；本次以新的
+Player 与匹配 Go 服务和完整内容建立切换基线。
+
 ## 3. 进程内契约
 
 以下边界不经过网络，也不重复定义协议 DTO：
