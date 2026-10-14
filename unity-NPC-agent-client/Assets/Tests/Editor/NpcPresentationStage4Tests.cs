@@ -25,7 +25,10 @@ public sealed class NpcPresentationStage4Tests
         {
             Build();
             Assert.That(Directory.Exists(obsolete), Is.False);
-            CollectionAssert.AreEquivalent(new[] { "Merchant", "Guide" }, Directory.GetDirectories(Root).Select(Path.GetFileName));
+            var authoredNames = AssetDatabase.FindAssets("t:NpcContentDefinition")
+                .Select(AssetDatabase.GUIDToAssetPath).Select(AssetDatabase.LoadMainAssetAtPath)
+                .Select(definition => (string)definition.GetType().GetField("name").GetValue(definition));
+            CollectionAssert.AreEquivalent(authoredNames, Directory.GetDirectories(Root).Select(Path.GetFileName));
         }
         finally { if (Directory.Exists(obsolete)) Directory.Delete(obsolete, true); }
     }

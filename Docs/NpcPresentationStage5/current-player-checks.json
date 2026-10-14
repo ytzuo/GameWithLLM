@@ -1,0 +1,45 @@
+{
+  "checks": [
+    "cache-repair",
+    "catalog-address-missing",
+    "resource-integrity",
+    "scene-cancel",
+    "dynamic-download",
+    "animation-driver",
+    "previous-presentation-world-restore"
+  ],
+  "visuals": {
+    "Guide": {
+      "displayName": "仓库向导",
+      "mesh": "Capsule",
+      "scale": {
+        "x": 1.0,
+        "y": 1.0,
+        "z": 1.0
+      },
+      "clipLength": 1.0
+    },
+    "Keeper": {
+      "displayName": "仓库巡查员",
+      "mesh": "Sphere",
+      "scale": {
+        "x": 0.85,
+        "y": 1.6,
+        "z": 0.85
+      },
+      "clipLength": 1.0
+    },
+    "Merchant": {
+      "displayName": "旅行商人",
+      "mesh": "Capsule",
+      "scale": {
+        "x": 1.0,
+        "y": 1.0,
+        "z": 1.0
+      },
+      "clipLength": 1.0
+    }
+  },
+  "cache": "isolated physical cache",
+  "faults": "candidate assets with injected missing address/dependency and corrupted instance"
+}

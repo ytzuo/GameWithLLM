@@ -59,8 +59,8 @@ public sealed class NpcRuntimeSmoke : MonoBehaviour
             var host = AgentHostClient.Instance;
             var services = NpcLibraryServices.Current;
             var catalog = await services.CatalogClient.FetchAsync(timeout.Token);
-            if (!new HashSet<string>(catalog.Npcs.Select(n => n.NpcId)).SetEquals(new[] { "Merchant", "Guide" }))
-                throw new InvalidOperationException("Baseline must contain Merchant and Guide.");
+            if (!new HashSet<string>(catalog.Npcs.Select(n => n.NpcId)).IsSupersetOf(new[] { "Merchant", "Guide" }))
+                throw new InvalidOperationException("Smoke requires Merchant and Guide.");
             var checks = new List<string>();
             var provider = host.ContentProvider;
             if (Environment.GetCommandLineArgs().Contains("-npcSmokeCachedStartup", StringComparer.Ordinal))
@@ -128,7 +128,7 @@ public sealed class NpcRuntimeSmoke : MonoBehaviour
                 fault.PauseInstantiate = false;
             }
             checks.Add("scene-cancel");
-            _phase = "spawn-both";
+            _phase = "spawn-current-catalog";
             foreach (var npc in catalog.Npcs)
             {
                 var record = await services.Installer.InstallAsync(npc, timeout.Token);
@@ -138,11 +138,35 @@ public sealed class NpcRuntimeSmoke : MonoBehaviour
             }
             checks.Add("dynamic-download");
             checks.Add("animation-driver");
+            var saves = FindFirstObjectByType<PlayerMock>().SaveService;
+            if (Environment.GetCommandLineArgs().Contains("-npcSmokeRestorePrevious", StringComparer.Ordinal))
+            {
+                var previous = saves.Load(File.ReadAllText(Path.Combine(Root, "previous-save-id")));
+                foreach (var npc in previous.NpcContents) services.Spawner.Despawn(npc.EntityId);
+                await Task.Yield();
+                await services.PrepareRestoreAsync(previous.NpcContents, timeout.Token);
+                saves.Apply(previous);
+                if (!JToken.DeepEquals(JArray.FromObject(previous.Inventories), JArray.FromObject(saves.CaptureCurrentState().Inventories)))
+                    throw new InvalidOperationException("Previous presentation inventory was not restored.");
+                await host.PublishManifestAndWaitAsync(timeout.Token);
+                File.WriteAllText(Path.Combine(Root, "previous-world-restored"), previous.SaveId);
+                checks.Add("previous-presentation-world-restore");
+            }
+            var visuals = new JObject();
+            foreach (var npc in catalog.Npcs)
+            {
+                var entity = FindObjectsByType<NpcEntity>(FindObjectsSortMode.None).Single(n => n.npcId == npc.NpcId);
+                var mesh = entity.GetComponentInChildren<MeshFilter>();
+                var animator = entity.GetComponentInChildren<Animator>();
+                var scale = mesh.transform.localScale;
+                visuals[npc.NpcId] = new JObject { ["displayName"] = npc.DisplayName,
+                    ["mesh"] = mesh.sharedMesh.name, ["scale"] = new JObject { ["x"] = scale.x, ["y"] = scale.y, ["z"] = scale.z },
+                    ["clipLength"] = animator.runtimeAnimatorController.animationClips[0].length };
+            }
             File.WriteAllText(Path.Combine(Root, "player-checks.json"), new JObject {
-                ["checks"] = JArray.FromObject(checks), ["cache"] = "isolated physical cache",
+                ["checks"] = JArray.FromObject(checks), ["visuals"] = visuals, ["cache"] = "isolated physical cache",
                 ["faults"] = "candidate assets with injected missing address/dependency and corrupted instance" }.ToString());
             File.WriteAllText(Path.Combine(Root, "ready"), host.unityInstanceId);
-            var saves = FindFirstObjectByType<PlayerMock>().SaveService;
             bool saved = false, restored = false;
             while (!File.Exists(Path.Combine(Root, "stop")))
             {
@@ -160,6 +184,7 @@ public sealed class NpcRuntimeSmoke : MonoBehaviour
                 {
                     var file = saves.Create("NPC current Player smoke");
                     File.WriteAllText(Path.Combine(Root, "world-contract.json"), new JObject {
+                        ["entities"] = JArray.FromObject(file.Entities), ["inventories"] = JArray.FromObject(file.Inventories),
                         ["version"] = file.Version, ["npcContents"] = JArray.FromObject(file.NpcContents),
                         ["merchantPosition"] = JObject.FromObject(file.Entities.Single(e => e.EntityId == "Merchant").Position) }.ToString());
                     File.WriteAllText(Path.Combine(Root, "world-saved"), file.SaveId);
@@ -168,7 +193,7 @@ public sealed class NpcRuntimeSmoke : MonoBehaviour
                 if (!restored && File.Exists(Path.Combine(Root, "restore-world")))
                 {
                     var file = saves.Load(File.ReadAllText(Path.Combine(Root, "world-saved")));
-                    services.Spawner.Despawn("Merchant"); services.Spawner.Despawn("Guide");
+                    foreach (var npc in file.NpcContents) services.Spawner.Despawn(npc.EntityId);
                     await Task.Yield();
                     await services.PrepareRestoreAsync(file.NpcContents, timeout.Token);
                     saves.Apply(file);

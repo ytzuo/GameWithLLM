@@ -1,0 +1,76 @@
+{
+  "date": "2026-10-14",
+  "stage": 5,
+  "status": "complete-local-author-integration-and-deployment",
+  "candidate": {
+    "releaseId": "npc-author-current-1",
+    "playerBuildId": "windows-x64-0.3.0",
+    "toolSetVersion": "7.0.0",
+    "bundleCount": 26,
+    "remoteBytes": 2683188,
+    "duplicateImplicitAssets": 0
+  },
+  "npcNames": [
+    "Merchant",
+    "Guide",
+    "Keeper"
+  ],
+  "presentation": {
+    "initial": {
+      "displayName": "仓库守卫",
+      "mesh": "Cube",
+      "scale": {
+        "x": 0.7,
+        "y": 1.5,
+        "z": 0.7
+      },
+      "clipLength": 0.5
+    },
+    "current": {
+      "displayName": "仓库巡查员",
+      "mesh": "Sphere",
+      "scale": {
+        "x": 0.85,
+        "y": 1.6,
+        "z": 0.85
+      },
+      "clipLength": 1.0
+    },
+    "assetGuidsPreserved": true,
+    "technicalNameUnchanged": true,
+    "noNpcVersionMigration": true
+  },
+  "validation": {
+    "cSharpCompile": "passed",
+    "editModePassed": 57,
+    "editModeFailed": 0,
+    "editModeXmlSha256": "a9741fb8797a191ad27f7803841b3e653ac8b1c3a032cd4fb3d5e441fa2ed886",
+    "sampleScene": "passed",
+    "sampleFaultMatrix": "passed",
+    "sampleOriginDistance": 4.44099829e-19,
+    "windowsIL2CPP": "passed",
+    "initialCandidateFilesReverified": 778,
+    "currentCandidateFilesReverified": 778,
+    "candidateManifestSha256": "45f9aabc3dc06c58e697a26684b9e94006070fbf37e37c42d0b417e74c86a5b4",
+    "toolSchemaSha256": "4264acb90861196e988fd0a55cce2e449ab6ece6493a9191f929589d13dffc4a",
+    "schemaUnchanged": true,
+    "currentProfilesObservedAfterRestore": true,
+    "previousWorldTransformAndInventoryRestore": "passed",
+    "previousContextRestore": "passed",
+    "deletedOrRenamedNameRejection": "passed",
+    "onlineAndOfflineCacheRestarts": "passed",
+    "goTest": "passed",
+    "goVet": "passed",
+    "goRace": "passed / WSL Go 1.26.5 with local module cache",
+    "productionEnvironmentGate": "preserved / rejects missing evidence before writing publish root"
+  },
+  "scope": {
+    "deployment": "local Production Profile candidate / HTTP",
+    "model": "local deterministic fixture",
+    "finalEditorLauncher": "unity-launch / repository Run-UnityBatch.ps1",
+    "publicProductionPublished": false,
+    "contentReleaseEnvironmentEvidenceGenerated": false,
+    "globalUserCacheCleared": false,
+    "logsSanitized": true
+  }
+}

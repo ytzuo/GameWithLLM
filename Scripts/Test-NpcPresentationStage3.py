@@ -133,6 +133,22 @@ def main():
         guide = message('guide stream','message/stream',guide_reply['result']['contextId']); guide['params']['message']['metadata']['https://gamewithllm.dev/extensions/game-context/v1']['agentId'] = 'Guide'
         assert 'stage-three-ok' in json.dumps(stream(guide))
         checks.append('both-current-npc-bindings-and-dialogue')
+        npc_contexts = {'Merchant': context, 'Guide': guide_reply['result']['contextId']}
+        for npc in json.loads((REPO / 'NpcContent/npc/index.json').read_text(encoding='utf-8-sig'))['npcs']:
+            query = message('catalog npc hello', context=npc_contexts.get(npc['name']))
+            query['params']['message']['metadata']['https://gamewithllm.dev/extensions/game-context/v1']['agentId'] = npc['name']
+            reply = post('/a2a', query)
+            assert 'stage-three-ok' in json.dumps(reply)
+            query = message('catalog npc stream', 'message/stream', reply['result']['contextId'])
+            query['params']['message']['metadata']['https://gamewithllm.dev/extensions/game-context/v1']['agentId'] = npc['name']
+            assert 'stage-three-ok' in json.dumps(stream(query))
+            for target in ['landmark:warehouse', 'landmark:gate']:
+                result = rpc('/mcp/runtimes/' + INSTANCE, 'tools/call', dict(name='game_npc_move', arguments=dict(entityId=npc['name'], targetId=target)))
+                assert not result.get('isError'), result.get('structuredContent', {}).get('errorCode')
+            result = rpc('/mcp/runtimes/' + INSTANCE, 'tools/call', dict(name='game_inventory_get_self', arguments=dict(entityId=npc['name'])))
+            assert not result.get('isError')
+        checks.append('all-catalog-npcs-dialogue-stream-inventory-and-move')
+
         for target in ['landmark:warehouse', 'landmark:gate']:
             moved = tool('game_npc_move', targetId=target)
             assert not tool('game_npc_get_state')['movement']['isMoving']
@@ -159,7 +175,7 @@ def main():
         save_id = (OUT / 'world-saved').read_text()
         world_contract = json.loads((OUT / 'world-contract.json').read_text())
         assert world_contract['version'] == 3
-        assert {item['entityId'] for item in world_contract['npcContents']} == {'Merchant', 'Guide'}
+        assert {item['entityId'] for item in world_contract['npcContents']} == {n['name'] for n in json.loads((REPO / 'NpcContent/npc/index.json').read_text(encoding='utf-8-sig'))['npcs']}
         assert all(set(item) == {'entityId'} for item in world_contract['npcContents'])
         saved_state = world_contract['merchantPosition']
         payload = dict(instanceId=INSTANCE, playerId='npc-stage3-player', operationId=str(uuid.uuid4()), mode='create')
@@ -183,7 +199,7 @@ def main():
             return all(abs(current[k] - saved_state[k]) < 0.1 for k in saved_state)
         wait_for(position_restored)
         assert tool('game_inventory_get_self') == inventory
-        restored = post('/game-saves/' + save_id + '/agent-context:restore', dict(instanceId=INSTANCE, playerId='npc-stage3-player', npcIds=['Ryan_001', 'Alice_001', 'Merchant', 'Guide']))
+        restored = post('/game-saves/' + save_id + '/agent-context:restore', dict(instanceId=INSTANCE, playerId='npc-stage3-player', npcIds=['Ryan_001', 'Alice_001'] + [n['name'] for n in json.loads((REPO / 'NpcContent/npc/index.json').read_text(encoding='utf-8-sig'))['npcs']]))
         assert restored['result']['ok']; checks.append('world-inventory-and-context-restore')
         snapshots = list((OUT/'conversations').rglob('*.json'))
         for path in snapshots:

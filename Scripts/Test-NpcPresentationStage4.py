@@ -20,6 +20,8 @@ from importlib.util import spec_from_file_location, module_from_spec
 REPO = Path(__file__).resolve().parent.parent
 parser = argparse.ArgumentParser()
 parser.add_argument('candidate', type=Path)
+parser.add_argument('--output', type=Path, default=REPO / 'Artifacts/NpcPresentationStage4')
+parser.add_argument('--restore-save-id')
 args = parser.parse_args()
 CANDIDATE = args.candidate.resolve(strict=True)
 MANIFEST_PATH = CANDIDATE / 'candidate-manifest.json'
@@ -27,7 +29,7 @@ MANIFEST = json.loads(MANIFEST_PATH.read_text(encoding='utf-8-sig'))
 if MANIFEST['releaseKind'] != 'full':
     raise ValueError('NPC baseline smoke requires a full candidate with its Player.')
 MANIFEST_HASH = hashlib.sha256(MANIFEST_PATH.read_bytes()).hexdigest()
-OUT = REPO / 'Artifacts/NpcPresentationStage4'
+OUT = args.output.resolve()
 OUT.mkdir(parents=True, exist_ok=True)
 DEPLOY = OUT / 'deployment' / MANIFEST_HASH
 DEPLOY.mkdir(parents=True, exist_ok=True)
@@ -47,6 +49,10 @@ for entry in MANIFEST['files']:
         shutil.copyfile(source, target)
 spec = spec_from_file_location('serve_content', REPO / 'Scripts/Serve-Content.py')
 serve_content = module_from_spec(spec); spec.loader.exec_module(serve_content)
+EXPECTED_NPCS = {n['name'] for n in json.loads((DEPLOY / 'npc/index.json').read_text(encoding='utf-8-sig'))['npcs']}
+EXPECTED_DISPLAY_NAMES = {n['displayName'] for n in json.loads((DEPLOY / 'npc/index.json').read_text(encoding='utf-8-sig'))['npcs']}
+SEEN_DISPLAY_NAMES = set()
+if args.restore_save_id: (OUT / 'previous-save-id').write_text(args.restore_save_id)
 TOKEN = uuid.uuid4().hex
 INSTANCE = 'npc-stage4'
 ENV = dict(AGENT_SERVICE_ADDR='127.0.0.1:19080', AGENT_SERVICE_BASE_URL='http://127.0.0.1:19080',
@@ -62,7 +68,7 @@ GO_ONLY_KEYS = {'AGENT_SERVICE_ADDR', 'MCP_GATEWAY_SERVICE_TOKEN', 'CONVERSATION
 UNITY_ENV = {key: value for key, value in ENV.items() if not key.startswith('LLM_') and key not in GO_ONLY_KEYS}
 PLAYER_ENV = {key: value for key, value in os.environ.items() if not key.startswith('LLM_') and key not in GO_ONLY_KEYS}
 PLAYER_ENV.update(UNITY_ENV)
-for name in ['runtime-env.json', 'save-world', 'restore-world', 'world-saved', 'world-restored', 'stop', 'ready', 'scene-error', 'state.json', 'world-contract.json', 'scene-report.json', 'player-checks.json']:
+for name in ['runtime-env.json', 'save-world', 'restore-world', 'world-saved', 'world-restored', 'stop', 'ready', 'scene-error', 'state.json', 'world-contract.json', 'scene-report.json', 'player-checks.json', 'previous-world-restored']:
     (OUT / name).unlink(missing_ok=True)
 (OUT / 'runtime-env.json').write_text(json.dumps(UNITY_ENV), encoding='utf-8')
 
@@ -79,6 +85,8 @@ class Model(BaseHTTPRequestHandler):
     def log_message(self, *args): pass
     def do_POST(self):
         request = json.loads(self.rfile.read(int(self.headers['Content-Length'])))
+        system = '\n'.join(m.get('content', '') for m in request['messages'] if m['role'] == 'system')
+        SEEN_DISPLAY_NAMES.update(name for name in EXPECTED_DISPLAY_NAMES if name in system)
         last = request['messages'][-1]
         tool = last.get('role') == 'user' and last.get('content') == 'cancel-move'
         call = dict(id='smoke-move', type='function', function=dict(name='game_npc_move', arguments='{"targetId":"landmark:gate"}'))
@@ -116,7 +124,7 @@ def wait_for(check, timeout=60):
     raise TimeoutError('Smoke condition did not complete')
 
 def tool(name, **args):
-    value = rpc('/mcp/runtimes/' + INSTANCE, 'tools/call', dict(name=name, arguments=dict(entityId='Merchant', **args)))
+    value = rpc('/mcp/runtimes/' + INSTANCE, 'tools/call', dict(name=name, arguments=dict(entityId=args.pop('entityId', 'Merchant'), **args)))
     if value.get('isError'): raise RuntimeError('Unity tool failed: ' + str(value['structuredContent'].get('errorCode')))
     structured = value['structuredContent']
     return structured.get('data', structured)
@@ -147,7 +155,7 @@ def main():
     go = start(); checks = []; cached_failure = None
     player_log_path = OUT / 'player.log'
     player_path = REPO / 'unity-NPC-agent-client/Builds/ContentReleaseProduction/GameWithLLM.exe'
-    player = subprocess.Popen([str(player_path), '-batchmode', '-nographics', '-logFile', str(player_log_path), '-gameWithLlmNpcRuntimeSmoke'],
+    player = subprocess.Popen([str(player_path), '-batchmode', '-nographics', '-logFile', str(player_log_path), '-gameWithLlmNpcRuntimeSmoke'] + (['-npcSmokeRestorePrevious'] if args.restore_save_id else []),
                               cwd=player_path.parent, env=PLAYER_ENV, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
                               creationflags=subprocess.CREATE_NO_WINDOW)
     try:
@@ -163,11 +171,44 @@ def main():
         assert any(t['name'] == 'game_npc_move' for t in tools)
         wait_for(lambda: tool('game_npc_get_state'))
         checks.append('runtime-registration')
-        first = post('/a2a', message('hello')); assert 'error' not in first and 'stage-four-ok' in json.dumps(first), {'rpcError': first.get('error'), 'status': first.get('result', {}).get('status')}
+        npc_contexts = {}
+        if args.restore_save_id:
+            assert (OUT / 'previous-world-restored').read_text() == args.restore_save_id
+            previous = json.loads((OUT / 'previous-world-contract.json').read_text())
+            for entity in previous['entities']:
+                if entity['entityId'] not in EXPECTED_NPCS: continue
+                current = tool('game_npc_get_state', entityId=entity['entityId'])['position']
+                assert all(abs(current[k] - entity['position'][k]) < 0.1 for k in current)
+            restored_previous = post('/game-saves/' + args.restore_save_id + '/agent-context:restore',
+                dict(instanceId=INSTANCE, playerId='npc-stage4-player', npcIds=['Ryan_001', 'Alice_001'] + sorted(EXPECTED_NPCS)))
+            assert restored_previous['result']['ok']
+            for restored_context in restored_previous['result']['contexts']:
+                if restored_context['npcId'] not in EXPECTED_NPCS: continue
+                npc_contexts[restored_context['npcId']] = restored_context['sessionId']
+                query = message('restored current npc', context=restored_context['sessionId'])
+                query['params']['message']['metadata']['https://gamewithllm.dev/extensions/game-context/v1']['agentId'] = restored_context['npcId']
+                assert 'stage-four-ok' in json.dumps(post('/a2a', query))
+            assert EXPECTED_DISPLAY_NAMES <= SEEN_DISPLAY_NAMES
+            checks.append('previous-presentation-world-and-context-restore')
+        for npc_id in sorted(EXPECTED_NPCS):
+            query = message('current npc hello', context=npc_contexts.get(npc_id))
+            query['params']['message']['metadata']['https://gamewithllm.dev/extensions/game-context/v1']['agentId'] = npc_id
+            response = post('/a2a', query)
+            assert 'stage-four-ok' in json.dumps(response)
+            npc_contexts[npc_id] = response['result']['contextId']
+            query = message('current npc stream', 'message/stream', response['result']['contextId'])
+            query['params']['message']['metadata']['https://gamewithllm.dev/extensions/game-context/v1']['agentId'] = npc_id
+            assert 'stage-four-ok' in json.dumps(stream(query))
+            assert tool('game_inventory_get_self', entityId=npc_id) is not None
+            for target in ['landmark:warehouse', 'landmark:gate']:
+                tool('game_npc_move', entityId=npc_id, targetId=target)
+        checks.append('all-catalog-npcs-dialogue-stream-inventory-and-move')
+        assert EXPECTED_DISPLAY_NAMES <= SEEN_DISPLAY_NAMES
+        first = post('/a2a', message('hello', context=npc_contexts['Merchant'])); assert 'error' not in first and 'stage-four-ok' in json.dumps(first), {'rpcError': first.get('error'), 'status': first.get('result', {}).get('status')}
         context = first['result']['contextId']
         events = stream(message('stream', 'message/stream', context)); assert 'stage-four-ok' in json.dumps(events)
         checks.append('ordinary-and-streaming-dialogue')
-        guide = message('guide hello'); guide['params']['message']['metadata']['https://gamewithllm.dev/extensions/game-context/v1']['agentId'] = 'Guide'
+        guide = message('guide hello', context=npc_contexts['Guide']); guide['params']['message']['metadata']['https://gamewithllm.dev/extensions/game-context/v1']['agentId'] = 'Guide'
         guide_reply = post('/a2a', guide)
         assert 'stage-four-ok' in json.dumps(guide_reply)
         guide = message('guide stream','message/stream',guide_reply['result']['contextId']); guide['params']['message']['metadata']['https://gamewithllm.dev/extensions/game-context/v1']['agentId'] = 'Guide'
@@ -201,12 +242,34 @@ def main():
         save_id = (OUT / 'world-saved').read_text()
         world_contract = json.loads((OUT / 'world-contract.json').read_text())
         assert world_contract['version'] == 3
-        assert {item['entityId'] for item in world_contract['npcContents']} == {'Merchant', 'Guide'}
+        assert {item['entityId'] for item in world_contract['npcContents']} == EXPECTED_NPCS
         assert all(set(item) == {'entityId'} for item in world_contract['npcContents'])
         saved_state = world_contract['merchantPosition']
         payload = dict(instanceId=INSTANCE, playerId='npc-stage4-player', operationId=str(uuid.uuid4()), mode='create')
         assert post('/game-saves/' + save_id + '/agent-context:prepare', payload)['result']['ok']
         assert post('/game-saves/' + save_id + '/agent-context:commit', payload)['result']['ok']
+        if 'Keeper' in EXPECTED_NPCS:
+            path = DEPLOY / 'npc/Keeper/npc.json'
+            original = path.read_bytes()
+            before_inventory = tool('game_inventory_get_self', entityId='Keeper')
+            for failure in ['deleted-name', 'renamed-identity']:
+                if failure == 'deleted-name': path.unlink()
+                else:
+                    changed = json.loads(original)
+                    changed['name'] = 'KeeperRenamed'
+                    changed['profile']['npcId'] = 'KeeperRenamed'
+                    path.write_text(json.dumps(changed), encoding='utf-8')
+                try:
+                    failed_restore = post('/game-saves/' + save_id + '/agent-context:restore',
+                        dict(instanceId=INSTANCE, playerId='npc-stage4-player', npcIds=['Ryan_001', 'Alice_001'] + sorted(EXPECTED_NPCS)))
+                    assert not failed_restore['result']['ok'] and failed_restore['result']['errorCode']
+                    query = message('existing keeper context', context=npc_contexts['Keeper'])
+                    query['params']['message']['metadata']['https://gamewithllm.dev/extensions/game-context/v1']['agentId'] = 'Keeper'
+                    assert 'stage-four-ok' in json.dumps(post('/a2a', query))
+                    assert tool('game_inventory_get_self', entityId='Keeper') == before_inventory
+                finally:
+                    path.write_bytes(original)
+            checks.append('deleted-or-renamed-npc-restore-rejected-context-retained')
         tool('game_npc_move', targetId='landmark:gate')
         (OUT / 'restore-world').write_text('restore'); wait_for(lambda: (OUT / 'world-restored').exists())
         def position_restored():
@@ -214,7 +277,7 @@ def main():
             return all(abs(current[k] - saved_state[k]) < 0.1 for k in saved_state)
         wait_for(position_restored)
         assert tool('game_inventory_get_self') == inventory
-        restored = post('/game-saves/' + save_id + '/agent-context:restore', dict(instanceId=INSTANCE, playerId='npc-stage4-player', npcIds=['Ryan_001', 'Alice_001', 'Merchant', 'Guide']))
+        restored = post('/game-saves/' + save_id + '/agent-context:restore', dict(instanceId=INSTANCE, playerId='npc-stage4-player', npcIds=['Ryan_001', 'Alice_001'] + sorted(EXPECTED_NPCS)))
         assert restored['result']['ok']; checks.append('world-inventory-and-context-restore')
         snapshots = list((OUT/'conversations').rglob('*.json'))
         for path in snapshots:
@@ -229,7 +292,9 @@ def main():
         assert sorted(t['name'] for t in tools_after) == sorted(t['name'] for t in tools)
         assert 'error' not in post('/a2a', message('after restart')); checks.append('go-restart-reconnect-manifest')
         checks.append('console-and-missing-script')
-        (OUT / 'scene-report.json').write_text(json.dumps(dict(passed=True, model='local deterministic fixture', checks=checks), indent=2))
+        (OUT / 'scene-report.json').write_text(json.dumps(dict(passed=True, model='local deterministic fixture', checks=checks,
+            candidateManifestSha256=MANIFEST_HASH, npcNames=sorted(EXPECTED_NPCS),
+            toolSchemaSha256=hashlib.sha256(json.dumps(tools, sort_keys=True).encode()).hexdigest(), currentProfilesObserved=True), indent=2))
     finally:
         (OUT / 'stop').write_text('stop')
         try: player.wait(30)

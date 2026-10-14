@@ -1,0 +1,51 @@
+{
+  "schemaVersion": 1,
+  "releaseId": "npc-author-current-1",
+  "candidateManifestSha256": "45f9aabc3dc06c58e697a26684b9e94006070fbf37e37c42d0b417e74c86a5b4",
+  "successMarker": "NPC_RUNTIME_SMOKE_SUCCESS",
+  "playerLogSha256": "3839ef7e4b6d3436035b7fe788aa351ae4ed0f355f15d050eaf13682c5cbb10f",
+  "environment": "local deployed production candidate / Windows IL2CPP / deterministic model",
+  "scenarios": [
+    {
+      "name": "animation-driver",
+      "passed": true
+    },
+    {
+      "name": "cache-repair",
+      "passed": true
+    },
+    {
+      "name": "catalog-address-missing",
+      "passed": true
+    },
+    {
+      "name": "dynamic-download",
+      "passed": true
+    },
+    {
+      "name": "manifest-reregister",
+      "passed": true
+    },
+    {
+      "name": "previous-presentation-world-restore",
+      "passed": true
+    },
+    {
+      "name": "resource-integrity",
+      "passed": true
+    },
+    {
+      "name": "save-restore",
+      "passed": true
+    },
+    {
+      "name": "scene-cancel",
+      "passed": true
+    }
+  ],
+  "additionalChecks": [
+    "online-cache-hit-player-restart",
+    "offline-cached-player-restart",
+    "http-revalidation-headers"
+  ]
+}

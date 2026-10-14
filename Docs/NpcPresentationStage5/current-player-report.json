@@ -1,0 +1,27 @@
+{
+  "passed": true,
+  "model": "local deterministic fixture",
+  "checks": [
+    "runtime-registration",
+    "previous-presentation-world-and-context-restore",
+    "all-catalog-npcs-dialogue-stream-inventory-and-move",
+    "ordinary-and-streaming-dialogue",
+    "both-current-npc-bindings-and-dialogue",
+    "move-warehouse-and-gate",
+    "cancel-task-and-movement",
+    "inventory",
+    "deleted-or-renamed-npc-restore-rejected-context-retained",
+    "world-inventory-and-context-restore",
+    "snapshot-format-two-identity-only",
+    "go-restart-reconnect-manifest",
+    "console-and-missing-script"
+  ],
+  "candidateManifestSha256": "45f9aabc3dc06c58e697a26684b9e94006070fbf37e37c42d0b417e74c86a5b4",
+  "npcNames": [
+    "Guide",
+    "Keeper",
+    "Merchant"
+  ],
+  "toolSchemaSha256": "4264acb90861196e988fd0a55cce2e449ab6ece6493a9191f929589d13dffc4a",
+  "currentProfilesObserved": true
+}

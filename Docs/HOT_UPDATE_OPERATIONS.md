@@ -22,6 +22,7 @@ NPC 作者只维护 `Assets/Content/Npcs/{name}` 中的 `NpcContentDefinition`�
 Prompt。使用 `NpcContentRelease.BuildDefinitionsFromCommandLine` 或菜单
 `GameWithLLM/Content/Build NPC Definitions` 生成固定结构的当前清单和索引；不存在样例复制或
 `BuildSamples` 生产入口。生成目录只有当前名称，构建可覆盖当前内容并清理已删除名称。
+新增与修改流程见 [NPC 作者操作说明](NPC_AUTHORING.md)，不需要维护 NPC 内容版本。
 
 ## 2. 本地验证
 

@@ -151,7 +151,7 @@ public static class HybridClrProjectSetup
         var releaseTools = new List<IAgentTool>();
         releaseTools.AddRange(AgentToolDiscovery.DiscoverBuiltinTools());
         releaseTools.AddRange(AgentToolDiscovery.DiscoverFromAssembly(smokeAssembly));
-        const string releaseId = "npc-current-baseline-1";
+        const string releaseId = "npc-author-current-1";
         var activeTools = releaseTools.Select(tool =>
         {
             bool hot = string.Equals(

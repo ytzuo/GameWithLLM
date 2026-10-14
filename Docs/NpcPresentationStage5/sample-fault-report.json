@@ -1,0 +1,15 @@
+{
+  "passed": true,
+  "checks": [
+    "address-missing-restart-and-load-failure-retain-record",
+    "single-download-and-cancel-no-commit",
+    "cache-eviction-repair-and-offline-installed-preparation",
+    "same-name-task-and-scene-transition-cancellation",
+    "restore-preflight-and-second-spawn-failure-rollback",
+    "uncommitted-restore-rollback",
+    "changed-model-animation-and-display-name-restore"
+  ],
+  "provider": "real Addressables with injected boundary faults",
+  "leaseBaseline": 20,
+  "leaseFinal": 20
+}

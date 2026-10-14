@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "releaseId": "npc-current-baseline-1",
+  "releaseId": "npc-author-current-1",
   "contentVersion": "2026.10.001",
   "toolSetVersion": "7.0.0",
   "catalogVersion": "2026.10.001",
@@ -46,8 +46,8 @@
     {
       "address": "hotfix/aot/windows-x64-0.3.0/System.Core",
       "fileName": "System.Core.dll.bytes",
-      "length": 400384,
-      "sha256": "94b5dfdd60e71ae08df2dd376d5e750caa252f95e641be505863c52b4829c1f6"
+      "length": 400896,
+      "sha256": "c8524fce3db930a3ef7b3ab18079c2a3bf36af6ae705e258c74aad324cf88653"
     },
     {
       "address": "hotfix/aot/windows-x64-0.3.0/GameWithLLM.AgentRuntime",
@@ -59,7 +59,7 @@
       "address": "hotfix/aot/windows-x64-0.3.0/GameWithLLM.Client.Gameplay",
       "fileName": "GameWithLLM.Client.Gameplay.dll.bytes",
       "length": 55296,
-      "sha256": "e09751b181b49dca636242e53fc2d1b67ed54b6206059069c90a5ef58b24d612"
+      "sha256": "20c0981b44e042ca81451e3fecb199ab527ae437a3e0bb43766f64d375eca52e"
     },
     {
       "address": "hotfix/aot/windows-x64-0.3.0/GameWithLLM.Client.ToolFramework",

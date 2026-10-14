@@ -1,0 +1,18 @@
+{
+  "passed": true,
+  "model": "local deterministic fixture",
+  "checks": [
+    "runtime-registration",
+    "ordinary-and-streaming-dialogue",
+    "both-current-npc-bindings-and-dialogue",
+    "all-catalog-npcs-dialogue-stream-inventory-and-move",
+    "move-warehouse-and-gate",
+    "cancel-task-and-movement",
+    "inventory",
+    "failed-current-config-restore-preserves-world-inventory-and-context",
+    "world-inventory-and-context-restore",
+    "snapshot-format-two-identity-only",
+    "go-restart-reconnect-manifest",
+    "console-and-missing-script"
+  ]
+}

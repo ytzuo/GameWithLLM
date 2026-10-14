@@ -16,8 +16,11 @@ public static class NpcProductionScenePreparation
             var scene = EditorSceneManager.OpenScene(path);
             var surface = UnityEngine.Object.FindFirstObjectByType<NavMeshSurface>();
             if (surface == null || surface.navMeshData == null) throw new InvalidDataException("Scene NavMesh source is missing.");
-            surface.transform.parent.position = new Vector3(0, 0, -4.66f);
-            surface.transform.parent.localScale = new Vector3(1, 1, 2);
+            bool sampleScene = path == "Assets/Scenes/SampleScene.unity";
+            // SampleScene landmarks are at x=-8.09 and x=7.68; retain its wider
+            // ground. WarehouseRemote uses its own smaller author layout.
+            surface.transform.parent.position = sampleScene ? Vector3.zero : new Vector3(0, 0, -4.66f);
+            surface.transform.parent.localScale = sampleScene ? new Vector3(2, 2, 2) : new Vector3(1, 1, 2);
             surface.buildHeightMesh = true; surface.overrideVoxelSize = true; surface.voxelSize = 0.02f;
             var original = surface.navMeshData;
             surface.BuildNavMesh();

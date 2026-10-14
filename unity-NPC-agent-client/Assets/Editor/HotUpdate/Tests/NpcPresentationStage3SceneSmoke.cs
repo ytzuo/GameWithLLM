@@ -98,15 +98,29 @@ public static class NpcPresentationStage3SceneSmoke
     {
         try
         {
+            var surface = UnityEngine.Object.FindFirstObjectByType<Unity.AI.Navigation.NavMeshSurface>();
+            bool found = UnityEngine.AI.NavMesh.SamplePosition(Vector3.zero, out var hit, 100, UnityEngine.AI.NavMesh.AllAreas);
+            File.WriteAllText(Path.Combine(Root, "navmesh-report.json"), new Newtonsoft.Json.Linq.JObject {
+                ["found"] = found, ["distance"] = found ? Vector3.Distance(hit.position, Vector3.zero) : -1,
+                ["height"] = found ? hit.position.y : -1,
+                ["surfaceActive"] = surface != null && surface.isActiveAndEnabled,
+                ["dataPresent"] = surface != null && surface.navMeshData != null }.ToString());
             await NpcPresentationStage3FaultMatrix.RunAsync();
             var services = NpcLibraryServices.Current;
             var catalog = await services.CatalogClient.FetchAsync(System.Threading.CancellationToken.None);
+            var visuals = new Newtonsoft.Json.Linq.JObject();
             foreach (var summary in catalog.Npcs)
             {
                 var record = await services.Installer.InstallAsync(summary, System.Threading.CancellationToken.None);
                 var entity = await services.Spawner.SpawnAsync(record, System.Threading.CancellationToken.None);
                 if (entity.ContentBinding.EntityId != summary.NpcId) throw new InvalidOperationException("Smoke binding invalid.");
+                var mesh = entity.GetComponentInChildren<MeshFilter>();
+                var animator = entity.GetComponentInChildren<Animator>();
+                visuals[summary.NpcId] = new Newtonsoft.Json.Linq.JObject {
+                    ["displayName"] = summary.DisplayName, ["mesh"] = mesh.sharedMesh.name,
+                    ["clipLength"] = animator.runtimeAnimatorController.animationClips[0].length };
             }
+            File.WriteAllText(Path.Combine(Root, "visuals.json"), visuals.ToString());
             foreach (GameObject root in UnityEngine.SceneManagement.SceneManager.GetActiveScene().GetRootGameObjects())
                 foreach (Transform child in root.GetComponentsInChildren<Transform>(true))
                     if (GameObjectUtility.GetMonoBehavioursWithMissingScriptCount(child.gameObject) != 0)
@@ -147,9 +161,9 @@ public static class NpcPresentationStage3SceneSmoke
         {
             string id=File.ReadAllText(Path.Combine(Root,"world-saved"));
             var file=saves.Load(id);
-            if(file.Version!=3 || file.NpcContents.Count!=2) throw new InvalidOperationException("Smoke world format invalid.");
+            if(file.Version!=3 || file.NpcContents.Count<2) throw new InvalidOperationException("Smoke world format invalid.");
             var services=NpcLibraryServices.Current;
-            services.Spawner.Despawn("Merchant"); services.Spawner.Despawn("Guide");
+            foreach (var npc in file.NpcContents) services.Spawner.Despawn(npc.EntityId);
             await System.Threading.Tasks.Task.Yield();
             await services.PrepareRestoreAsync(file.NpcContents,System.Threading.CancellationToken.None);
             saves.Apply(file);

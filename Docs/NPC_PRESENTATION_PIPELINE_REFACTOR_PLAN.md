@@ -1,7 +1,7 @@
 # NPC 表现资产管线破坏性重构计划
 
 日期：2026-10-14  
-状态：阶段一至四已完成，阶段五待实施；新 Windows IL2CPP 候选与本地部署验收通过，尚未公网发布。
+状态：阶段一至五已完成；第三 NPC 作者接入、表现替换、新 Windows IL2CPP 候选与本地部署验收通过，尚未公网发布。
 当前架构事实源：`../ARCHITECTURE.md`。
 
 ## 1. 目标与范围
@@ -226,7 +226,7 @@ release `npc-current-baseline-1`、ToolSet 7.0.0。完整候选、工具包 Play
 发布失败回滚、进程中断恢复和 CI 静态目录交付已收束；旧计划与一次性迁移脚本归档。
 修复了未激活 Animator 在 IL2CPP 中的参数检查，并同步远端场景原点 NavMesh 和延后场景
 Agent 启用。本次验证使用本地部署和确定性模型；没有生成整体受保护环境 evidence，
-公网发布仍受原有环境门禁约束，阶段五第三 NPC 作者接入尚未实施。
+公网发布仍受原有环境门禁约束；第三 NPC 作者接入由后续阶段五完成。
 
 ### 阶段五：接入体验验收与交付
 
@@ -240,6 +240,19 @@ Agent 启用。本次验证使用本地部署和确定性模型；没有生成�
 
 验收：接入步骤仅为“名称目录 → 资源配置 → Definition → 构建发布 → 下载生成”；
 没有填写或升级 NPC 版本号的步骤，没有历史资源副本，没有遗留旧格式 fallback。
+
+2026-10-14 完成记录：[阶段五交付](NpcPresentationStage5/README.md) 与
+[结构化验证](NpcPresentationStage5/verification.json)。Keeper 仅通过当前作者资源接入，
+复用既有工具；初始 Cube / 0.5 秒动画 /“仓库守卫”覆盖为 Sphere / 1 秒动画 /
+“仓库巡查员”，GUID 与固定 Address 保持，工程只有当前资产。修改前的格式 3 世界存档
+和格式 2 对话快照在新启动 Player 中恢复通过，当前 Profile/Prompt 生效，工具 Schema hash
+不变。两轮 Windows IL2CPP、本地部署与缓存重启、最终 57 项 EditMode、三 NPC 的
+SampleScene 回归与故障矩阵通过；两轮各 778 个候选文件复核通过。Go test/vet 和同版本
+WSL race 通过。修正 SampleScene 地面高度并保留其地标所需宽度，NavMesh 保留 GUID，
+最终候选在修复后重新构建与验收。当前整体 release 为 `npc-author-current-1`，
+Player 0.3.0、ToolSet 7.0.0。作者流程见 [NPC 作者操作说明](NPC_AUTHORING.md)。
+最终构建与 Editor 验收使用 unity-launch 原有启动方式；本地确定性模型证据不替代
+公网目标环境门禁，没有切换公网生产指针。
 
 ## 4. 测试与最终完成定义
 

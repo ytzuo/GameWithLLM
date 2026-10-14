@@ -205,3 +205,4 @@ Unity 修改还需要完成 C# 编译，并在 `SampleScene` 验证普通对话�
 重连、Inventory、存档恢复以及 Console 无错误。
 
 开发边界和验证清单见 [agents.md](./agents.md)。
+NPC 新增、表现更新与存档恢复流程见 [NPC 作者操作说明](./Docs/NPC_AUTHORING.md)。

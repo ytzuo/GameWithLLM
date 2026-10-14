@@ -11,7 +11,11 @@ public sealed class RemoteNpcRoundTwoTests
  private static string Fixture(params string[] parts) => File.ReadAllText(Path.GetFullPath(Path.Combine(Application.dataPath,"..","..","NpcContent",Path.Combine(parts))));
  [Test] public void CurrentCatalogAndBuiltinManifestsOwnCompleteDependencies()
  {
-  var catalog=RemoteNpcContract.ParseCatalog(Fixture("npc","index.json")); Assert.AreEqual(2,catalog.Npcs.Count);
+  var catalog=RemoteNpcContract.ParseCatalog(Fixture("npc","index.json"));
+  var authoredNames=AssetDatabase.FindAssets("t:NpcContentDefinition").Select(AssetDatabase.GUIDToAssetPath)
+   .Select(AssetDatabase.LoadMainAssetAtPath).Select(definition=>(string)definition.GetType().GetField("name").GetValue(definition));
+  Assert.IsNotEmpty(catalog.Npcs);
+  CollectionAssert.AreEquivalent(authoredNames,catalog.Npcs.Select(summary=>summary.NpcId));
   foreach(var summary in catalog.Npcs)
   {
    var manifest=RemoteNpcContract.ParseManifest(Fixture("npc",summary.NpcId,"npc.json"),summary);

@@ -124,6 +124,12 @@ MonoBehaviour:
     - content.characters
     - content.characters.player
     FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: e000e8ff23d84b24b33d8a7bc8f0774b
+    m_Address: npc/Keeper/visual
+    m_ReadOnly: 0
+    m_SerializedLabels:
+    - content.npc.Keeper
+    FlaggedDuringContentUpdateRestriction: 0
   - m_GUID: f5c370a8fd015bb4c86c8a376e966985
     m_Address: character/ryan/visual/default
     m_ReadOnly: 0

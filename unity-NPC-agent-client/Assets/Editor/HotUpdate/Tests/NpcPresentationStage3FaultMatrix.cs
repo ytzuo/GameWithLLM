@@ -64,7 +64,8 @@ public static class NpcPresentationStage3FaultMatrix
             provider.InstantiateEntered = false;
             var spawning = services.Spawner.SpawnAsync(record, CancellationToken.None);
             Check(ReferenceEquals(spawning, services.Spawner.SpawnAsync(record, CancellationToken.None)), "unique-spawn-task");
-            await Wait(() => provider.InstantiateEntered);
+            await Wait(() => provider.InstantiateEntered || spawning.IsCompleted);
+            if (!provider.InstantiateEntered) await spawning;
             await services.BeginSceneTransitionAsync();
             await Cancelled(spawning);
             Check(!services.Spawner.IsSpawned("Merchant") && !services.Spawner.IsSpawning("Merchant"), "spawn-cancel-cleanup");

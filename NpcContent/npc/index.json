@@ -32,6 +32,13 @@
       "manifestPath": "npc/Guide/npc.json"
     },
     {
+      "name": "Keeper",
+      "displayName": "仓库巡查员",
+      "description": "负责仓库巡查和物品保管的守卫，使用现有游戏工具。",
+      "avatarPath": "npc/Keeper/avatar.png",
+      "manifestPath": "npc/Keeper/npc.json"
+    },
+    {
       "name": "Merchant",
       "displayName": "旅行商人",
       "description": "旅行商人，可以交流并使用现有游戏工具。",
