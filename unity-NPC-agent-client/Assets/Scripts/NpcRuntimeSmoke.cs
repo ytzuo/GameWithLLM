@@ -63,6 +63,9 @@ public sealed class NpcRuntimeSmoke : MonoBehaviour
                 throw new InvalidOperationException("Smoke requires Merchant and Guide.");
             var checks = new List<string>();
             var provider = host.ContentProvider;
+            if (!UnityEngine.AI.NavMesh.SamplePosition(FindFirstObjectByType<PlayerMock>().transform.position, out var testHit, 2f, UnityEngine.AI.NavMesh.AllAreas))
+                throw new InvalidOperationException("Smoke player is not on NavMesh.");
+            Vector3 testPosition = testHit.position;
             if (Environment.GetCommandLineArgs().Contains("-npcSmokeCachedStartup", StringComparer.Ordinal))
             {
                 foreach (var npc in catalog.Npcs)
@@ -70,7 +73,7 @@ public sealed class NpcRuntimeSmoke : MonoBehaviour
                     if (!services.Installer.TryGet(npc.NpcId, out var installed) || await services.Installer.IsCacheMissingAsync(npc.NpcId, timeout.Token))
                         throw new InvalidOperationException("Cached NPC is incomplete.");
                     await services.Installer.ValidateInstalledAsync(npc.NpcId, timeout.Token);
-                    await services.Spawner.SpawnAsync(installed, timeout.Token);
+                    await services.Spawner.SpawnAsync(installed, testPosition, timeout.Token);
                 }
                 Debug.Log("NPC_CACHED_STARTUP_SUCCESS");
                 Application.Quit(0);
@@ -117,7 +120,7 @@ public sealed class NpcRuntimeSmoke : MonoBehaviour
             {
                 fault.PauseInstantiate = true;
                 services.Installer.TryGet("Merchant", out var record);
-                var pending = spawner.SpawnAsync(record, timeout.Token);
+                var pending = spawner.SpawnAsync(record, testPosition, timeout.Token);
                 await Wait(() => fault.InstantiateEntered || pending.IsCompleted, timeout.Token);
                 if (!fault.InstantiateEntered) await pending;
                 await spawner.CancelPendingAsync();
@@ -132,7 +135,7 @@ public sealed class NpcRuntimeSmoke : MonoBehaviour
             foreach (var npc in catalog.Npcs)
             {
                 var record = await services.Installer.InstallAsync(npc, timeout.Token);
-                var entity = await services.Spawner.SpawnAsync(record, timeout.Token);
+                var entity = await services.Spawner.SpawnAsync(record, testPosition, timeout.Token);
                 if (entity.ContentBinding.EntityId != npc.NpcId || !entity.GetComponent<CharacterVisualController>().IsRemoteVisualActive)
                     throw new InvalidOperationException("NPC visual/binding activation failed.");
             }
@@ -144,7 +147,7 @@ public sealed class NpcRuntimeSmoke : MonoBehaviour
                 var previous = saves.Load(File.ReadAllText(Path.Combine(Root, "previous-save-id")));
                 foreach (var npc in previous.NpcContents) services.Spawner.Despawn(npc.EntityId);
                 await Task.Yield();
-                await services.PrepareRestoreAsync(previous.NpcContents, timeout.Token);
+                await services.PrepareRestoreAsync(previous, timeout.Token);
                 saves.Apply(previous);
                 if (!JToken.DeepEquals(JArray.FromObject(previous.Inventories), JArray.FromObject(saves.CaptureCurrentState().Inventories)))
                     throw new InvalidOperationException("Previous presentation inventory was not restored.");
@@ -195,7 +198,7 @@ public sealed class NpcRuntimeSmoke : MonoBehaviour
                     var file = saves.Load(File.ReadAllText(Path.Combine(Root, "world-saved")));
                     foreach (var npc in file.NpcContents) services.Spawner.Despawn(npc.EntityId);
                     await Task.Yield();
-                    await services.PrepareRestoreAsync(file.NpcContents, timeout.Token);
+                    await services.PrepareRestoreAsync(file, timeout.Token);
                     saves.Apply(file);
                     await host.PublishManifestAndWaitAsync(timeout.Token);
                     File.WriteAllText(Path.Combine(Root, "world-restored"), "ok");

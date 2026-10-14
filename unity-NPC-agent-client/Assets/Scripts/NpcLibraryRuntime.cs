@@ -8,6 +8,7 @@ using System.Threading.Tasks;
 using GameWithLLM.AgentRuntime;
 using UnityEngine;
 using UnityEngine.AI;
+using Unity.AI.Navigation;
 
 public sealed class NpcLibraryServices : IDisposable
 {
@@ -34,17 +35,18 @@ public sealed class NpcLibraryServices : IDisposable
         if (ReferenceEquals(Current, this)) Current = null;
     }
 
-    public async Task PrepareRestoreAsync(IReadOnlyList<SaveGameNpcContentState> requirements, CancellationToken token)
+    public async Task PrepareRestoreAsync(SaveGameFile file, CancellationToken token)
     {
-        using var preparation = await BeginRestoreAsync(requirements, token);
+        using var preparation = await BeginRestoreAsync(file, token);
         preparation.Commit();
     }
 
     public async Task<NpcRestorePreparation> BeginRestoreAsync(
-        IReadOnlyList<SaveGameNpcContentState> requirements,
+        SaveGameFile file,
         CancellationToken token)
     {
-        requirements ??= Array.Empty<SaveGameNpcContentState>();
+        if (file == null) throw new ArgumentNullException(nameof(file));
+        IReadOnlyList<SaveGameNpcContentState> requirements = file.NpcContents ?? new List<SaveGameNpcContentState>();
         ValidateRestoreRequirements(requirements);
 
         // Finish every non-mutating prerequisite before creating any entity. Missing
@@ -58,6 +60,17 @@ public sealed class NpcLibraryServices : IDisposable
             Spawner.ValidateExistingBinding(requirement);
         }
 
+        var positions = new Dictionary<string, Vector3>(StringComparer.OrdinalIgnoreCase);
+        foreach (SaveGameNpcContentState requirement in requirements)
+        {
+            SaveGameEntityState state = file.Entities?.SingleOrDefault(value =>
+                value != null && string.Equals(value.EntityId, requirement.EntityId, StringComparison.OrdinalIgnoreCase));
+            if (state == null) throw new InvalidDataException("NPC_CONTENT_SAVE_POSITION_MISSING");
+            if (!NpcSpawnPlacement.TrySamplePosition(state.Position.ToUnity(), out Vector3 position))
+                throw new InvalidOperationException(NpcSpawnPlacement.InvalidPositionError);
+            positions.Add(requirement.EntityId, position);
+        }
+
         var created = new List<string>();
         try
         {
@@ -65,7 +78,7 @@ public sealed class NpcLibraryServices : IDisposable
             {
                 if (Spawner.IsSpawned(requirement.EntityId)) continue;
                 Installer.TryGet(requirement.EntityId, out InstalledNpcRecord installed);
-                await Spawner.SpawnAsync(installed, token);
+                await Spawner.SpawnAsync(installed, positions[requirement.EntityId], token);
                 created.Add(requirement.EntityId);
             }
             token.ThrowIfCancellationRequested();
@@ -139,21 +152,32 @@ public sealed class NpcSpawnController : IDisposable
         if (record == null) throw new ArgumentNullException(nameof(record));
         token.ThrowIfCancellationRequested();
         if (_spawnTasks.TryGetValue(record.NpcId, out Task<NpcEntity> active)) return active;
+        if (IsSpawned(record.NpcId)) return Task.FromResult(_instances[record.NpcId].GetComponent<NpcEntity>());
+        if (!NpcSpawnPlacement.TryFromCamera(Camera.main, out Vector3 position))
+            throw new InvalidOperationException(NpcSpawnPlacement.InvalidPositionError);
+        return SpawnAsync(record, position, token);
+    }
+
+    public Task<NpcEntity> SpawnAsync(InstalledNpcRecord record, Vector3 position, CancellationToken token)
+    {
+        if (record == null) throw new ArgumentNullException(nameof(record));
+        token.ThrowIfCancellationRequested();
+        if (_spawnTasks.TryGetValue(record.NpcId, out Task<NpcEntity> active)) return active;
         CancellationTokenSource linked = CancellationTokenSource.CreateLinkedTokenSource(token, _sceneCts.Token);
-        Task<NpcEntity> task = SpawnDeferredAsync(record, linked.Token);
+        Task<NpcEntity> task = SpawnDeferredAsync(record, position, linked.Token);
         _spawnTasks[record.NpcId] = task;
         _ = ObserveSpawnAsync(record.NpcId, task, linked);
         return task;
     }
 
-    private async Task<NpcEntity> SpawnDeferredAsync(InstalledNpcRecord record, CancellationToken token)
+    private async Task<NpcEntity> SpawnDeferredAsync(InstalledNpcRecord record, Vector3 position, CancellationToken token)
     {
         await Task.Yield();
         token.ThrowIfCancellationRequested();
-        return await SpawnCoreAsync(record, token);
+        return await SpawnCoreAsync(record, position, token);
     }
 
-    private async Task<NpcEntity> SpawnCoreAsync(InstalledNpcRecord record, CancellationToken token)
+    private async Task<NpcEntity> SpawnCoreAsync(InstalledNpcRecord record, Vector3 position, CancellationToken token)
     {
         NpcEntity existing = UnityEngine.Object.FindObjectsByType<NpcEntity>(
                 FindObjectsInactive.Exclude,
@@ -178,13 +202,12 @@ public sealed class NpcSpawnController : IDisposable
             RemoteNpcManifest manifest = RemoteNpcContract.ParseManifest(record.ManifestJson);
             if (manifest.NpcId != record.NpcId)
                 throw new InvalidDataException("Installed NPC identity is inconsistent.");
-            if (!NavMesh.SamplePosition(Vector3.zero, out NavMeshHit originHit, 0.05f, NavMesh.AllAreas) ||
-                Vector3.Distance(originHit.position, Vector3.zero) > 0.01f)
-                throw new InvalidOperationException("NPC_SPAWN_ORIGIN_NOT_ON_NAVMESH");
+            if (!NpcSpawnPlacement.TrySamplePosition(position, out position))
+                throw new InvalidOperationException(NpcSpawnPlacement.InvalidPositionError);
 
             root = new GameObject($"Remote NPC - {record.DisplayName}");
             root.SetActive(false);
-            root.transform.SetPositionAndRotation(Vector3.zero, Quaternion.identity);
+            root.transform.SetPositionAndRotation(position, Quaternion.identity);
 
             var nav = root.AddComponent<NavMeshAgent>();
             nav.speed = 3.5f; nav.angularSpeed = 240f; nav.acceleration = 8f;
@@ -207,8 +230,12 @@ public sealed class NpcSpawnController : IDisposable
             driverHost.Initialize(prepared.Driver, nav, entity, prepared);
             prepared = null;
             token.ThrowIfCancellationRequested();
+            // Content loading may span frames; recheck the captured point before activation.
+            if (!NpcSpawnPlacement.TrySamplePosition(position, out position))
+                throw new InvalidOperationException(NpcSpawnPlacement.InvalidPositionError);
+            root.transform.position = position;
             root.SetActive(true);
-            if (!nav.isOnNavMesh) throw new InvalidOperationException("NPC_SPAWN_ORIGIN_NOT_ON_NAVMESH");
+            if (!nav.isOnNavMesh) throw new InvalidOperationException(NpcSpawnPlacement.InvalidPositionError);
             inventory.SetDisplayName(record.DisplayName);
             player.npcEntities.Add(entity);
             _instances.Add(record.NpcId, root);
@@ -397,4 +424,61 @@ internal sealed class NpcAnimationDriverHost : MonoBehaviour
         finally { _driver = null; _assemblyLease?.Dispose(); _assemblyLease = null; }
     }
     private void OnDestroy() => Release();
+}
+
+public static class NpcSpawnPlacement
+{
+    public const string InvalidPositionError = "NPC_SPAWN_POSITION_INVALID";
+    private const float PositionTolerance = 0.15f;
+
+    public static bool TryFromCamera(Camera camera, out Vector3 position)
+    {
+        position = default;
+        if (camera == null || !camera.isActiveAndEnabled) return false;
+        Ray ray = camera.ViewportPointToRay(new Vector3(0.5f, 0.5f, 0f));
+        if (!Physics.Raycast(ray, out RaycastHit hit, camera.farClipPlane,
+                Physics.DefaultRaycastLayers, QueryTriggerInteraction.Ignore) || hit.collider == null)
+            return false;
+
+        foreach (NavMeshSurface surface in NavMeshSurface.activeSurfaces)
+        {
+            if (surface == null || !surface.isActiveAndEnabled || surface.navMeshData == null ||
+                surface.agentTypeID != 0 || surface.gameObject.scene != hit.collider.gameObject.scene ||
+                (surface.layerMask.value & (1 << hit.collider.gameObject.layer)) == 0)
+                continue;
+            if (surface.collectObjects == CollectObjects.Children &&
+                !hit.collider.transform.IsChildOf(surface.transform))
+                continue;
+            if (surface.collectObjects == CollectObjects.Volume &&
+                !new Bounds(surface.center, surface.size).Contains(surface.transform.InverseTransformPoint(hit.point)))
+                continue;
+            if (surface.collectObjects == CollectObjects.MarkedWithModifier &&
+                hit.collider.GetComponentInParent<NavMeshModifier>() == null)
+                continue;
+            NavMeshModifier modifier = hit.collider.GetComponentInParent<NavMeshModifier>();
+            if (modifier != null && modifier.isActiveAndEnabled && modifier.ignoreFromBuild && modifier.AffectsAgentType(0))
+                continue;
+            Bounds bounds = surface.navMeshData.sourceBounds;
+            bounds.Expand(PositionTolerance * 2f);
+            if (!bounds.Contains(Quaternion.Inverse(surface.transform.rotation) * (hit.point - surface.transform.position)))
+                continue;
+            if (TrySamplePosition(hit.point, out position)) return true;
+        }
+        return false;
+    }
+
+    public static bool TrySamplePosition(Vector3 requested, out Vector3 position)
+    {
+        position = default;
+        if (float.IsNaN(requested.x) || float.IsInfinity(requested.x) ||
+            float.IsNaN(requested.y) || float.IsInfinity(requested.y) ||
+            float.IsNaN(requested.z) || float.IsInfinity(requested.z))
+            return false;
+        var filter = new NavMeshQueryFilter { agentTypeID = 0, areaMask = NavMesh.AllAreas };
+        if (!NavMesh.SamplePosition(requested, out NavMeshHit hit, PositionTolerance, filter) ||
+            Vector3.Distance(requested, hit.position) > PositionTolerance)
+            return false;
+        position = hit.position;
+        return true;
+    }
 }

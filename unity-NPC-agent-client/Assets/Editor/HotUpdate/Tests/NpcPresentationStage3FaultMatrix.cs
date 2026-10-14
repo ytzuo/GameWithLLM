@@ -60,10 +60,14 @@ public static class NpcPresentationStage3FaultMatrix
             Check(LeaseCount(real) == baseline, "offline-prepare-leases");
             checks.Add("cache-eviction-repair-and-offline-installed-preparation");
 
+            var activePlayer = UnityEngine.Object.FindFirstObjectByType<PlayerMock>();
+            if (!UnityEngine.AI.NavMesh.SamplePosition(activePlayer.transform.position, out var testHit, 2f, UnityEngine.AI.NavMesh.AllAreas))
+                throw new InvalidOperationException("Smoke player is not on NavMesh.");
+            Vector3 testPosition = testHit.position;
             provider.PauseInstantiate = true;
             provider.InstantiateEntered = false;
-            var spawning = services.Spawner.SpawnAsync(record, CancellationToken.None);
-            Check(ReferenceEquals(spawning, services.Spawner.SpawnAsync(record, CancellationToken.None)), "unique-spawn-task");
+            var spawning = services.Spawner.SpawnAsync(record, testPosition, CancellationToken.None);
+            Check(ReferenceEquals(spawning, services.Spawner.SpawnAsync(record, testPosition, CancellationToken.None)), "unique-spawn-task");
             await Wait(() => provider.InstantiateEntered || spawning.IsCompleted);
             if (!provider.InstantiateEntered) await spawning;
             await services.BeginSceneTransitionAsync();
@@ -77,11 +81,11 @@ public static class NpcPresentationStage3FaultMatrix
             var saves = (SaveGameService)Field(typeof(PlayerMock), "_saveGameService").GetValue(player);
             var original = saves.CaptureCurrentState();
             provider.FailLoad = true;
-            await Fails(() => services.BeginRestoreAsync(new[] { Required("Merchant"), Required("Guide") }, CancellationToken.None));
+            await Fails(() => services.BeginRestoreAsync(RestoreFile(testPosition, "Merchant", "Guide"), CancellationToken.None));
             provider.FailLoad = false;
             Check(!services.Spawner.IsSpawned("Merchant") && LeaseCount(real) == baseline, "preflight-no-world-mutation");
             provider.FailGuideInstantiate = true;
-            await Fails(() => services.BeginRestoreAsync(new[] { Required("Merchant"), Required("Guide") }, CancellationToken.None));
+            await Fails(() => services.BeginRestoreAsync(RestoreFile(testPosition, "Merchant", "Guide"), CancellationToken.None));
             provider.FailGuideInstantiate = false;
             Check(!services.Spawner.IsSpawned("Merchant") && !services.Spawner.IsSpawned("Guide"), "restore-created-rollback");
             Check(LeaseCount(real) == baseline, "restore-failure-leases");
@@ -89,7 +93,7 @@ public static class NpcPresentationStage3FaultMatrix
             checks.Add("restore-preflight-and-second-spawn-failure-rollback");
 
             // A completed preparation remains rollbackable until Go restore commits.
-            using (var preparation = await services.BeginRestoreAsync(new[] { Required("Merchant"), Required("Guide") }, CancellationToken.None))
+            using (var preparation = await services.BeginRestoreAsync(RestoreFile(testPosition, "Merchant", "Guide"), CancellationToken.None))
                 Check(services.Spawner.IsSpawned("Merchant") && services.Spawner.IsSpawned("Guide"), "prepared-world");
             Check(!services.Spawner.IsSpawned("Merchant") && !services.Spawner.IsSpawned("Guide"), "prepared-world-rollback");
             Check(LeaseCount(real) == baseline, "transaction-rollback-leases");
@@ -99,7 +103,7 @@ public static class NpcPresentationStage3FaultMatrix
             record.DisplayName = "更新后的中文展示名";
             try
             {
-                using var changed = await services.BeginRestoreAsync(new[] { Required("Merchant") }, CancellationToken.None);
+                using var changed = await services.BeginRestoreAsync(RestoreFile(testPosition, "Merchant"), CancellationToken.None);
                 var entity = UnityEngine.Object.FindObjectsByType<NpcEntity>(FindObjectsSortMode.None).Single(value => value.npcId == "Merchant");
                 Check(entity.name.Contains(record.DisplayName) && entity.ContentBinding.EntityId == "Merchant", "changed-presentation-identity");
                 Check(entity.GetComponent<CharacterVisualController>().IsRemoteVisualActive, "prepared-visual-active");
@@ -124,6 +128,15 @@ public static class NpcPresentationStage3FaultMatrix
     }
     private static FieldInfo Field(Type type, string name) => type.GetField(name, BindingFlags.Instance | BindingFlags.NonPublic);
     private static int LeaseCount(ContentAssetProvider provider) => ((System.Collections.IEnumerable)Field(typeof(ContentAssetProvider), "_leases").GetValue(provider)).Cast<object>().Count();
+    private static SaveGameFile RestoreFile(Vector3 position, params string[] names) => new SaveGameFile
+    {
+        NpcContents = names.Select(name => Required(name)).ToList(),
+        Entities = names.Select(name => new SaveGameEntityState
+        {
+            EntityId = name, Position = new SaveGameVector3(position), Rotation = new SaveGameQuaternion(Quaternion.identity)
+        }).ToList()
+    };
+
     private static SaveGameNpcContentState Required(string name) => new SaveGameNpcContentState { EntityId = name };
     private static void Check(bool condition, string code) { if (!condition) throw new InvalidOperationException("Stage3 check failed: " + code); }
     private static async Task Wait(Func<bool> condition)

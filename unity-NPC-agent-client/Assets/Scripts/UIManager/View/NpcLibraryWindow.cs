@@ -15,6 +15,7 @@ public sealed class NpcLibraryWindow : BaseWindow
     private VisualElement _state, _scroll, _grid, _detailAvatar;
     private Label _stateIcon, _searchPlaceholder, _stateTitle, _stateDetail, _detailName, _detailIdentity, _detailDescription, _status;
     private ProgressBar _progress;
+    private VisualElement _invalidPositionPopup;
     private NpcLibraryServices _services;
     private RemoteNpcCatalog _catalog;
     private RemoteNpcSummary _selected;
@@ -94,6 +95,8 @@ public sealed class NpcLibraryWindow : BaseWindow
             _services.Installer.ProgressChanged -= OnProgressChanged;
             _services.CatalogClient.ReleaseAvatars();
         }
+        _invalidPositionPopup?.RemoveFromHierarchy();
+        _invalidPositionPopup = null;
         _avatars.Clear();
         _avatarLoads.Clear();
         Closed?.Invoke();
@@ -358,7 +361,11 @@ public sealed class NpcLibraryWindow : BaseWindow
         }
         catch (Exception error)
         {
-            _transientStatus = error.Message == "NPC_RESOURCE_RESTART_REQUIRED"
+            bool invalidPosition = error.Message == NpcSpawnPlacement.InvalidPositionError;
+            if (invalidPosition) ShowInvalidPositionPopup();
+            _transientStatus = invalidPosition
+                ? "当前位置不是有效位置"
+                : error.Message == "NPC_RESOURCE_RESTART_REQUIRED"
                 ? Text("restartRequired", "资源尚未就绪，请重启后重试")
                 : error is System.IO.InvalidDataException
                 ? Text("errorContent", "NPC 配置无效或资源损坏，请修复后重试")
@@ -373,6 +380,38 @@ public sealed class NpcLibraryWindow : BaseWindow
             _transientStatusIsError = true;
         }
         finally { if (_lifetime != null && !_lifetime.IsCancellationRequested) { await RenderDetailAsync(); RenderGrid(); } }
+    }
+
+    private void ShowInvalidPositionPopup()
+    {
+        if (!IsOpen || RootElement == null) return;
+        _invalidPositionPopup?.RemoveFromHierarchy();
+        var overlay = new VisualElement { name = "npc-library-invalid-position-popup" };
+        overlay.style.position = Position.Absolute;
+        overlay.style.left = overlay.style.right = overlay.style.top = overlay.style.bottom = 0;
+        overlay.style.alignItems = Align.Center;
+        overlay.style.justifyContent = Justify.Center;
+        overlay.style.backgroundColor = new Color(0f, 0f, 0f, 0.45f);
+        var dialog = new VisualElement();
+        dialog.style.backgroundColor = new Color(0.12f, 0.14f, 0.19f, 1f);
+        dialog.style.paddingLeft = dialog.style.paddingRight = 28;
+        dialog.style.paddingTop = dialog.style.paddingBottom = 24;
+        var message = new Label("当前位置不是有效位置");
+        message.style.color = Color.white;
+        message.style.fontSize = 18;
+        message.style.marginBottom = 16;
+        var dismiss = new Button(() =>
+        {
+            overlay.RemoveFromHierarchy();
+            if (ReferenceEquals(_invalidPositionPopup, overlay)) _invalidPositionPopup = null;
+        }) { text = "确定" };
+        dialog.Add(message);
+        dialog.Add(dismiss);
+        overlay.Add(dialog);
+        RootElement.Add(overlay);
+        overlay.BringToFront();
+        _invalidPositionPopup = overlay;
+        dismiss.Focus();
     }
 
     private void OnInstallerChanged() { if (_lifetime != null) RenderGrid(); }

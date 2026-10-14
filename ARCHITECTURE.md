@@ -618,11 +618,15 @@ builtin 参数；必要 DLL 检查长度/hash、程序集、入口与接口并�
 离线使用最后完整安装和可用缓存。Address 缺失明确提示资源尚未就绪、重启重试；
 已生成或正在生成 NPC 不允许运行中安装替换。
 
-`NpcSpawnController` 每名称最多一个实例与生成任务。AOT 权威根在 Player 下以 inactive
-状态构造，在 `(0,0,0)` 严格检查 NavMesh，绑定 NPC、库存 `npc:{name}.inventory` 和仅身份
-ContentBinding；严格加载 Prefab/驱动后才激活与注册。动画 Bind/Tick/Dispose 仅在主线程。
-失败释放实例、驱动、资源 lease 与生成标记。SampleScene 地面和精细高度 NavMesh 已调整，
-让原点符合严格生成前置条件；本地 Alice/Ryan 身份保持现状。
+`NpcSpawnController` 每名称最多一个实例与生成任务。NPC 选择界面在实际生成时从
+当前 `Camera.main` 的视口中心发射射线；首个非 Trigger 碰撞体必须位于同场景已启用、
+已加载 NavMeshData 的 `NavMeshSurface` 收集范围内，并在命中点 0.15 米内采样到默认
+Agent 类型的 NavMesh。没有相机、没有碰撞体、没有对应 Surface 或没有有效 NavMesh
+时不生成，UI 弹窗提示“当前位置不是有效位置”。射线不穿过无效前景碰撞体寻找地面。
+AOT 权威根以 inactive 状态在采样点构造，绑定 NPC、库存 `npc:{name}.inventory` 和仅身份
+ContentBinding；加载 Prefab/驱动后重新校验位置，再激活与注册。动画 Bind/Tick/Dispose
+仅在主线程。存档恢复从世界快照的实体位置准备 NPC，不使用相机，也不依赖原点。
+失败释放实例、驱动、资源 lease 与生成标记。地面与 NavMesh 保持作者资产配置；本地 Alice/Ryan 身份保持现状。
 
 世界存档格式 3，远端 npcContents 每项仅 entityId。恢复先检查全部安装身份、缓存和实际
 加载结果，再经唯一生成入口补齐实体；本轮生成失败回收已创建实体。`NpcRestorePreparation`
@@ -646,14 +650,13 @@ NPC/current/Catalog 的 HTTP 响应使用 `no-cache, must-revalidate` 和内容 
 hash URL 保持 immutable。发布先校验、复制整体归档，再提交当前 payload、指针与索引；
 写入锁与持久化事务日志支持失败回滚和中断恢复，WhatIf 不写文件。
 内置驱动通过短生命周期 Controller Playable 验证 dormant Animator 的四个参数，图始终
-释放；Animator 初始化后同步事件快照。SampleScene 与 WarehouseRemote 均满足严格原点
-NavMesh 前置条件，场景 Agent 在 Surface 注册后启用，现有 NavMesh 资产 GUID 保留。
-SampleScene 地面位于 y=0，并保持覆盖 x=-8.09/7.68 两个地标的宽度；显式场景准备入口
-分别使用 SampleScene 与 WarehouseRemote 的作者布局，不在启动时动态烘焙或放宽生成条件。
+释放；Animator 初始化后同步事件快照。场景 Agent 在 Surface 注册后启用，现有 NavMesh 资产 GUID 保留。
+场景布局与 NavMesh 由作者资产提供；启动时不动态烘焙，NPC 生成不要求原点可行走。
 旧简化计划保留在 `Docs/History/RemoteNpc`。已完成迁移的 RoundOne、阶段二场景测试、
 阶段一/二一次性校验和阶段二迁移脚本已删除；对应旧运行环境配置不再保留。
-当前 SampleScene 回归使用 `Scripts/Test-NpcPresentationStage3.py` 与
-`NpcPresentationStage3SceneSmoke.RunFromCommandLine`，Player 验收使用
+当前作者场景回归使用 `Scripts/Test-NpcPresentationStage3.py` 与
+`NpcPresentationStage3SceneSmoke.RunFromCommandLine`；Editor 以 Bootstrap 常驻服务和
+WarehouseRemote 作者场景验证实际布局，使用源资产模式且不保存测试期间的场景设置。Player 验收使用
 `Scripts/Test-NpcPresentationStage4.py`。阶段夹具、GUID 迁移清单和验收证据仍作为历史记录保留。
 无依赖的空资源/脚本目录连同 `.meta` 清理；工具包 smoke staging 依赖的空
 `Assets/StreamingAssets` 目录保留。

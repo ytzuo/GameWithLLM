@@ -471,7 +471,7 @@ public class PlayerMock : MonoBehaviour, IGameplayWorldTarget
             _saveGameWindow.SetStatus("正在校验并生成存档所需的远端 NPC……");
             SaveGameFile originalWorld = _saveGameService.CaptureCurrentState();
             using var preparation = await NpcLibraryServices.Current.BeginRestoreAsync(
-                file.NpcContents, destroyCancellationToken);
+                file, destroyCancellationToken);
             var npcIds = (file.Entities ?? new List<SaveGameEntityState>())
                 .Where(entity => entity != null && entity.EntityId != WorldTargetId)
                 .Select(entity => entity.EntityId)

@@ -6,9 +6,10 @@ using UnityEditor;
 using UnityEditor.AddressableAssets;
 using UnityEditor.SceneManagement;
 using UnityEngine;
+using UnityEngine.UIElements;
 
 // External smoke coordinator drives the real A2A/MCP/Save HTTP endpoints while this
-// Editor session runs SampleScene. No test endpoint is added to production code.
+// Editor session runs the authored Warehouse with the local Bootstrap host. No test endpoint is added to production code.
 [InitializeOnLoad]
 public static class NpcPresentationStage3SceneSmoke
 {
@@ -25,9 +26,15 @@ public static class NpcPresentationStage3SceneSmoke
         SessionState.SetString(Key + ".Profile", settings.activeProfileId);
         SessionState.SetString(Key + ".Deadline", DateTime.UtcNow.AddSeconds(480).Ticks.ToString());
         SessionState.SetBool(Key, true);
-        settings.ActivePlayerDataBuilderIndex = 1;
+        settings.ActivePlayerDataBuilderIndex = 0;
         settings.activeProfileId = settings.profileSettings.GetProfileId("LocalDevelopment");
-        EditorSceneManager.OpenScene("Assets/Scenes/SampleScene.unity", OpenSceneMode.Single);
+        EditorSceneManager.OpenScene("Assets/Scenes/BootstrapScene.unity", OpenSceneMode.Single);
+        var host = UnityEngine.Object.FindFirstObjectByType<AgentHostClient>();
+        var coordinator = new SerializedObject(host.GetComponent<RemoteSceneCoordinator>());
+        coordinator.FindProperty("loadInitialScene").boolValue = false;
+        coordinator.ApplyModifiedPropertiesWithoutUndo();
+        var warehouse = EditorSceneManager.OpenScene("Assets/Content/Scenes/WarehouseRemote.unity", OpenSceneMode.Additive);
+        UnityEngine.SceneManagement.SceneManager.SetActiveScene(warehouse);
         Attach(); EditorApplication.EnterPlaymode();
     }
     private static void Attach()
@@ -108,11 +115,15 @@ public static class NpcPresentationStage3SceneSmoke
             await NpcPresentationStage3FaultMatrix.RunAsync();
             var services = NpcLibraryServices.Current;
             var catalog = await services.CatalogClient.FetchAsync(System.Threading.CancellationToken.None);
+            if (!UnityEngine.AI.NavMesh.SamplePosition(UnityEngine.Object.FindFirstObjectByType<PlayerMock>().transform.position, out var testHit, 2f, UnityEngine.AI.NavMesh.AllAreas))
+                throw new InvalidOperationException("Smoke player is not on NavMesh.");
+            Vector3 testPosition = testHit.position;
+            await VerifyCameraPlacementAsync(catalog);
             var visuals = new Newtonsoft.Json.Linq.JObject();
             foreach (var summary in catalog.Npcs)
             {
                 var record = await services.Installer.InstallAsync(summary, System.Threading.CancellationToken.None);
-                var entity = await services.Spawner.SpawnAsync(record, System.Threading.CancellationToken.None);
+                var entity = await services.Spawner.SpawnAsync(record, testPosition, System.Threading.CancellationToken.None);
                 if (entity.ContentBinding.EntityId != summary.NpcId) throw new InvalidOperationException("Smoke binding invalid.");
                 var mesh = entity.GetComponentInChildren<MeshFilter>();
                 var animator = entity.GetComponentInChildren<Animator>();
@@ -124,11 +135,71 @@ public static class NpcPresentationStage3SceneSmoke
             foreach (GameObject root in UnityEngine.SceneManagement.SceneManager.GetActiveScene().GetRootGameObjects())
                 foreach (Transform child in root.GetComponentsInChildren<Transform>(true))
                     if (GameObjectUtility.GetMonoBehavioursWithMissingScriptCount(child.gameObject) != 0)
-                        throw new InvalidOperationException("SampleScene contains Missing Script.");
+                        throw new InvalidOperationException("Warehouse contains Missing Script.");
             File.WriteAllText(Path.Combine(Root,"ready"),UnityEngine.Object.FindFirstObjectByType<AgentHostClient>().unityInstanceId);
         }
         catch (Exception ex) { Debug.LogException(ex); File.WriteAllText(Path.Combine(Root,"stop"),"failure"); }
     }
+    private static async System.Threading.Tasks.Task VerifyCameraPlacementAsync(RemoteNpcCatalog catalog)
+    {
+        var services = NpcLibraryServices.Current;
+        var summary = catalog.Npcs.Single(value => value.NpcId == "Merchant");
+        await services.Installer.InstallAsync(summary, System.Threading.CancellationToken.None);
+        Camera camera = Camera.main;
+        if (camera == null) throw new InvalidOperationException("Placement smoke requires the active camera.");
+        Vector3 originalPosition = camera.transform.position;
+        Quaternion originalRotation = camera.transform.rotation;
+        NpcLibraryWindow window = null;
+        var checks = new Newtonsoft.Json.Linq.JArray();
+        try
+        {
+            window = UIManager.Instance.OpenNewWindow<NpcLibraryWindow>();
+            var catalogField = typeof(NpcLibraryWindow).GetField("_catalog", BindingFlags.Instance | BindingFlags.NonPublic);
+            DateTime deadline = DateTime.UtcNow.AddSeconds(30);
+            while (catalogField.GetValue(window) == null)
+            {
+                if (DateTime.UtcNow > deadline) throw new TimeoutException("NPC window did not load its catalog.");
+                await System.Threading.Tasks.Task.Yield();
+            }
+            typeof(NpcLibraryWindow).GetField("_selected", BindingFlags.Instance | BindingFlags.NonPublic).SetValue(window, summary);
+            camera.transform.rotation = Quaternion.LookRotation(Vector3.up);
+            await (System.Threading.Tasks.Task)typeof(NpcLibraryWindow).GetMethod("RunActionAsync", BindingFlags.Instance | BindingFlags.NonPublic).Invoke(window, null);
+            var popup = window.RootElement.Q<UnityEngine.UIElements.VisualElement>("npc-library-invalid-position-popup");
+            if (services.Spawner.IsSpawned(summary.NpcId) || popup == null ||
+                popup.Q<UnityEngine.UIElements.Label>().text != "当前位置不是有效位置")
+                throw new InvalidOperationException("Invalid camera hit did not reject spawn and show the popup.");
+            checks.Add("invalid-ray-no-spawn-and-ui-popup");
+            popup.RemoveFromHierarchy();
+
+            Vector3 requested = UnityEngine.Object.FindFirstObjectByType<PlayerMock>().transform.position + new Vector3(2, 0, 2);
+            if (!UnityEngine.AI.NavMesh.SamplePosition(requested, out var target, 2f, UnityEngine.AI.NavMesh.AllAreas))
+                throw new InvalidOperationException("Placement smoke requires a non-origin ground point.");
+            camera.transform.position = target.position + Vector3.up * 5f;
+            camera.transform.rotation = Quaternion.LookRotation(Vector3.down, Vector3.forward);
+            Physics.SyncTransforms();
+            if (!NpcSpawnPlacement.TryFromCamera(camera, out Vector3 expected) || expected.magnitude < 0.5f)
+                throw new InvalidOperationException("Non-origin camera ground hit was rejected.");
+            await (System.Threading.Tasks.Task)typeof(NpcLibraryWindow).GetMethod("RunActionAsync", BindingFlags.Instance | BindingFlags.NonPublic).Invoke(window, null);
+            var npc = UnityEngine.Object.FindObjectsByType<NpcEntity>(FindObjectsSortMode.None).SingleOrDefault(value => value.npcId == summary.NpcId);
+            if (npc == null || Vector3.Distance(npc.transform.position, expected) > 0.15f)
+                throw new InvalidOperationException("NPC window did not spawn at its camera center hit.");
+            checks.Add("ui-spawns-at-non-origin-camera-hit");
+            services.Spawner.Despawn(summary.NpcId);
+            await System.Threading.Tasks.Task.Yield();
+            File.WriteAllText(Path.Combine(Root, "placement-report.json"), new Newtonsoft.Json.Linq.JObject
+            {
+                ["passed"] = true, ["checks"] = checks,
+                ["position"] = Newtonsoft.Json.Linq.JObject.FromObject(new SaveGameVector3(expected))
+            }.ToString());
+        }
+        finally
+        {
+            window?.Close();
+            if (window != null) UIManager.Instance.RemoveWindow(window);
+            camera.transform.SetPositionAndRotation(originalPosition, originalRotation);
+        }
+    }
+
     private static async void FailContextRestoreAsync(SaveGameService saves, AgentHostClient host)
     {
         try
@@ -139,7 +210,7 @@ public static class NpcPresentationStage3SceneSmoke
             contexts["Merchant"] = context;
             var original = saves.CaptureCurrentState();
             var saved = saves.Load(File.ReadAllText(Path.Combine(Root, "world-saved")));
-            using var preparation = await NpcLibraryServices.Current.BeginRestoreAsync(saved.NpcContents, System.Threading.CancellationToken.None);
+            using var preparation = await NpcLibraryServices.Current.BeginRestoreAsync(saved, System.Threading.CancellationToken.None);
             var npcIds = saved.Entities.Where(value => value.EntityId != ((IGameplayWorldTarget)UnityEngine.Object.FindFirstObjectByType<PlayerMock>()).WorldTargetId)
                 .Select(value => value.EntityId).ToList();
             var result = await host.LoadConversationsForSaveGameAsync(saved.SaveId, npcIds, () => saves.Apply(saved), () =>
@@ -165,7 +236,7 @@ public static class NpcPresentationStage3SceneSmoke
             var services=NpcLibraryServices.Current;
             foreach (var npc in file.NpcContents) services.Spawner.Despawn(npc.EntityId);
             await System.Threading.Tasks.Task.Yield();
-            await services.PrepareRestoreAsync(file.NpcContents,System.Threading.CancellationToken.None);
+            await services.PrepareRestoreAsync(file,System.Threading.CancellationToken.None);
             saves.Apply(file);
             var host=UnityEngine.Object.FindFirstObjectByType<AgentHostClient>();
             await (System.Threading.Tasks.Task)typeof(AgentHostClient).GetMethod("PublishManifestAndWaitAsync",BindingFlags.NonPublic|BindingFlags.Instance)
