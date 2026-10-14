@@ -150,6 +150,9 @@ public class NpcEntity : MonoBehaviour, IGameObjectAgentEntity, IGameplayWorldTa
     {
         WorldModelInitial.Attach(gameObject, npcId);
         _navAgent = GetComponent<NavMeshAgent>();
+        // Scene agents are serialized dormant. Start runs after every NavMeshSurface
+        // OnEnable has registered its data, avoiding native errors during scene activation.
+        if (_navAgent != null && !_navAgent.enabled) _navAgent.enabled = true;
         if (_navAgent == null)
             Debug.LogError($"[NPC:{npcId}] NavMeshAgent is missing.", this);
 

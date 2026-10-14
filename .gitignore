@@ -2,6 +2,7 @@
 .env.local
 .env.*.local
 .cache/
+__pycache__/
 /Artifacts/
 
 .agents

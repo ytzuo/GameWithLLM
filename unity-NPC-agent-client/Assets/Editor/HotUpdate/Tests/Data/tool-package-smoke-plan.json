@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
-  "releaseId": "h8-production-2.0.0",
-  "toolSetVersion": "6.0.0",
+  "releaseId": "npc-current-baseline-1",
+  "toolSetVersion": "7.0.0",
   "smokeCalls": [
     {
       "toolName": "game_hotfix_smoke_package_info",

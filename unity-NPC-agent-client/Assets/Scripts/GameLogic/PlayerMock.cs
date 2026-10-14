@@ -57,6 +57,7 @@ public class PlayerMock : MonoBehaviour, IGameplayWorldTarget
 
     // ── Item Dispenser ──
     private ItemDataList _itemDataList;
+    internal SaveGameService SaveService => _saveGameService;
     private ItemDispenserWindow _dispenserWindow;
     private InputAction _dispenserAction; // E key
 

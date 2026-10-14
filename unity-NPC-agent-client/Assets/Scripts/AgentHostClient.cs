@@ -43,6 +43,7 @@ public class AgentHostClient : Singleton<AgentHostClient>, ISceneTransitionParti
     private bool _initializationStarted;
     private bool _runtimeInitialized;
     private ContentAssetProvider _contentProvider;
+    internal ContentAssetProvider ContentProvider => _contentProvider;
     private ClientContentBootstrap _contentBootstrap;
     private ContentBootstrapOverlay _contentOverlay;
     private PlayerMock[] _gatedPlayers = Array.Empty<PlayerMock>();
@@ -898,7 +899,7 @@ public class AgentHostClient : Singleton<AgentHostClient>, ISceneTransitionParti
                 _appCts.Token);
     }
 
-    private async Task PublishManifestAndWaitAsync(CancellationToken cancellationToken)
+    internal async Task PublishManifestAndWaitAsync(CancellationToken cancellationToken)
     {
         RefreshManifest();
         if (_runtimeTransport != null)

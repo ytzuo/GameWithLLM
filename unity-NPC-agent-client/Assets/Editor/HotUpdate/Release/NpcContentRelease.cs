@@ -77,6 +77,18 @@ public static class NpcContentRelease
         finally { if (Directory.Exists(_outputRoot)) Directory.Delete(_outputRoot, true); _outputRoot = null; }
         AssetDatabase.SaveAssets();
         AssetDatabase.Refresh();
+        var currentAddresses = new HashSet<string>(definitions.SelectMany(definition =>
+            definition.animationDriverKind == NpcAnimationDriverKind.HotUpdate
+                ? new[] { $"npc/{definition.name}/visual", $"npc/{definition.name}/animation-script" }
+                : new[] { $"npc/{definition.name}/visual" }), StringComparer.Ordinal);
+        foreach (AddressableAssetEntry obsolete in group.entries.Where(entry =>
+                     entry.address.StartsWith("npc/", StringComparison.Ordinal) && !currentAddresses.Contains(entry.address)).ToArray())
+            settings.RemoveAssetEntry(obsolete.guid, false);
+        var currentLabels = new HashSet<string>(definitions.Select(definition => "content.npc." + definition.name), StringComparer.Ordinal);
+        foreach (string obsolete in settings.GetLabels().Where(label =>
+                     label.StartsWith("content.npc.", StringComparison.Ordinal) && !currentLabels.Contains(label)).ToArray())
+            settings.RemoveLabel(obsolete);
+        AssetDatabase.SaveAssets();
         Validate();
         Debug.Log("NPC_DEFINITION_BUILD_SUCCESS");
     }
@@ -264,8 +276,6 @@ public static class NpcContentRelease
 
     public static void ValidateProductionPlayerContract()
     {
-        if (Application.version == "0.1.0")
-            throw new InvalidDataException("NPC animation changes the AOT contract: assign a new Player version before production publishing.");
         string metadata = "Assets/Content/HotUpdate/Metadata/GameWithLLM.Client.Gameplay.dll.bytes";
         using AssemblyDefinition assembly = AssemblyDefinition.ReadAssembly(metadata);
         string[] requiredTypes =

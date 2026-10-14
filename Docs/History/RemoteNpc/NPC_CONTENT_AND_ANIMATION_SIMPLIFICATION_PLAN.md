@@ -1,3 +1,5 @@
+> 历史记录（2026-10-14 归档）：NPC 版本目录、绑定与兼容设计已被 [NPC 表现管线重构计划](../../NPC_PRESENTATION_PIPELINE_REFACTOR_PLAN.md) 替代。本文不参与生产构建；当前事实见 [ARCHITECTURE.md](../../../ARCHITECTURE.md)。
+
 # NPC 资产接入与动画事件简化计划
 
 > 状态：迭代一、迭代二实现完成；生产候选的 Windows IL2CPP/受保护环境验收按发布门禁执行

@@ -35,17 +35,20 @@
 - [ ] offline、cache-hit、low-disk、interrupted-retry 全部通过。
 - [ ] 普通对话、流式回复、warehouse/gate 移动、取消、Inventory、存档恢复通过。
 - [ ] Animator 的 Moving 可与 Thinking/Speaking 同时为 true；失败、取消、切场和销毁后无残留状态。
-- [ ] 活动 Merchant/Guide 均由 `NpcContentDefinition` 生成 schema v2/builtin，历史 v1/v2 文件未改写。
+- [ ] Merchant/Guide 由 `NpcContentDefinition` 生成当前固定结构；每名称只有一套作者资产与静态目录，NPC 清单无版本/hash 绑定。
+- [ ] 删除 NPC 后生成目录与旧 Address 被清理；失败构建保留上一完整索引。
+- [ ] `/npc/` 当前路径使用 `no-cache, must-revalidate` 和内容 ETag；Bundle hash URL 保持 immutable。
 - [ ] 坏 JSON、坏 DLL、缺失 Bundle 和超预算候选均未改变生产指针。
 - [ ] Event Viewer/Profiler 无未解释异常或 Addressables handle 泄漏。
 - [ ] `content-release-smoke.passed.json` 已生成且绑定候选 manifest SHA-256。
-- [ ] `npc-runtime-smoke.passed.json` 已生成且绑定同一候选 manifest SHA-256；覆盖 dynamic-download、animation-driver、save-restore、version-conflict、cache-repair、catalog-restart-required、scene-cancel、manifest-reregister。
+- [ ] `npc-runtime-smoke.passed.json` 已生成且绑定同一候选 manifest SHA-256；覆盖 dynamic-download、animation-driver、save-restore、resource-integrity、cache-repair、catalog-address-missing、scene-cancel、manifest-reregister。
 
 ## 发布与回滚准备
 
 - [ ] 当前和上一 release 均完整保留，回滚窗口与保留策略满足要求。
 - [ ] 发布账号仅具备目标 publish root 的必要权限。
 - [ ] `Publish-ContentRelease.ps1` 的 CandidateDirectory 与 PublishRoot 已人工复核。
+- [ ] 发布事务测试覆盖 WhatIf、最终索引失败回滚、进程中断恢复、删除 NPC 和旧 smoke 证据拒绝。
 - [ ] 变更窗口、监控人、回滚负责人和通知渠道已确认。
 
 ## 发布后

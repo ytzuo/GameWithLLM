@@ -17,9 +17,15 @@ on:
     paths:
       - "unity-NPC-agent-client/Assets/Content/**"
       - "unity-NPC-agent-client/Assets/Editor/HotUpdate/**"
+      - "unity-NPC-agent-client/Assets/Editor/HybridClrProjectSetup.cs"
       - "unity-NPC-agent-client/Assets/Scripts/**"
       - "unity-NPC-agent-client/Packages/**"
-      - "Scripts/Build-ContentRelease.ps1"
+      - "unity-NPC-agent-client/ProjectSettings/**"
+      - "NpcContent/npc/**"
+      - "Docs/Release/tool-history-current.json"
+      - "GameMCPServer/cmd/npc-content-validate/**"
+      - "GameMCPServer/internal/agent/npc_content*"
+      - "Scripts/**"
       - ".github/workflows/content-release-candidate.yml"
 
 jobs:
@@ -35,7 +41,10 @@ jobs:
           python-version: "3.13"
       - name: Verify publish and rollback transaction
         shell: pwsh
-        run: ./Scripts/Test-ContentReleaseTransaction.ps1
+        run: |
+          ./Scripts/Test-UnityBatch.ps1
+          ./Scripts/Test-ContentReleaseTransaction.ps1
+          python ./Scripts/Test-ContentHttp.py
       - name: Resolve candidate mode
         id: candidate
         shell: pwsh
@@ -50,6 +59,7 @@ jobs:
           CONTENT_LICENSING_IPC: ${{ vars.UNITY_LICENSING_IPC }}
           CONTENT_MODE: ${{ steps.candidate.outputs.mode }}
           CONTENT_BASELINE: ${{ inputs.baseline_content_state }}
+          CONTENT_RELEASE_BASE_URL: ${{ vars.CONTENT_RELEASE_BASE_URL }}
         run: |
           ./Scripts/Build-ContentRelease.ps1 `
             -UnityExe $env:CONTENT_UNITY_EXE `
@@ -66,4 +76,6 @@ jobs:
             Artifacts/Content/**
             unity-NPC-agent-client/Builds/ContentReleaseProduction/**
             unity-NPC-agent-client/ServerData/production/StandaloneWindows64/**
+            NpcContent/npc/**
             unity-NPC-agent-client/Logs/content-*.log
+            unity-NPC-agent-client/Logs/npc-definitions-build.log

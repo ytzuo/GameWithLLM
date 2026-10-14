@@ -1,0 +1,148 @@
+{
+  "date": "2026-10-14",
+  "stage": 4,
+  "status": "complete-local-candidate-and-deployment",
+  "candidate": {
+    "releaseId": "npc-current-baseline-1",
+    "playerBuildId": "windows-x64-0.3.0",
+    "toolSetVersion": "7.0.0",
+    "packageVersion": "1.6.0",
+    "manifestSha256": "ad372e1e64fadb6d85e9d6d6168ddf5062465322da5ce68c882b5272b4bddb06",
+    "fileCount": 778,
+    "bundleCount": 28,
+    "remoteBytes": 4807310,
+    "duplicateImplicitAssets": 0,
+    "filesReverified": true
+  },
+  "unity": {
+    "version": "6000.3.19f1",
+    "cSharpCompile": "passed",
+    "editModePassed": 57,
+    "editModeFailed": 0,
+    "editModeXmlSha256": "502478c94b9541bff39d8f7fce3a7cce8e36713080b398f0dd200879d8e4f999",
+    "windowsIL2CPP": "passed",
+    "npcRuntimeSmoke": {
+      "schemaVersion": 1,
+      "releaseId": "npc-current-baseline-1",
+      "candidateManifestSha256": "ad372e1e64fadb6d85e9d6d6168ddf5062465322da5ce68c882b5272b4bddb06",
+      "successMarker": "NPC_RUNTIME_SMOKE_SUCCESS",
+      "playerLogSha256": "df3377c000400ea55310af7314207ea665d38b85ce572329af35807c266f652e",
+      "environment": "local deployed production candidate / Windows IL2CPP / deterministic model",
+      "scenarios": [
+        {
+          "name": "animation-driver",
+          "passed": true
+        },
+        {
+          "name": "cache-repair",
+          "passed": true
+        },
+        {
+          "name": "catalog-address-missing",
+          "passed": true
+        },
+        {
+          "name": "dynamic-download",
+          "passed": true
+        },
+        {
+          "name": "manifest-reregister",
+          "passed": true
+        },
+        {
+          "name": "resource-integrity",
+          "passed": true
+        },
+        {
+          "name": "save-restore",
+          "passed": true
+        },
+        {
+          "name": "scene-cancel",
+          "passed": true
+        }
+      ],
+      "additionalChecks": [
+        "online-cache-hit-player-restart",
+        "offline-cached-player-restart",
+        "http-revalidation-headers"
+      ]
+    },
+    "playerIntegration": {
+      "passed": true,
+      "model": "local deterministic fixture",
+      "checks": [
+        "runtime-registration",
+        "ordinary-and-streaming-dialogue",
+        "both-current-npc-bindings-and-dialogue",
+        "move-warehouse-and-gate",
+        "cancel-task-and-movement",
+        "inventory",
+        "world-inventory-and-context-restore",
+        "snapshot-format-two-identity-only",
+        "go-restart-reconnect-manifest",
+        "console-and-missing-script"
+      ]
+    },
+    "sampleScene": {
+      "passed": true,
+      "model": "local deterministic fixture",
+      "checks": [
+        "runtime-registration",
+        "ordinary-and-streaming-dialogue",
+        "both-current-npc-bindings-and-dialogue",
+        "move-warehouse-and-gate",
+        "cancel-task-and-movement",
+        "inventory",
+        "failed-current-config-restore-preserves-world-inventory-and-context",
+        "world-inventory-and-context-restore",
+        "snapshot-format-two-identity-only",
+        "go-restart-reconnect-manifest",
+        "console-and-missing-script"
+      ]
+    },
+    "sampleFaultMatrix": {
+      "passed": true,
+      "checks": [
+        "address-missing-restart-and-load-failure-retain-record",
+        "single-download-and-cancel-no-commit",
+        "cache-eviction-repair-and-offline-installed-preparation",
+        "same-name-task-and-scene-transition-cancellation",
+        "restore-preflight-and-second-spawn-failure-rollback",
+        "uncommitted-restore-rollback",
+        "changed-model-animation-and-display-name-restore"
+      ],
+      "provider": "real Addressables with injected boundary faults",
+      "leaseBaseline": 20,
+      "leaseFinal": 20
+    }
+  },
+  "go": {
+    "test": "passed",
+    "vet": "passed",
+    "windowsNativeRace": "environment-error-0xc0000139",
+    "wslRace": "passed",
+    "version": "1.26.5"
+  },
+  "pipeline": {
+    "publishTransaction": "passed",
+    "httpCacheRevalidation": "passed",
+    "unityLauncherMockCases": 5,
+    "generatedTreeCleanup": "passed",
+    "failedBuildAtomicity": "passed",
+    "orphanAndCorruptAvatarRejection": "passed",
+    "historyArchived": true,
+    "productionEnvironmentGate": "preserved-rejects-missing-evidence"
+  },
+  "scope": {
+    "deployment": "local Production Profile candidate",
+    "model": "local deterministic fixture",
+    "globalUserCacheCleared": false,
+    "npcFaults": "candidate assets with provider boundary faults and corrupted inactive Animator instance",
+    "offlineContent": "503 content requests with cached startup",
+    "publicProductionPublished": false,
+    "contentReleaseEnvironmentEvidenceGenerated": false,
+    "stage5ThirdNpcImplemented": false,
+    "unityDiagnosticEnvironmentExcludesLlmKeys": true
+  }
+}

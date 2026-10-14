@@ -1,7 +1,7 @@
 # NPC 表现资产管线破坏性重构计划
 
 日期：2026-10-14  
-状态：阶段一至三已完成，阶段四、五待实施；无版本最小端到端已切换，尚未发布新 Player。
+状态：阶段一至四已完成，阶段五待实施；新 Windows IL2CPP 候选与本地部署验收通过，尚未公网发布。
 当前架构事实源：`../ARCHITECTURE.md`。
 
 ## 1. 目标与范围
@@ -11,7 +11,7 @@
 历史由版本控制管理。系统不执行 NPC 内容版本、Player 版本范围、历史清单 hash 或
 Catalog 内容版本匹配，只检查配置、依赖和实际加载结果是否完整有效。
 
-本次替代 `NPC_CONTENT_AND_ANIMATION_SIMPLIFICATION_PLAN.md` 中有关稳定 ID/版本、
+本次替代 `History/RemoteNpc/NPC_CONTENT_AND_ANIMATION_SIMPLIFICATION_PLAN.md` 中有关稳定 ID/版本、
 旧格式兼容、存档版本绑定和不可变 NPC 版本目录的设计；保留其中 Prefab 依赖图、
 builtin/hot-update 动画驱动和表现事件的已实现能力。实施完成后将该旧计划归档并标明替代关系。
 
@@ -217,6 +217,16 @@ WSL race 全量通过。模型/动画/展示名变化不阻止仅身份存档恢
 
 验收：Windows IL2CPP 新 Player 与完整内容候选构建通过；部署后的两种 NPC 下载/恢复
 smoke 通过；工程无历史 NPC 资产；现有生产事务及工具包检查通过。
+
+2026-10-14 完成记录：[阶段四交接](NpcPresentationStage4/README.md) 与
+[结构化验证](NpcPresentationStage4/verification.json)。新基线为 Player 0.3.0、
+release `npc-current-baseline-1`、ToolSet 7.0.0。完整候选、工具包 Player smoke、
+八项候选绑定的 NPC runtime smoke、在线/离线缓存重启、57 项 EditMode 与 SampleScene
+回归通过；Go test/vet 和同版本 WSL race 通过。生成清理、失败原子性、HTTP 重新验证、
+发布失败回滚、进程中断恢复和 CI 静态目录交付已收束；旧计划与一次性迁移脚本归档。
+修复了未激活 Animator 在 IL2CPP 中的参数检查，并同步远端场景原点 NavMesh 和延后场景
+Agent 启用。本次验证使用本地部署和确定性模型；没有生成整体受保护环境 evidence，
+公网发布仍受原有环境门禁约束，阶段五第三 NPC 作者接入尚未实施。
 
 ### 阶段五：接入体验验收与交付
 

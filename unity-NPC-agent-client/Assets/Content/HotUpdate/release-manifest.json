@@ -1,12 +1,12 @@
 {
   "schemaVersion": 1,
-  "releaseId": "h8-production-2.0.0",
+  "releaseId": "npc-current-baseline-1",
   "contentVersion": "2026.10.001",
-  "toolSetVersion": "6.0.0",
+  "toolSetVersion": "7.0.0",
   "catalogVersion": "2026.10.001",
-  "playerBuildId": "windows-x64-0.2.0",
-  "minPlayerVersion": "0.2.0",
-  "maxPlayerVersion": "0.2.0",
+  "playerBuildId": "windows-x64-0.3.0",
+  "minPlayerVersion": "0.3.0",
+  "maxPlayerVersion": "0.3.0",
   "catalogs": [
     {
       "address": "config/tool-metadata/zh-CN",
@@ -32,43 +32,43 @@
   ],
   "aotMetadata": [
     {
-      "address": "hotfix/aot/windows-x64-0.2.0/mscorlib",
+      "address": "hotfix/aot/windows-x64-0.3.0/mscorlib",
       "fileName": "mscorlib.dll.bytes",
       "length": 2248704,
-      "sha256": "4df3bf2459a5564b60bed185095547ee84978b448917ded11c01891851870e09"
+      "sha256": "ab08a31b3bf46898bfec894ee308e745537eb2c8d71bae4c3c652d087b3ce251"
     },
     {
-      "address": "hotfix/aot/windows-x64-0.2.0/System",
+      "address": "hotfix/aot/windows-x64-0.3.0/System",
       "fileName": "System.dll.bytes",
       "length": 902656,
-      "sha256": "f1b33a898a2884cc53813f610fae67030d42cb2b3c681ac74cd0f08d8feb1ff7"
+      "sha256": "ff98e9cb33215bff68ef3d16a935f2a97c6dfd2edd66b368a266035edce38b46"
     },
     {
-      "address": "hotfix/aot/windows-x64-0.2.0/System.Core",
+      "address": "hotfix/aot/windows-x64-0.3.0/System.Core",
       "fileName": "System.Core.dll.bytes",
-      "length": 401920,
-      "sha256": "ddc06dfa2701b081826b1d22ba0faddf91261aab3ced7e1fd50a2df06d061240"
+      "length": 400384,
+      "sha256": "94b5dfdd60e71ae08df2dd376d5e750caa252f95e641be505863c52b4829c1f6"
     },
     {
-      "address": "hotfix/aot/windows-x64-0.2.0/GameWithLLM.AgentRuntime",
+      "address": "hotfix/aot/windows-x64-0.3.0/GameWithLLM.AgentRuntime",
       "fileName": "GameWithLLM.AgentRuntime.dll.bytes",
-      "length": 13312,
-      "sha256": "17aeff8e07904ccf43fff6a22564a893f7a15ea18ab68b351bf4d0b775532797"
+      "length": 12800,
+      "sha256": "118026c1858ece5d467a4c87c57c483ce2208a22bdfeca31a67b24dea5400f76"
     },
     {
-      "address": "hotfix/aot/windows-x64-0.2.0/GameWithLLM.Client.Gameplay",
+      "address": "hotfix/aot/windows-x64-0.3.0/GameWithLLM.Client.Gameplay",
       "fileName": "GameWithLLM.Client.Gameplay.dll.bytes",
-      "length": 47104,
-      "sha256": "1802cb5e5be1153bf7c5c458d1fa13bd0bedc95f387b057bebba4fce2e63f165"
+      "length": 55296,
+      "sha256": "e09751b181b49dca636242e53fc2d1b67ed54b6206059069c90a5ef58b24d612"
     },
     {
-      "address": "hotfix/aot/windows-x64-0.2.0/GameWithLLM.Client.ToolFramework",
+      "address": "hotfix/aot/windows-x64-0.3.0/GameWithLLM.Client.ToolFramework",
       "fileName": "GameWithLLM.Client.ToolFramework.dll.bytes",
       "length": 67584,
-      "sha256": "ae3129211039da023d3322aaaeaf801a6158aa6430f2dd3a7380b1df8506e548"
+      "sha256": "34a560582be62bb393ad200fab3ff088ef60f130d85c6a713a4809b962a37a36"
     },
     {
-      "address": "hotfix/aot/windows-x64-0.2.0/Newtonsoft.Json",
+      "address": "hotfix/aot/windows-x64-0.3.0/Newtonsoft.Json",
       "fileName": "Newtonsoft.Json.dll.bytes",
       "length": 688128,
       "sha256": "154c301306fc045c1f4137bd99a1c51c3ed98676505c2c7f9b5b7b03755f83a2"
@@ -77,13 +77,13 @@
   "toolPackages": [
     {
       "packageId": "smoke-test",
-      "packageVersion": "1.5.0",
+      "packageVersion": "1.6.0",
       "assemblyName": "GameWithLLM.Tools.Pack.SmokeTest",
       "assembly": {
-        "address": "hotfix/tools/smoke-test/1.5.0/assembly",
+        "address": "hotfix/tools/smoke-test/1.6.0/assembly",
         "fileName": "GameWithLLM.Tools.Pack.SmokeTest.dll.bytes",
         "length": 8704,
-        "sha256": "7db587b949c16a7955caae48e988534218f469bd1bbfcb2401daa20ba13b887f"
+        "sha256": "772e467b788ebbc1a332fe9404a9489811a001dd7e87b7256348d8a830782475"
       },
       "debugSymbols": null
     }
@@ -93,24 +93,24 @@
       "name": "game_hotfix_smoke_package_info",
       "toolIdentity": "game_hotfix_smoke_package_info",
       "source": "hot-update",
-      "implementationVersion": "6.0.0",
+      "implementationVersion": "7.0.0",
       "contractVersion": "1.0.0",
       "packageId": "smoke-test",
-      "packageVersion": "1.5.0",
+      "packageVersion": "1.6.0",
       "assemblyName": "GameWithLLM.Tools.Pack.SmokeTest",
-      "assemblyHash": "7db587b949c16a7955caae48e988534218f469bd1bbfcb2401daa20ba13b887f",
+      "assemblyHash": "772e467b788ebbc1a332fe9404a9489811a001dd7e87b7256348d8a830782475",
       "schemaHash": "99334726611ccf58a148b0814696bfa6fe08c1b2d027e946beccf5a74331c9aa"
     },
     {
       "name": "game_hotfix_smoke_query",
       "toolIdentity": "game_hotfix_smoke_query",
       "source": "hot-update",
-      "implementationVersion": "6.0.0",
+      "implementationVersion": "7.0.0",
       "contractVersion": "1.0.0",
       "packageId": "smoke-test",
-      "packageVersion": "1.5.0",
+      "packageVersion": "1.6.0",
       "assemblyName": "GameWithLLM.Tools.Pack.SmokeTest",
-      "assemblyHash": "7db587b949c16a7955caae48e988534218f469bd1bbfcb2401daa20ba13b887f",
+      "assemblyHash": "772e467b788ebbc1a332fe9404a9489811a001dd7e87b7256348d8a830782475",
       "schemaHash": "294af3fe6962f94c90794f4e04646c2551b2604deb4ce909ad30e9bd7f2c32f9"
     },
     {
@@ -228,24 +228,24 @@
       "name": "game_hotfix_smoke_package_info",
       "toolIdentity": "game_hotfix_smoke_package_info",
       "source": "hot-update",
-      "implementationVersion": "6.0.0",
+      "implementationVersion": "7.0.0",
       "contractVersion": "1.0.0",
       "schemaHash": "99334726611ccf58a148b0814696bfa6fe08c1b2d027e946beccf5a74331c9aa",
-      "assemblyHash": "7db587b949c16a7955caae48e988534218f469bd1bbfcb2401daa20ba13b887f",
+      "assemblyHash": "772e467b788ebbc1a332fe9404a9489811a001dd7e87b7256348d8a830782475",
       "firstReleaseId": "h4-local-1.0.0",
-      "lastReleaseId": "h8-production-2.0.0",
+      "lastReleaseId": "npc-current-baseline-1",
       "retiredInToolSetVersion": null
     },
     {
       "name": "game_hotfix_smoke_query",
       "toolIdentity": "game_hotfix_smoke_query",
       "source": "hot-update",
-      "implementationVersion": "6.0.0",
+      "implementationVersion": "7.0.0",
       "contractVersion": "1.0.0",
       "schemaHash": "294af3fe6962f94c90794f4e04646c2551b2604deb4ce909ad30e9bd7f2c32f9",
-      "assemblyHash": "7db587b949c16a7955caae48e988534218f469bd1bbfcb2401daa20ba13b887f",
+      "assemblyHash": "772e467b788ebbc1a332fe9404a9489811a001dd7e87b7256348d8a830782475",
       "firstReleaseId": "h4-local-1.0.0",
-      "lastReleaseId": "h8-production-2.0.0",
+      "lastReleaseId": "npc-current-baseline-1",
       "retiredInToolSetVersion": null
     },
     {
@@ -257,7 +257,7 @@
       "schemaHash": "6d2690be661cc055b029e27bd4b36ae3f6b863951b58b575f116eede4bf5daaa",
       "assemblyHash": null,
       "firstReleaseId": "h4-local-1.0.0",
-      "lastReleaseId": "h8-production-2.0.0",
+      "lastReleaseId": "npc-current-baseline-1",
       "retiredInToolSetVersion": null
     },
     {
@@ -269,7 +269,7 @@
       "schemaHash": "99334726611ccf58a148b0814696bfa6fe08c1b2d027e946beccf5a74331c9aa",
       "assemblyHash": null,
       "firstReleaseId": "h4-local-1.0.0",
-      "lastReleaseId": "h8-production-2.0.0",
+      "lastReleaseId": "npc-current-baseline-1",
       "retiredInToolSetVersion": null
     },
     {
@@ -281,7 +281,7 @@
       "schemaHash": "814a646e80e6884d8bd362dea6055f17b87717db803fe6c6c58b214adccff2a9",
       "assemblyHash": null,
       "firstReleaseId": "h4-local-1.0.0",
-      "lastReleaseId": "h8-production-2.0.0",
+      "lastReleaseId": "npc-current-baseline-1",
       "retiredInToolSetVersion": null
     },
     {
@@ -293,7 +293,7 @@
       "schemaHash": "99334726611ccf58a148b0814696bfa6fe08c1b2d027e946beccf5a74331c9aa",
       "assemblyHash": null,
       "firstReleaseId": "h4-local-1.0.0",
-      "lastReleaseId": "h8-production-2.0.0",
+      "lastReleaseId": "npc-current-baseline-1",
       "retiredInToolSetVersion": null
     },
     {
@@ -305,7 +305,7 @@
       "schemaHash": "79c70f0df25e761e47240744a80b556ee80b70c422f4e5e806f1771fe68e3468",
       "assemblyHash": null,
       "firstReleaseId": "h4-local-1.0.0",
-      "lastReleaseId": "h8-production-2.0.0",
+      "lastReleaseId": "npc-current-baseline-1",
       "retiredInToolSetVersion": null
     },
     {
@@ -317,7 +317,7 @@
       "schemaHash": "79c70f0df25e761e47240744a80b556ee80b70c422f4e5e806f1771fe68e3468",
       "assemblyHash": null,
       "firstReleaseId": "h4-local-1.0.0",
-      "lastReleaseId": "h8-production-2.0.0",
+      "lastReleaseId": "npc-current-baseline-1",
       "retiredInToolSetVersion": null
     },
     {
@@ -329,7 +329,7 @@
       "schemaHash": "99334726611ccf58a148b0814696bfa6fe08c1b2d027e946beccf5a74331c9aa",
       "assemblyHash": null,
       "firstReleaseId": "h4-local-1.0.0",
-      "lastReleaseId": "h8-production-2.0.0",
+      "lastReleaseId": "npc-current-baseline-1",
       "retiredInToolSetVersion": null
     },
     {
@@ -341,7 +341,7 @@
       "schemaHash": "dd0310f8b7f5b855674ad5cd069166d9211641417fbf5d16331f67adb1364d04",
       "assemblyHash": null,
       "firstReleaseId": "h4-local-1.0.0",
-      "lastReleaseId": "h8-production-2.0.0",
+      "lastReleaseId": "npc-current-baseline-1",
       "retiredInToolSetVersion": null
     },
     {
@@ -353,7 +353,7 @@
       "schemaHash": "0428d9b2210319b7b15c12c140ba653983141bfbead31cc05cc8c41c4e5a450c",
       "assemblyHash": null,
       "firstReleaseId": "h4-local-1.0.0",
-      "lastReleaseId": "h8-production-2.0.0",
+      "lastReleaseId": "npc-current-baseline-1",
       "retiredInToolSetVersion": null
     }
   ]

@@ -67,8 +67,8 @@ function New-Candidate {
             releaseId = $ReleaseId
             candidateManifestSha256 = (Get-FileHash -Algorithm SHA256 -LiteralPath $manifestPath).Hash.ToLowerInvariant()
             successMarker = 'NPC_RUNTIME_SMOKE_SUCCESS'
-            scenarios = @('dynamic-download','animation-driver','save-restore','version-conflict',
-                'cache-repair','catalog-restart-required','scene-cancel','manifest-reregister') |
+            scenarios = @('dynamic-download','animation-driver','save-restore','resource-integrity',
+                'cache-repair','catalog-address-missing','scene-cancel','manifest-reregister') |
                 ForEach-Object { [ordered]@{ name = $_; passed = $true } }
         } | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath `
             (Join-Path $candidate 'npc-runtime-smoke.passed.json') -Encoding utf8
@@ -107,17 +107,66 @@ try {
     try { & $promote -CandidateDirectory $missingNpcEvidence.Candidate -PublishRoot $publish -Confirm:$false | Out-Null }
     catch { $rejected = $true }
     if (-not $rejected) { throw 'NPC content was promoted without runtime smoke evidence.' }
+    $legacyNpcEvidence = New-Candidate 'npc-test-legacy-evidence' 'base' 'current-npc'
+    $legacyEvidencePath = Join-Path $legacyNpcEvidence.Candidate 'npc-runtime-smoke.passed.json'
+    $legacyEvidence = (Get-Content -Raw -LiteralPath $legacyEvidencePath).Replace('resource-integrity','version-conflict').Replace('catalog-address-missing','catalog-restart-required')
+    Set-Content -LiteralPath $legacyEvidencePath -Value $legacyEvidence -Encoding utf8
+    $rejected = $false
+    try { & $promote -CandidateDirectory $legacyNpcEvidence.Candidate -PublishRoot $publish -Confirm:$false | Out-Null }
+    catch { $rejected = $true }
+    if (-not $rejected) { throw 'Old version-based NPC smoke evidence was accepted.' }
     $npcV2 = New-Candidate 'npc-test-v2' 'base' 'current-npc'
     & $promote -CandidateDirectory $npcV2.Candidate -PublishRoot $publish -Confirm:$false | Out-Null
     $npcUpdated = New-Candidate 'npc-test-update' 'base' 'updated-current-npc'
+    $beforeWhatIf = (Get-FileHash -LiteralPath (Join-Path $publish 'npc/Merchant/npc.json')).Hash
+    & $promote -CandidateDirectory $npcUpdated.Candidate -PublishRoot $publish -WhatIf | Out-Null
+    if ((Test-Path -LiteralPath (Join-Path $publish 'releases/npc-test-update')) -or
+        (Get-FileHash -LiteralPath (Join-Path $publish 'npc/Merchant/npc.json')).Hash -ne $beforeWhatIf) {
+        throw 'WhatIf mutated published content.'
+    }
+    # Fail after NPC payload and current.json changed, at the final index copy.
+    $faultControl = @{ FailIndexCopy = $true }
+    function Copy-Item {
+        param($LiteralPath, $Destination, [switch]$Recurse, [switch]$Force)
+        if ($faultControl.FailIndexCopy -and $Destination.EndsWith('next-index.json')) {
+            $faultControl.FailIndexCopy = $false
+            throw 'Injected final index copy failure.'
+        }
+        Microsoft.PowerShell.Management\Copy-Item @PSBoundParameters
+    }
+    $rejected = $false
+    try { & $promote -CandidateDirectory $npcUpdated.Candidate -PublishRoot $publish -Confirm:$false | Out-Null }
+    catch { $rejected = $true }
+    finally { Remove-Item Function:\Copy-Item }
+    if (-not $rejected -or
+        (Get-Content -Raw (Join-Path $publish 'npc/index.json')) -ne 'npc-test-v2' -or
+        (Get-Content -Raw (Join-Path $publish 'npc/Merchant/npc.json')) -ne 'current-npc' -or
+        (Get-Content -Raw (Join-Path $publish 'current.json') | ConvertFrom-Json).releaseId -ne 'npc-test-v2') {
+        throw 'Failed NPC promotion did not restore payload, index and pointer.'
+    }
+    $obsolete = Join-Path $publish 'npc/DeletedNpc'
+    New-Item -ItemType Directory -Path $obsolete | Out-Null
+    Set-Content -LiteralPath (Join-Path $obsolete 'npc.json') -Value 'obsolete'
     & $promote -CandidateDirectory $npcUpdated.Candidate -PublishRoot $publish -Confirm:$false | Out-Null
+    if (Test-Path -LiteralPath $obsolete) { throw 'Deleted NPC remained in the current generated tree.' }
     if ((Get-Content -Raw (Join-Path $publish 'npc/Merchant/npc.json')) -ne 'updated-current-npc' -or
         (Get-Content -Raw (Join-Path $publish 'npc/index.json')) -ne 'npc-test-update') {
         throw 'Current NPC update did not publish payload before switching index.'
     }
+    # Simulate process termination after payload/pointer changes with a durable journal.
+    $unfinished = Join-Path $publish '.transaction-interrupted'
+    New-Item -ItemType Directory -Path $unfinished | Out-Null
+    Copy-Item -LiteralPath (Join-Path $publish 'npc') -Destination (Join-Path $unfinished 'npc') -Recurse
+    Copy-Item -LiteralPath (Join-Path $publish 'current.json') -Destination (Join-Path $unfinished 'current.json')
+    @{ hadNpc = $true; hadCurrent = $true; touchesNpc = $true; committed = $false } |
+        ConvertTo-Json | Set-Content -LiteralPath (Join-Path $unfinished 'journal.json') -Encoding utf8
+    Set-Content -LiteralPath (Join-Path $publish 'npc/index.json') -Value 'interrupted'
+    @{ releaseId = 'interrupted' } | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $publish 'current.json')
     & $promote -CandidateDirectory (Join-Path $publish 'releases/npc-test-v1') -PublishRoot $publish -Rollback -Confirm:$false | Out-Null
     if ((Get-Content -Raw (Join-Path $publish 'npc/index.json')) -ne 'npc-test-v1') { throw 'NPC index rollback failed.' }
-    Write-Output 'Content release transaction tests passed: publish, interrupted retry, tamper rejection, pointer preservation, v2, rollback, NPC current content and index rollback.'
+    if ((Get-Content -Raw (Join-Path $publish 'current.json') | ConvertFrom-Json).previousReleaseId -ne 'npc-test-update' -or
+        (Test-Path -LiteralPath $unfinished)) { throw 'Interrupted promotion journal was not recovered.' }
+    Write-Output 'Content release transaction tests passed: publish/retry, tamper and old evidence rejection, WhatIf, failed NPC promotion rollback, deleted NPC cleanup, interrupted journal recovery and release rollback.'
 }
 finally {
     $resolvedParent = [IO.Path]::GetFullPath($testParent).TrimEnd([IO.Path]::DirectorySeparatorChar) +

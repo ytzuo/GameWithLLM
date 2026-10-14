@@ -21,7 +21,7 @@ public static class HybridClrProjectSetup
 {
     public const string SmokeAssemblyName = "GameWithLLM.Tools.Pack.SmokeTest";
     public const string SmokePackageId = "smoke-test";
-    public const string SmokePackageVersion = "1.5.0";
+    public const string SmokePackageVersion = "1.6.0";
     public static bool IsGenerating { get; private set; }
 
     private static readonly string[] PatchAotAssemblies =
@@ -151,7 +151,7 @@ public static class HybridClrProjectSetup
         var releaseTools = new List<IAgentTool>();
         releaseTools.AddRange(AgentToolDiscovery.DiscoverBuiltinTools());
         releaseTools.AddRange(AgentToolDiscovery.DiscoverFromAssembly(smokeAssembly));
-        const string releaseId = "h8-production-2.0.0";
+        const string releaseId = "npc-current-baseline-1";
         var activeTools = releaseTools.Select(tool =>
         {
             bool hot = string.Equals(
@@ -163,7 +163,7 @@ public static class HybridClrProjectSetup
                 name = tool.Descriptor.Name,
                 toolIdentity = tool.Descriptor.Name,
                 source = hot ? "hot-update" : "builtin",
-                implementationVersion = hot ? "6.0.0" : "1.0.0",
+                implementationVersion = hot ? "7.0.0" : "1.0.0",
                 contractVersion = "1.0.0",
                 packageId = hot ? SmokePackageId : null,
                 packageVersion = hot ? SmokePackageVersion : null,
@@ -176,14 +176,14 @@ public static class HybridClrProjectSetup
             Directory.GetParent(Application.dataPath)?.FullName ?? Application.dataPath)?.FullName
             ?? Application.dataPath;
         ToolHistoryDeclaration[] history = LoadAndValidateHistoryLedger(
-            Path.Combine(repositoryRoot, "Docs", "History", "HotUpdate", "Baselines", "h4-tool-history.json"),
+            Path.Combine(repositoryRoot, "Docs", "Release", "tool-history-current.json"),
             activeTools,
             Array.Empty<RetiredToolDeclaration>());
 
         string manifest = JsonConvert.SerializeObject(new
         {
             releaseId,
-            toolSetVersion = "6.0.0",
+            toolSetVersion = "7.0.0",
             catalogVersion = "2026.10.001",
             minPlayerVersion = Application.version,
             maxPlayerVersion = Application.version,

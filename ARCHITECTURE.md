@@ -288,9 +288,11 @@ Address 为 `npc/{name}/visual`，Label 为 `content.npc.{name}`；旧 NPC Addre
 ### 2.8 NPC 当前资源集实施边界
 
 2026-10-14 阶段二已切换 SDK、Unity、Go、两个 builtin NPC、安装记录和存档格式；
-阶段三已补齐完整性、取消与恢复事务。
+阶段三已补齐完整性、取消与恢复事务；阶段四已完成生产管线与历史收束、新 IL2CPP
+候选及本地部署验收。
 计划见 `Docs/NPC_PRESENTATION_PIPELINE_REFACTOR_PLAN.md`，阶段二证据见
-`Docs/NpcPresentationStage2/README.md`，阶段三证据见 `Docs/NpcPresentationStage3/README.md`。
+`Docs/NpcPresentationStage2/README.md`，阶段三证据见 `Docs/NpcPresentationStage3/README.md`，
+阶段四证据见 `Docs/NpcPresentationStage4/README.md`。
 阶段一夹具仅作为冻结契约的历史交接。
 
 安装索引为 `installed-current.json`，目录缓存为 `catalog-cache-current.json`，不读取旧文件。
@@ -299,8 +301,10 @@ Address 为 `npc/{name}/visual`，Label 为 `content.npc.{name}`；旧 NPC Addre
 Catalog 仍仅在启动时更新，运行中不替换已生成实例或卸载程序集。
 
 安装/缓存预检/生成共用实际加载与驱动绑定准备，Address 缺失使用重启提示；
-恢复失败保留原世界、库存和 Context。阶段四继续收束生产 smoke 场景名、缓存策略、失败发布事务与工程历史文档，
-并完成 IL2CPP/部署验证。不能将当前 Editor 验证视为已发布新 Player 基线；旧 Player 不接入新清单。
+恢复失败保留原世界、库存和 Context。生产 smoke 已替换为资源完整性与 Catalog Address
+缺失；当前 HTTP 路径重新验证，发布失败和中断可恢复旧 payload、索引与指针。
+新 Player 0.3.0 / release npc-current-baseline-1 的完整候选与本地部署验收已通过，
+尚未公网发布；整体受保护环境门禁保留，旧 Player 不接入新清单。
 
 ## 3. 进程内契约
 
@@ -622,11 +626,24 @@ Go Context。成功后提交并替换 Unity Context/聊天记录；失败回收�
 恢复原 Transform/Inventory 并重新发布 Manifest，保留原 Context。
 切场先取消并等待安装与生成，旧场景卸载后清理失效引用，新场景仍使用同一生成入口。
 
-含 npcContentRoot 的生产候选仍要求与整体候选 SHA-256 绑定的 NPC runtime smoke 证据。
-阶段二仅调整静态验证与当前文件覆盖入口，生产 evidence 的 version-conflict 和
-catalog-restart-required 场景名暂待阶段四收束。整体 release/Catalog/工具包/AOT 门禁保持。
-现有已发布基线仍为 Player 0.2.0、release h8-production-2.0.0、ToolSet 6.0.0，不能把新
-源内容冒充该旧 Player 的发布契约；新 IL2CPP 基线和环境发布验收留到阶段四。
+含 npcContentRoot 的候选要求与整体候选 SHA-256 绑定的 NPC runtime smoke 证据，必测
+dynamic-download、animation-driver、save-restore、resource-integrity、cache-repair、
+catalog-address-missing、scene-cancel、manifest-reregister。`NpcRuntimeSmoke` 仅在显式
+命令行诊断时启动，使用专用缓存；故障使用实际候选实例及 provider 边界注入，缓存修复
+实际驱逐专用缓存并重新下载。正常启动不创建诊断文件或改变缓存选择。
+新构建基线为 Player 0.3.0、release npc-current-baseline-1、ToolSet 7.0.0、工具包 1.6.0。
+整体 release/Catalog/工具包/AOT 和受保护环境门禁保持；本地候选不代表公网部署，
+既有公网基线仍为 Player 0.2.0 / h8-production-2.0.0。当前工具台账为
+`Docs/Release/tool-history-current.json`，历史台账保持归档。
+NPC 候选仅收集 `NpcContent/npc` 的当前文件；Go 静态命令拒绝多余目录/文件和损坏 PNG。
+生成器成功后清理旧 Address/Label，失败不替换上一静态目录。CI 上传该目录。
+NPC/current/Catalog 的 HTTP 响应使用 `no-cache, must-revalidate` 和内容 ETag，Bundle
+hash URL 保持 immutable。发布先校验、复制整体归档，再提交当前 payload、指针与索引；
+写入锁与持久化事务日志支持失败回滚和中断恢复，WhatIf 不写文件。
+内置驱动通过短生命周期 Controller Playable 验证 dormant Animator 的四个参数，图始终
+释放；Animator 初始化后同步事件快照。SampleScene 与 WarehouseRemote 均满足严格原点
+NavMesh 前置条件，场景 Agent 在 Surface 注册后启用，现有 NavMesh 资产 GUID 保留。
+旧简化计划和阶段二一次性迁移脚本已移到 `Docs/History/RemoteNpc`，不参与构建。
 共享 URP Shader 由 Remote_Materials 持有，避免场景和逐 NPC Bundle 重复打包。
 
 ## 7. 代码地图

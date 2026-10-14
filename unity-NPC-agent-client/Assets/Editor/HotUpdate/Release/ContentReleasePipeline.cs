@@ -97,6 +97,16 @@ public static class ContentReleasePipeline
     public static void BuildFullFromCommandLine() => RunCommand(BuildFullReleaseCandidate);
     public static void BuildUpdateFromCommandLine() => RunCommand(BuildContentUpdateCandidate);
 
+    // Reuses already built candidate content when only AOT Player code changed.
+    // All release/tool gates run again; the resulting manifest invalidates old smoke evidence.
+    public static void RebuildFullPlayerFromCommandLine() => RunCommand(() =>
+    {
+        VerifyProductionGate();
+        VerifyToolPackageSmokeEvidence();
+        WriteCandidate("full", null, BuildProductionPlayer(BuildOptions.None));
+        Debug.Log("[Release] FULL_CANDIDATE_READY: Player rebuilt and candidate rehashed.");
+    });
+
     private static void VerifyProfile(AddressableAssetSettings settings)
     {
         string profileId = settings.profileSettings.GetProfileId(ProfileName);
@@ -262,14 +272,14 @@ public static class ContentReleasePipeline
             throw new BuildFailedException("Release duplicate dependency Analyze failed: " + string.Join("; ", issues));
     }
 
-    private static string BuildProductionPlayer()
+    private static string BuildProductionPlayer(BuildOptions options = BuildOptions.CleanBuildCache)
     {
         VerifyProductionPlayerStagingIsClean();
         string output = Path.GetFullPath(Path.Combine(Application.dataPath, "..", "Builds", "ContentReleaseProduction", "GameWithLLM.exe"));
         AddressableAssetSettings settings = Settings();
         return WindowsPlayerBuilder.Build(settings, ProfileName, output,
             EditorBuildSettings.scenes.Where(item => item.enabled).Select(item => item.path),
-            BuildOptions.CleanBuildCache);
+            options);
     }
 
     private static void VerifyProductionPlayerStagingIsClean()
@@ -309,7 +319,7 @@ public static class ContentReleasePipeline
         string archivedState = Path.Combine(candidateDirectory, ContentStateName);
         File.Copy(state, archivedState, true);
         NpcContentRelease.Validate();
-        var roots = new List<string> { releaseDirectory, catalogDirectory, NpcContentRelease.StaticRoot };
+        var roots = new List<string> { releaseDirectory, catalogDirectory, Path.Combine(NpcContentRelease.StaticRoot, "npc") };
         if (!string.IsNullOrWhiteSpace(player)) roots.Add(Path.GetDirectoryName(player));
         string[] candidateContent = roots.Take(3).SelectMany(path => Directory.GetFiles(path, "*", SearchOption.AllDirectories)).ToArray();
         long remoteBytes = candidateContent.Sum(path => new FileInfo(path).Length);

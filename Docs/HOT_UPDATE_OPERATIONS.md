@@ -9,6 +9,7 @@
 
 ```text
 Scripts/Build-ContentRelease.ps1
+→ NpcContentRelease（当前静态目录原子生成）
 → ContentSmokeRunner（LocalDevelopment 工具包 Player smoke）
 → ContentReleasePipeline（Production Addressables / Player）
 ```
@@ -17,10 +18,10 @@ Scripts/Build-ContentRelease.ps1
 `GameWithLLM/Content`；`Project Setup/Repair Configuration` 仅用于显式迁移或修复，
 不会被验证器和生产 Pipeline 隐式调用。
 
-NPC 作者只维护版本化目录中的 `NpcContentDefinition`、完整视觉 Prefab、头像、Profile 与
+NPC 作者只维护 `Assets/Content/Npcs/{name}` 中的 `NpcContentDefinition`、完整视觉 Prefab、头像、Profile 与
 Prompt。使用 `NpcContentRelease.BuildDefinitionsFromCommandLine` 或菜单
-`GameWithLLM/Content/Build NPC Definitions` 生成严格 v2 清单和索引；不存在样例复制或
-`BuildSamples` 生产入口。已发布 NPC 版本目录不得复用或覆盖。
+`GameWithLLM/Content/Build NPC Definitions` 生成固定结构的当前清单和索引；不存在样例复制或
+`BuildSamples` 生产入口。生成目录只有当前名称，构建可覆盖当前内容并清理已删除名称。
 
 ## 2. 本地验证
 
@@ -84,9 +85,26 @@ SHA-256、`CONTENT_RELEASE_SMOKE_SUCCESS` 标记和场景结果必须与候选�
 包含 NPC 内容的候选还必须由 Windows IL2CPP Player 测试流程生成
 `npc-runtime-smoke.passed.json`，并以同一个 candidate manifest SHA-256 绑定候选。证据的
 `successMarker` 必须为 `NPC_RUNTIME_SMOKE_SUCCESS`，且以下场景全部为 passed：
-`dynamic-download`、`animation-driver`、`save-restore`、`version-conflict`、`cache-repair`、
-`catalog-restart-required`、`scene-cancel`、`manifest-reregister`。不得手工补写通过证据；
+`dynamic-download`、`animation-driver`、`save-restore`、`resource-integrity`、`cache-repair`、
+`catalog-address-missing`、`scene-cancel`、`manifest-reregister`。不得手工补写通过证据；
 缺少或过期时发布脚本会在写入任何生产文件前拒绝候选。
+
+本地部署验证入口为 `python Scripts/Test-NpcPresentationStage4.py Artifacts/Content/<releaseId>`。
+它校验候选全部文件，部署 Production Profile 的实际 Catalog/Bundle 和当前 NPC 静态文件，
+启动同一候选的 Windows IL2CPP Player 与确定性模型，再自动生成 NPC evidence。
+资源完整性覆盖真实实例的 Animator 损坏及 provider 边界缺失故障；缓存修复清理专用
+NPC Cache 并实际重新下载，不清空用户全局 Cache。此入口不生成整体受保护环境 evidence。
+
+构建部署到其他内容根时，设置构建期 `CONTENT_RELEASE_BASE_URL`，例如本地
+`http://127.0.0.1:8081`。构建 scope 同时替换 Bundle/Catalog URL 并还原作者 Profile；
+候选及 Player 中的实际 URL 绑定该部署目标。生产发布时应设置真实目标地址再构建，
+不能把本地 URL 候选当作公网候选使用。
+
+`/npc/index.json`、`/npc/{name}/npc.json`、头像及可选动画字节均为当前路径：
+HTTP/CDN 必须返回 `Cache-Control: no-cache, must-revalidate` 与基于内容的 ETag；
+不能使用长期 immutable 缓存。Catalog/current 指针同样重新验证，带 hash 的 Bundle URL
+保持 `public, max-age=31536000, immutable`。`Scripts/Serve-Content.py` 提供本地相同策略，
+`Scripts/Test-ContentHttp.py` 检查 304、内容变化及同秒更新；生产代理需按相同策略配置。
 
 ## 5. 发布与回滚
 
@@ -99,8 +117,9 @@ SHA-256、`CONTENT_RELEASE_SMOKE_SUCCESS` 标记和场景结果必须与候选�
 ```
 
 脚本重新校验候选、工具包证据、通用环境证据、动态 NPC 证据及全部文件 hash/length，
-先写不可变 release 与 NPC 版本文件，再原子替换 `current.json`，最后切换
-`npc/index.json`。同一 releaseId 或已发布 NPC 版本的内容不可覆盖。
+先写不可变整体 release 归档和当前 NPC payload，再原子替换 `current.json`，最后切换
+`npc/index.json` 并清理当前目录中的多余文件。同一整体 releaseId 的内容不可覆盖；
+NPC 当前路径允许替换，失败或中断时由事务备份还原。
 
 回滚只允许指向发布根目录中仍保留的 release：
 
@@ -122,6 +141,8 @@ SHA-256、`CONTENT_RELEASE_SMOKE_SUCCESS` 标记和场景结果必须与候选�
 - Catalog/候选加载失败：客户端保持上一完整快照或仅运行 AOT BuiltinTools；不得恢复
   本地 DLL fallback。
 - 发布中断：重新运行相同候选；事务脚本保证完整性检查和 pointer-last 语义。
+- NPC 当前资源发布失败：恢复原 payload、索引与 current 指针；发布锁序列化写入，
+  下次执行先恢复未提交的持久化事务日志。已完成的整体 release 归档保持不可变。
 - 紧急回滚：只选择已保留且证据完整的 release，执行回滚命令并重新验证。
 
 ## 7. 本地清理

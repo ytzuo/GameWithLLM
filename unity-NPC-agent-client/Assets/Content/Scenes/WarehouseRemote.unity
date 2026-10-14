@@ -506,6 +506,9 @@ MonoBehaviour:
   dynamicTargetRepathInterval: 0.5
   dynamicTargetMoveThreshold: 0.5
   maximumMoveDuration: 45
+  speakingCharactersPerSecond: 12
+  minimumSpeakingSeconds: 0.8
+  maximumSpeakingSeconds: 8
   inventoryInteractionRange: 3
 --- !u!195 &404743344
 NavMeshAgent:
@@ -514,7 +517,7 @@ NavMeshAgent:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 404743342}
-  m_Enabled: 1
+  m_Enabled: 0
   m_AgentTypeID: 0
   m_Radius: 0.5
   m_Speed: 3.5
@@ -754,7 +757,7 @@ NavMeshAgent:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 614615628}
-  m_Enabled: 1
+  m_Enabled: 0
   m_AgentTypeID: 0
   m_Radius: 0.5
   m_Speed: 3.5
@@ -825,6 +828,9 @@ MonoBehaviour:
   dynamicTargetRepathInterval: 0.5
   dynamicTargetMoveThreshold: 0.5
   maximumMoveDuration: 45
+  speakingCharactersPerSecond: 12
+  minimumSpeakingSeconds: 0.8
+  maximumSpeakingSeconds: 8
   inventoryInteractionRange: 3
 --- !u!114 &614615635
 MonoBehaviour:
@@ -1246,11 +1252,11 @@ MonoBehaviour:
   m_IgnoreNavMeshObstacle: 1
   m_OverrideTileSize: 0
   m_TileSize: 256
-  m_OverrideVoxelSize: 0
-  m_VoxelSize: 0.16666667
+  m_OverrideVoxelSize: 1
+  m_VoxelSize: 0.02
   m_MinRegionArea: 2
   m_NavMeshData: {fileID: 23800000, guid: 45e9efee5a553374fac24d987c215456, type: 2}
-  m_BuildHeightMesh: 0
+  m_BuildHeightMesh: 1
 --- !u!1 &1621335199
 GameObject:
   m_ObjectHideFlags: 0
@@ -1606,8 +1612,8 @@ Transform:
   m_GameObject: {fileID: 1991495249}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 0, y: -0.65, z: -4.66}
-  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_LocalPosition: {x: 0, y: 0, z: -4.66}
+  m_LocalScale: {x: 1, y: 1, z: 2}
   m_ConstrainProportionsScale: 0
   m_Children:
   - {fileID: 1368060059}

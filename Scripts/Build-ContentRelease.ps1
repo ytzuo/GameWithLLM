@@ -8,10 +8,15 @@ param(
     [string]$ProjectPath = (Join-Path $PSScriptRoot '..\unity-NPC-agent-client'),
     [int]$EditorTimeoutSeconds = 3600,
     [int]$PlayerTimeoutSeconds = 180,
-    [string]$LicensingIpc = ''
+    [string]$LicensingIpc = '',
+    [string]$UnityBatchScript = (Join-Path $PSScriptRoot 'Run-UnityBatch.ps1')
 )
 
 $ErrorActionPreference = 'Stop'
+if (@(Get-Process -Name Unity -ErrorAction SilentlyContinue).Count -gt 0) {
+    throw 'UNITY_EDITOR_ALREADY_RUNNING: close all Unity Editors before building.'
+}
+if (-not (Test-Path -LiteralPath $UnityBatchScript -PathType Leaf)) { throw 'Unity batch launcher is missing.' }
 $project = (Resolve-Path -LiteralPath $ProjectPath).Path
 $repository = (Resolve-Path -LiteralPath (Join-Path $project '..')).Path
 $logs = Join-Path $project 'Logs'
@@ -20,22 +25,10 @@ New-Item -ItemType Directory -Force -Path $logs | Out-Null
 function Invoke-UnityMethod {
     param([string]$Method, [string]$LogName, [string[]]$AdditionalArguments = @())
     $log = Join-Path $logs $LogName
-    $arguments = @('-batchmode', '-nographics', '-acceptSoftwareTermsForThisRunOnly',
-        '-projectPath', $project, '-logFile', $log, '-executeMethod', $Method) + $AdditionalArguments
-    if ($LicensingIpc) {
-        $arguments = @('-useHub', '-hubIPC', '-cloudEnvironment', 'production',
-            '-licensingIpc', $LicensingIpc) + $arguments
-    }
-    $process = Start-Process -FilePath $UnityExe -ArgumentList $arguments -PassThru -WindowStyle Hidden
-    $deadline = (Get-Date).AddSeconds($EditorTimeoutSeconds)
-    while (-not $process.HasExited -and (Get-Date) -lt $deadline) { Start-Sleep -Seconds 5 }
-    if (-not $process.HasExited) {
-        Stop-Process -Id $process.Id -Force
-        throw "Unity method '$Method' timed out. See '$log'."
-    }
-    if ($process.ExitCode -ne 0) {
-        throw "Unity method '$Method' failed with exit code $($process.ExitCode). See '$log'."
-    }
+    $result = & $UnityBatchScript -ProjectPath $project -UnityExe $UnityExe -LicensingIpc $LicensingIpc `
+        -TimeoutSeconds $EditorTimeoutSeconds -LogFile $log `
+        -ExtraArgs (@('-nographics', '-executeMethod', $Method) + $AdditionalArguments)
+    if ($result.ExitCode -ne 0 -or $result.TimedOut) { throw "Unity method '$Method' failed. See '$log'." }
 }
 
 if ($Mode -eq 'ContentUpdate') {
@@ -46,6 +39,7 @@ if ($Mode -eq 'ContentUpdate') {
 }
 
 # This step only creates LocalDevelopment smoke output. Production output has one owner below.
+Invoke-UnityMethod 'NpcContentRelease.BuildDefinitionsFromCommandLine' 'npc-definitions-build.log'
 Invoke-UnityMethod 'ContentSmokeRunner.RunFromCommandLine' 'content-smoke-player-build.log' `
     @('-contentSmokeLayer', 'tool-package-player')
 

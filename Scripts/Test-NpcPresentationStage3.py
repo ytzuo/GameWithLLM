@@ -28,7 +28,9 @@ ENV = dict(AGENT_SERVICE_ADDR='127.0.0.1:19080', AGENT_SERVICE_BASE_URL='http://
            CONVERSATION_SAVE_DIR=str(OUT / 'conversations'))
 for name in ['runtime-env.json', 'save-world', 'restore-world', 'world-saved', 'world-restored', 'stop', 'ready', 'scene-error', 'state.json', 'world-contract.json', 'bad-config', 'failed-context-restore', 'failed-world-restored', 'fault-report.json', 'scene-report.json']:
     (OUT / name).unlink(missing_ok=True)
-(OUT / 'runtime-env.json').write_text(json.dumps(ENV), encoding='utf-8')
+unity_env = {key: value for key, value in ENV.items() if not key.startswith('LLM_') and
+             key not in {'AGENT_SERVICE_ADDR', 'MCP_GATEWAY_SERVICE_TOKEN', 'CONVERSATION_SAVE_DIR'}}
+(OUT / 'runtime-env.json').write_text(json.dumps(unity_env), encoding='utf-8')
 
 class QuietFiles(SimpleHTTPRequestHandler):
     def log_message(self, *args): pass
