@@ -17,7 +17,7 @@ import (
 	"time"
 )
 
-const conversationSnapshotVersion = 1
+const conversationSnapshotVersion = 2
 
 var canonicalUUIDPattern = regexp.MustCompile(`^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$`)
 
@@ -408,10 +408,10 @@ func (s *Service) LoadConversations(ctx context.Context, request ConversationLoa
 				return failedLoad("NPC_CONTENT_UNAVAILABLE", "NPC binding is unavailable.")
 			}
 			if !sameNPCBinding(currentBinding, persisted.NPCContent) {
-				return failedLoad("NPC_CONTENT_VERSION_MISMATCH", "NPC content differs from the saved version.")
+				return failedLoad("NPC_CONTENT_BINDING_CHANGED", "NPC identity binding differs from the snapshot.")
 			}
 		} else if persisted.NPCContent != nil {
-			return failedLoad("NPC_CONTENT_VERSION_MISMATCH", "NPC content binding is absent.")
+			return failedLoad("NPC_CONTENT_BINDING_CHANGED", "NPC content binding is absent.")
 		}
 		prompt, binding, err := s.resolvePrompt(ctx, request.InstanceID, persisted.NPCID)
 		if err != nil {
@@ -421,7 +421,7 @@ func (s *Service) LoadConversations(ctx context.Context, request ConversationLoa
 			return failedLoad("NPC_CONTENT_UNAVAILABLE", "NPC definition could not be resolved.")
 		}
 		if (binding == nil) != (persisted.NPCContent == nil) || (binding != nil && *binding != *persisted.NPCContent) {
-			return failedLoad("NPC_CONTENT_VERSION_MISMATCH", "NPC content differs from the saved version.")
+			return failedLoad("NPC_CONTENT_BINDING_CHANGED", "NPC identity binding differs from the snapshot.")
 		}
 		prompts[persisted.NPCID] = prompt
 		bindings[persisted.NPCID] = binding

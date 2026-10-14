@@ -15,16 +15,14 @@ public sealed class NpcLibraryServices : IDisposable
     public RemoteNpcCatalogClient CatalogClient { get; }
     public NpcContentInstaller Installer { get; }
     public NpcSpawnController Spawner { get; }
-    public string ActiveCatalogContentVersion { get; }
 
-    public NpcLibraryServices(IContentAssetProvider provider, string activeCatalogContentVersion)
+    public NpcLibraryServices(IContentAssetProvider provider)
     {
         string root = Path.Combine(Application.persistentDataPath, "NpcContent");
         CatalogClient = new RemoteNpcCatalogClient(
             RemoteNpcContentRootResolver.Resolve(), root, TimeSpan.FromSeconds(15));
         Spawner = new NpcSpawnController(provider);
         Installer = new NpcContentInstaller(provider, CatalogClient, root, Spawner.IsSpawned);
-        ActiveCatalogContentVersion = activeCatalogContentVersion ?? string.Empty;
         Current = this;
     }
 
@@ -49,9 +47,6 @@ public sealed class NpcLibraryServices : IDisposable
         {
             if (!Installer.TryGet(requirement.EntityId, out InstalledNpcRecord installed))
                 throw new InvalidOperationException($"NPC_CONTENT_NOT_INSTALLED:{requirement.EntityId}");
-            if (!string.Equals(installed.ContentVersion, requirement.ContentVersion, StringComparison.Ordinal) ||
-                !string.Equals(installed.ManifestSha256, requirement.ManifestSha256, StringComparison.Ordinal))
-                throw new InvalidOperationException($"NPC_CONTENT_VERSION_CONFLICT:{requirement.EntityId}");
             if (await Installer.IsCacheMissingAsync(requirement.EntityId, token))
                 throw new InvalidOperationException($"NPC_CONTENT_CACHE_MISSING:{requirement.EntityId}");
             Spawner.ValidateExistingBinding(requirement);
@@ -89,19 +84,11 @@ public sealed class NpcLibraryServices : IDisposable
         foreach (SaveGameNpcContentState item in requirements ?? Array.Empty<SaveGameNpcContentState>())
         {
             if (item == null || string.IsNullOrWhiteSpace(item.EntityId) ||
-                !IsDigits(item.ContentVersion) ||
-                !IsLowerHexSha256(item.ManifestSha256) || !ids.Add(item.EntityId))
+                RemoteNpcContract.ValidateName(item.EntityId) != item.EntityId || !ids.Add(item.EntityId))
                 throw new InvalidDataException("NPC_CONTENT_SAVE_BINDING_INVALID");
         }
     }
 
-    private static bool IsDigits(string value) =>
-        !string.IsNullOrEmpty(value) && value.All(character => character >= '0' && character <= '9');
-
-    private static bool IsLowerHexSha256(string value) =>
-        value != null && value.Length == 64 &&
-        value.All(character => (character >= '0' && character <= '9') ||
-                               (character >= 'a' && character <= 'f'));
 }
 
 public sealed class NpcSpawnController : IDisposable
@@ -173,7 +160,7 @@ public sealed class NpcSpawnController : IDisposable
             if (player == null)
                 throw new InvalidOperationException("NPC_SPAWN_ACTIVE_PLAYER_MISSING");
             RemoteNpcManifest manifest = RemoteNpcContract.ParseManifest(record.ManifestJson);
-            if (manifest.NpcId != record.NpcId || manifest.ContentVersion != record.ContentVersion)
+            if (manifest.NpcId != record.NpcId)
                 throw new InvalidDataException("Installed NPC identity is inconsistent.");
             if (!NavMesh.SamplePosition(Vector3.zero, out NavMeshHit originHit, 0.05f, NavMesh.AllAreas) ||
                 Vector3.Distance(originHit.position, Vector3.zero) > 0.01f)
@@ -189,7 +176,7 @@ public sealed class NpcSpawnController : IDisposable
             inventory.ConfigureContainerId($"npc:{record.NpcId}.inventory");
             var entity = root.AddComponent<NpcEntity>();
             entity.npcId = record.NpcId;
-            entity.BindContent(new NpcContentBinding(record.NpcId, record.ContentVersion, record.ManifestSha256));
+            entity.BindContent(new NpcContentBinding(record.NpcId));
 
             var visualRoot = new GameObject("VisualRoot").transform;
             visualRoot.SetParent(root.transform, false);
@@ -289,10 +276,8 @@ public sealed class NpcSpawnController : IDisposable
             .FirstOrDefault(value => string.Equals(value.npcId, requirement.EntityId, StringComparison.Ordinal));
         if (entity == null) return;
         NpcContentBinding binding = entity.ContentBinding;
-        if (binding == null ||
-            !string.Equals(binding.ContentVersion, requirement.ContentVersion, StringComparison.Ordinal) ||
-            !string.Equals(binding.ManifestSha256, requirement.ManifestSha256, StringComparison.Ordinal))
-            throw new InvalidOperationException($"NPC_CONTENT_VERSION_CONFLICT:{requirement.EntityId}");
+        if (binding == null)
+            throw new InvalidOperationException($"NPC_CONTENT_BINDING_INVALID:{requirement.EntityId}");
     }
 
     public void Despawn(string npcId)

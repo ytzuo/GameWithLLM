@@ -14,6 +14,7 @@ using UnityEngine;
 // it never clones named sample assets or remaps GUIDs.
 public static class NpcContentRelease
 {
+    private static string _outputRoot;
     public static string StaticRoot => Path.GetFullPath(
         Path.Combine(Application.dataPath, "..", "..", "NpcContent"));
 
@@ -39,7 +40,7 @@ public static class NpcContentRelease
             .Select(AssetDatabase.GUIDToAssetPath)
             .Select(AssetDatabase.LoadAssetAtPath<NpcContentDefinition>)
             .Where(value => value != null)
-            .OrderBy(value => value.npcId, StringComparer.Ordinal)
+            .OrderBy(value => value.name, StringComparer.Ordinal)
             .ToArray();
         if (definitions.Length == 0)
             throw new InvalidDataException("No NpcContentDefinition assets were found.");
@@ -48,19 +49,32 @@ public static class NpcContentRelease
         AddressableAssetGroup group = settings.FindGroup("Remote_Characters") ??
                                       throw new InvalidDataException("Remote_Characters Addressables group is missing.");
         JObject index = Read(Path.Combine(StaticRoot, "npc", "index.json"));
-        JArray entries = (JArray)index["npcs"];
-        var ids = new HashSet<string>(StringComparer.Ordinal);
+        JArray entries = new JArray();
+        index = new JObject { ["texts"] = index["texts"], ["npcs"] = entries };
+        var ids = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         foreach (NpcContentDefinition definition in definitions)
         {
             ValidateDefinition(definition);
-            if (!ids.Add(definition.npcId))
-                throw new InvalidDataException($"Duplicate NPC content definition '{definition.npcId}'.");
-            BuildDefinition(definition, settings, group, entries);
+            if (!ids.Add(definition.name)) throw new InvalidDataException("Duplicate NPC name: " + definition.name);
         }
-
-        JObject release = Read("Assets/Content/HotUpdate/release-manifest.json");
-        index["catalogContentVersion"] = (string)release["contentVersion"];
-        WriteJson(Path.Combine(StaticRoot, "npc", "index.json"), index, false);
+        string destination = Path.Combine(StaticRoot, "npc");
+        _outputRoot = Path.Combine(StaticRoot, "npc-staging-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(_outputRoot);
+        string backup = destination + "-backup-" + Guid.NewGuid().ToString("N");
+        try
+        {
+            foreach (NpcContentDefinition definition in definitions) BuildDefinition(definition, settings, group, entries);
+            RemoteNpcCatalog catalog = RemoteNpcContract.ParseCatalog(index.ToString());
+            foreach (RemoteNpcSummary entry in catalog.Npcs)
+                RemoteNpcContract.ParseManifest(File.ReadAllText(Path.Combine(_outputRoot, entry.NpcId, "npc.json")), entry);
+            WriteJson(Path.Combine(_outputRoot, "index.json"), index);
+            ValidateAt(_outputRoot);
+            if (Directory.Exists(destination)) Directory.Move(destination, backup);
+            try { Directory.Move(_outputRoot, destination); }
+            catch { if (Directory.Exists(backup)) Directory.Move(backup, destination); throw; }
+            if (Directory.Exists(backup)) Directory.Delete(backup, true);
+        }
+        finally { if (Directory.Exists(_outputRoot)) Directory.Delete(_outputRoot, true); _outputRoot = null; }
         AssetDatabase.SaveAssets();
         AssetDatabase.Refresh();
         Validate();
@@ -73,21 +87,18 @@ public static class NpcContentRelease
         AddressableAssetGroup group,
         JArray entries)
     {
-        string prefix = $"npc/{definition.npcId}/{definition.contentVersion}/";
+        string prefix = $"npc/{definition.name}/";
         AddEntry(settings, group, AssetDatabase.GetAssetPath(definition.visualPrefab),
-            prefix + "visual", definition.npcId);
+            prefix + "visual", definition.name);
         var manifest = new JObject
         {
-            ["schemaVersion"] = 2,
-            ["npcId"] = definition.npcId,
-            ["contentVersion"] = definition.contentVersion,
-            ["playerBuildId"] = "windows-x64-" + Application.version,
+            ["name"] = definition.name,
             ["visual"] = new JObject { ["prefabAddress"] = prefix + "visual" },
             ["animationDriver"] = BuildAnimationDriver(definition, settings, group, prefix),
             ["profile"] = new JObject
             {
-                ["npcId"] = definition.npcId,
-                ["displayName"] = definition.profile.displayName,
+                ["npcId"] = definition.name,
+                ["displayName"] = definition.displayName,
                 ["personality"] = JArray.FromObject(definition.profile.personality),
                 ["speakingStyle"] = definition.profile.speakingStyle,
                 ["identity"] = definition.profile.identity,
@@ -97,31 +108,27 @@ public static class NpcContentRelease
             },
             ["systemPrompt"] = new JObject
             {
-                ["schemaVersion"] = 1,
-                ["contentVersion"] = definition.contentVersion,
                 ["locale"] = "zh-CN",
                 ["template"] = definition.systemPromptTemplate
             }
         };
 
-        string directory = Path.Combine(StaticRoot, "npc", definition.npcId, definition.contentVersion);
+        string directory = Path.Combine(_outputRoot, definition.name);
         Directory.CreateDirectory(directory);
         string manifestPath = Path.Combine(directory, "npc.json");
-        WriteJson(manifestPath, manifest, true);
+        WriteJson(manifestPath, manifest);
         WriteAvatar(definition.avatar, Path.Combine(directory, "avatar.png"));
+        if (definition.animationDriverKind == NpcAnimationDriverKind.HotUpdate)
+            File.WriteAllBytes(Path.Combine(directory, "animation.dll.bytes"), definition.hotUpdateDriver.assemblyBytes.bytes);
 
         JObject entry = entries.Children<JObject>().SingleOrDefault(
-            value => (string)value["npcId"] == definition.npcId);
+            value => (string)value["name"] == definition.name);
         if (entry == null) { entry = new JObject(); entries.Add(entry); }
-        entry["npcId"] = definition.npcId;
-        entry["contentVersion"] = definition.contentVersion;
+        entry["name"] = definition.name;
         entry["displayName"] = definition.displayName;
         entry["description"] = definition.description;
         entry["avatarPath"] = prefix + "avatar.png";
         entry["manifestPath"] = prefix + "npc.json";
-        entry["manifestSha256"] = ArtifactHash.Sha256File(manifestPath);
-        entry["minPlayerVersion"] = definition.minPlayerVersion;
-        entry["maxPlayerVersion"] = definition.maxPlayerVersion;
     }
 
     private static JObject BuildAnimationDriver(
@@ -135,7 +142,7 @@ public static class NpcContentRelease
 
         string path = AssetDatabase.GetAssetPath(definition.hotUpdateDriver.assemblyBytes);
         string address = prefix + "animation-script";
-        AddEntry(settings, group, path, address, definition.npcId);
+        AddEntry(settings, group, path, address, definition.name);
         byte[] bytes = definition.hotUpdateDriver.assemblyBytes.bytes;
         return new JObject
         {
@@ -150,14 +157,14 @@ public static class NpcContentRelease
 
     private static void ValidateDefinition(NpcContentDefinition definition)
     {
-        string prefix = $"Assets/Content/Npcs/{definition.npcId}/{definition.contentVersion}/";
+        string prefix = $"Assets/Content/Npcs/{definition.name}/";
         string prefabPath = AssetDatabase.GetAssetPath(definition.visualPrefab);
-        const string stable = "^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$";
-        if (!System.Text.RegularExpressions.Regex.IsMatch(definition.npcId ?? string.Empty, stable) ||
-            !System.Text.RegularExpressions.Regex.IsMatch(definition.contentVersion ?? string.Empty, stable) ||
-            definition.visualPrefab == null || definition.avatar == null ||
-            !prefabPath.StartsWith(prefix, StringComparison.Ordinal))
-            throw new InvalidDataException($"NPC definition '{definition.name}' has invalid identity or versioned assets.");
+        RemoteNpcContract.ValidateName(definition.name);
+        if (definition.visualPrefab == null || definition.avatar == null ||
+            !AssetDatabase.GetAssetPath(definition).Equals(prefix + "Definition.asset", StringComparison.Ordinal) ||
+            !AssetDatabase.GetAssetPath(definition.avatar).Equals(prefix + "Avatar.png", StringComparison.Ordinal) ||
+            !prefabPath.Equals(prefix + "Visual.prefab", StringComparison.Ordinal))
+            throw new InvalidDataException("NPC definition must own its name directory, Visual.prefab and Avatar.png.");
         CharacterVisualController.ValidateVisualInstance(definition.visualPrefab, true);
         if (definition.animationDriverKind == NpcAnimationDriverKind.Builtin)
         {
@@ -190,24 +197,17 @@ public static class NpcContentRelease
         settings.AddLabel(label); entry.SetLabel(label, true);
     }
 
-    public static void Validate()
+    public static void Validate() => ValidateAt(Path.Combine(StaticRoot, "npc"));
+
+    private static void ValidateAt(string npcDirectory)
     {
-        JObject index = Read(Path.Combine(StaticRoot, "npc", "index.json"));
-        JObject release = Read("Assets/Content/HotUpdate/release-manifest.json");
-        if ((string)index["catalogContentVersion"] != (string)release["contentVersion"])
-            throw new InvalidDataException("NPC index must describe the startup content version.");
+        JObject index = Read(Path.Combine(npcDirectory, "index.json"));
+        RemoteNpcCatalog catalog = RemoteNpcContract.ParseCatalog(index.ToString());
         AddressableAssetSettings settings = AddressableAssetSettingsDefaultObject.Settings;
-        foreach (JObject entry in index["npcs"].Children<JObject>())
+        foreach (RemoteNpcSummary entry in catalog.Npcs)
         {
-            string manifestPath = Path.Combine(StaticRoot, (string)entry["manifestPath"]);
-            if (ArtifactHash.Sha256File(manifestPath) != (string)entry["manifestSha256"])
-                throw new InvalidDataException("NPC manifest hash mismatch.");
-            RemoteNpcManifest manifest = RemoteNpcContract.ParseManifest(File.ReadAllText(manifestPath));
-            if (manifest.NpcId != (string)entry["npcId"] ||
-                manifest.ContentVersion != (string)entry["contentVersion"])
-                throw new InvalidDataException("NPC manifest identity does not match its catalog entry.");
-            if (manifest.PlayerBuildId != (string)release["playerBuildId"])
-                throw new InvalidDataException("NPC Player build mismatch.");
+            string manifestPath = Path.Combine(npcDirectory, entry.NpcId, "npc.json");
+            RemoteNpcManifest manifest = RemoteNpcContract.ParseManifest(File.ReadAllText(manifestPath), entry);
             foreach (string address in manifest.DownloadAddresses)
             {
                 AddressableAssetEntry[] matches = Entries(settings).Where(x => x.address == address).ToArray();
@@ -216,7 +216,7 @@ public static class NpcContentRelease
             }
             AddressableAssetEntry prefabEntry = Entries(settings).Single(x => x.address == manifest.PrefabAddress);
             GameObject prefab = AssetDatabase.LoadAssetAtPath<GameObject>(prefabEntry.AssetPath);
-            CharacterVisualController.ValidateVisualInstance(prefab, manifest.SchemaVersion >= 2);
+            CharacterVisualController.ValidateVisualInstance(prefab, true);
             if (!manifest.UsesBuiltinAnimationDriver)
             {
                 AddressableAssetEntry scriptEntry = Entries(settings).Single(x => x.address == manifest.AnimationScriptAddress);
@@ -253,25 +253,11 @@ public static class NpcContentRelease
         string source = AssetDatabase.GetAssetPath(avatar);
         byte[] bytes = string.Equals(Path.GetExtension(source), ".png", StringComparison.OrdinalIgnoreCase)
             ? File.ReadAllBytes(source) : avatar.EncodeToPNG();
-        WriteImmutable(target, bytes);
+        File.WriteAllBytes(target, bytes);
     }
 
-    private static void WriteJson(string path, JObject value, bool immutable)
-    {
-        byte[] bytes = new System.Text.UTF8Encoding(false).GetBytes(value.ToString(Formatting.Indented) + "\n");
-        if (immutable) WriteImmutable(path, bytes); else File.WriteAllBytes(path, bytes);
-    }
-
-    private static void WriteImmutable(string path, byte[] bytes)
-    {
-        if (File.Exists(path))
-        {
-            if (!File.ReadAllBytes(path).SequenceEqual(bytes))
-                throw new InvalidDataException("Immutable NPC version already exists with different bytes: " + path);
-            return;
-        }
-        File.WriteAllBytes(path, bytes);
-    }
+    private static void WriteJson(string path, JObject value) =>
+        File.WriteAllText(path, value.ToString(Formatting.Indented) + "\n", new System.Text.UTF8Encoding(false));
 
     private static JObject Read(string path) => JObject.Parse(File.ReadAllText(path),
         new JsonLoadSettings { DuplicatePropertyNameHandling = DuplicatePropertyNameHandling.Error });

@@ -9,7 +9,7 @@ using UnityEngine.SceneManagement;
 [Serializable]
 public sealed class SaveGameFile
 {
-    [JsonProperty("version")] public int Version = 2;
+    [JsonProperty("version")] public int Version;
     [JsonProperty("saveId")] public string SaveId;
     [JsonProperty("displayName")] public string DisplayName;
     [JsonProperty("savedAt")] public DateTime SavedAt;
@@ -19,15 +19,13 @@ public sealed class SaveGameFile
     [JsonProperty("sceneName")] public string SceneName;
     [JsonProperty("entities")] public List<SaveGameEntityState> Entities = new List<SaveGameEntityState>();
     [JsonProperty("inventories")] public List<SaveGameInventoryState> Inventories = new List<SaveGameInventoryState>();
-    [JsonProperty("npcContents")] public List<SaveGameNpcContentState> NpcContents = new List<SaveGameNpcContentState>();
+    [JsonProperty("npcContents", Required = Required.Always)] public List<SaveGameNpcContentState> NpcContents = new List<SaveGameNpcContentState>();
 }
 
 [Serializable]
 public sealed class SaveGameNpcContentState
 {
     [JsonProperty("entityId")] public string EntityId;
-    [JsonProperty("contentVersion")] public string ContentVersion;
-    [JsonProperty("manifestSha256")] public string ManifestSha256;
 }
 
 [Serializable]
@@ -194,6 +192,7 @@ public sealed class SaveGameService
     {
         var file = new SaveGameFile
         {
+            Version = 3,
             SaveId = saveId,
             DisplayName = displayName,
             SavedAt = DateTime.UtcNow,
@@ -214,9 +213,7 @@ public sealed class SaveGameService
             {
                 file.NpcContents.Add(new SaveGameNpcContentState
                 {
-                    EntityId = npc.ContentBinding.EntityId,
-                    ContentVersion = npc.ContentBinding.ContentVersion,
-                    ManifestSha256 = npc.ContentBinding.ManifestSha256
+                    EntityId = npc.ContentBinding.EntityId
                 });
             }
         }
@@ -300,7 +297,7 @@ public sealed class SaveGameService
 
     private void ValidateIdentity(SaveGameFile file)
     {
-        if (file == null || (file.Version != 1 && file.Version != 2)) throw new InvalidDataException("世界存档版本不受支持。");
+        if (file == null || file.Version != 3) throw new InvalidDataException("NPC_SAVE_FORMAT_UNSUPPORTED：旧格式世界存档不可用。");
         if (!IsCanonicalUuid(file.SaveId) || !IsCanonicalUuid(file.OperationId)) throw new InvalidDataException("世界存档标识无效。");
         if (string.IsNullOrWhiteSpace(file.DisplayName) || file.SavedAt == default || string.IsNullOrWhiteSpace(file.SceneName))
             throw new InvalidDataException("世界存档元数据不完整。");
@@ -327,15 +324,11 @@ public sealed class SaveGameService
         foreach (SaveGameNpcContentState binding in file.NpcContents ?? new List<SaveGameNpcContentState>())
         {
             if (binding == null || string.IsNullOrWhiteSpace(binding.EntityId) ||
-                string.IsNullOrWhiteSpace(binding.ContentVersion) ||
-                string.IsNullOrWhiteSpace(binding.ManifestSha256) ||
                 !bindingIds.Add(binding.EntityId))
                 throw new InvalidDataException("存档包含无效或重复的远端 NPC 内容绑定。");
             if (binding.EntityId == _player.WorldTargetId || !entityIds.Contains(binding.EntityId))
                 throw new InvalidDataException($"远端 NPC 内容绑定未指向存档实体: {binding.EntityId}");
         }
-        if (file.Version == 1 && bindingIds.Count != 0)
-            throw new InvalidDataException("版本 1 存档不能包含远端 NPC 内容绑定。");
     }
 
     private Dictionary<string, ItemData> BuildItemMap()
@@ -378,7 +371,11 @@ public sealed class SaveGameService
     private SaveGameFile ReadFile(string path)
     {
         if (!File.Exists(path)) throw new FileNotFoundException("世界存档不存在。", path);
-        return JsonConvert.DeserializeObject<SaveGameFile>(File.ReadAllText(path));
+        string raw = File.ReadAllText(path);
+        var root = Newtonsoft.Json.Linq.JObject.Parse(raw, new Newtonsoft.Json.Linq.JsonLoadSettings { DuplicatePropertyNameHandling = Newtonsoft.Json.Linq.DuplicatePropertyNameHandling.Error });
+        if (root["version"]?.Type != Newtonsoft.Json.Linq.JTokenType.Integer || (int)root["version"] != 3)
+            throw new InvalidDataException("NPC_SAVE_FORMAT_UNSUPPORTED：旧格式世界存档不可用。");
+        return root.ToObject<SaveGameFile>(JsonSerializer.Create(new JsonSerializerSettings { MissingMemberHandling = MissingMemberHandling.Error }));
     }
 
     private string GetPath(string saveId) => Path.Combine(_directory, saveId + ".json");

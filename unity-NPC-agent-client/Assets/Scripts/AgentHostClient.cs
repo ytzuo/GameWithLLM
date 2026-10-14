@@ -176,9 +176,7 @@ public class AgentHostClient : Singleton<AgentHostClient>, ISceneTransitionParti
                     $"and runtime initialization continues: {ex.GetBaseException().Message}");
             }
 
-            _npcLibraryServices = new NpcLibraryServices(
-                _contentProvider,
-                _activeContentVersion ?? _contentRelease?.CatalogVersion);
+            _npcLibraryServices = new NpcLibraryServices(_contentProvider);
             Debug.Log("[NPC Content] Catalog, installer and unique spawn services initialized.");
 
             InitializeRuntimeServices();
@@ -358,8 +356,10 @@ public class AgentHostClient : Singleton<AgentHostClient>, ISceneTransitionParti
     {
         if (npc == null || !npc.isActiveAndEnabled)
             return;
-        _dispatcher.RegisterEntity(npc);
+        // RegisterEntity publishes synchronously. Include the content binding in
+        // that first complete Manifest instead of adding it after publication.
         _npcCapabilities[npc] = _tools.GetAvailableToolNames(npc);
+        _dispatcher.RegisterEntity(npc);
     }
 
     private void RefreshNpcCapabilitiesIfNeeded()

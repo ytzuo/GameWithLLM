@@ -34,7 +34,7 @@ func run() error {
 		if err != nil {
 			return err
 		}
-		d, err := agent.ParseNPCContent(data, agent.NPCContentBinding{EntityID: entry.NPCID, ContentVersion: entry.ContentVersion, ManifestSHA256: entry.ManifestSHA256})
+		d, err := agent.ParseNPCContent(data, agent.NPCContentBinding{EntityID: entry.Name})
 		if err != nil {
 			return err
 		}

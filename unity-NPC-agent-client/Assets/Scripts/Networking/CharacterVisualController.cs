@@ -26,7 +26,7 @@ public sealed class CharacterVisualController : MonoBehaviour
     // Dynamic NPCs configure this stable AOT controller before their inactive root is activated.
     public void ConfigureDynamic(string configuredCharacterId, Transform configuredVisualRoot)
     {
-        if (isActiveAndEnabled || !CharacterContentCatalog.IsStableId(configuredCharacterId) ||
+        if (isActiveAndEnabled || RemoteNpcContract.ValidateName(configuredCharacterId) != configuredCharacterId ||
             configuredVisualRoot == null || configuredVisualRoot.parent != transform)
             throw new InvalidOperationException("Dynamic character visual configuration is invalid.");
         characterId = configuredCharacterId;
@@ -47,39 +47,26 @@ public sealed class CharacterVisualController : MonoBehaviour
             throw new InvalidOperationException("Dynamic character visual contract is incomplete.");
 
         ContentInstanceLease candidate = null;
-        ContentAssetLease<RuntimeAnimatorController> controller = null;
         try
         {
             if (manifest == null)
                 throw new ArgumentNullException(nameof(manifest));
             candidate = await provider.InstantiateAsync(manifest.PrefabAddress, visualRoot, cancellationToken);
             GameObject instance = candidate.Instance;
-            ValidateVisualInstance(instance, manifest.SchemaVersion >= 2);
-            Animator animator = FindVisualAnimator(instance, manifest.SchemaVersion >= 2);
+            ValidateVisualInstance(instance, true);
+            Animator animator = FindVisualAnimator(instance, true);
             if (animator == null)
                 throw new InvalidOperationException("Remote NPC visual does not contain an Animator.");
-            if (manifest.SchemaVersion == 1)
-            {
-                controller = await provider.LoadAssetAsync<RuntimeAnimatorController>(
-                    manifest.AnimatorControllerAddress,
-                    cancellationToken);
-                if (controller.Asset == null)
-                    throw new InvalidOperationException("Remote NPC animator controller resolved to null.");
-                animator.runtimeAnimatorController = controller.Asset;
-            }
+
             instance.transform.SetLocalPositionAndRotation(Vector3.zero, Quaternion.identity);
             instance.transform.localScale = Vector3.one;
             _instanceLease = candidate;
             candidate = null;
-            var owner = gameObject.AddComponent<DynamicNpcVisualLeaseOwner>();
-            owner.Initialize(controller);
-            controller = null;
             return animator;
         }
         catch
         {
             candidate?.Dispose();
-            controller?.Dispose();
             throw;
         }
     }
@@ -186,11 +173,4 @@ public sealed class CharacterVisualController : MonoBehaviour
     }
 
     private void OnDestroy() => ReleaseVisual();
-}
-
-internal sealed class DynamicNpcVisualLeaseOwner : MonoBehaviour
-{
-    private IDisposable _lease;
-    public void Initialize(IDisposable lease) => _lease = lease;
-    private void OnDestroy() { _lease?.Dispose(); _lease = null; }
 }

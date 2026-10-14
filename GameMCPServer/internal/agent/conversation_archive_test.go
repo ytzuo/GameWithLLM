@@ -71,7 +71,7 @@ func TestConversationArchive_LoadValidationDoesNotReplaceCurrentSessions(t *test
 	existing, err := service.StartSession(ctx, "player-1", "npc-current")
 	require.NoError(t, err)
 
-	snapshot := conversationSnapshot{SnapshotVersion: 1, SaveID: testSaveID, OperationID: testOpID1, PlayerID: "player-1", SavedAt: existing.CreatedAt, Contexts: []persistedConversationContext{{NPCID: "npc-other", HistoryMessages: []Message{{Role: "user", Content: "saved"}}, CreatedAt: existing.CreatedAt, LastActiveAt: existing.LastActiveAt}}}
+	snapshot := conversationSnapshot{SnapshotVersion: conversationSnapshotVersion, SaveID: testSaveID, OperationID: testOpID1, PlayerID: "player-1", SavedAt: existing.CreatedAt, Contexts: []persistedConversationContext{{NPCID: "npc-other", HistoryMessages: []Message{{Role: "user", Content: "saved"}}, CreatedAt: existing.CreatedAt, LastActiveAt: existing.LastActiveAt}}}
 	_, err = NewFileConversationArchive(dir).Save(snapshot, "create")
 	require.NoError(t, err)
 

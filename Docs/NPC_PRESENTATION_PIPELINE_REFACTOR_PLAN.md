@@ -1,7 +1,7 @@
 # NPC 表现资产管线破坏性重构计划
 
 日期：2026-10-14  
-状态：阶段一已完成，阶段二至五待实施；运行时尚未切换。
+状态：阶段一、二已完成，阶段三至五待实施；无版本最小端到端已切换，尚未发布新 Player。
 当前架构事实源：`../ARCHITECTURE.md`。
 
 ## 1. 目标与范围
@@ -169,6 +169,16 @@ Unity Editor 批处理基线编译成功；生成 csproj 漏列动画事件源�
 验收：Merchant、Guide 使用固定 Address 成功生成并注册；普通与流式对话正常；新存档
 恢复成功；旧格式得到明确提示；大小写重复名称被拒绝；改变 displayName 不改变身份。
 Go 全量检查和 Unity C# 编译通过。本阶段是 Unity、Go、内容一起切换的最小交付单元。
+
+2026-10-14 完成记录：[阶段二交接](NpcPresentationStage2/README.md) 与
+[结构化验证](NpcPresentationStage2/verification.json)。Merchant/Guide 当前名称资产、固定 Address、
+Unity/Go/SDK、安装记录、世界格式 3 和对话格式 2 已同步切换；旧源资产与旧解析分支已移除。
+Go test/vet 全量通过，race 在同版本 Go 的 WSL 下通过（Windows 原生启动仍报 0xc0000139）；
+Unity C# 与 15 项相关 EditMode 测试通过，Addressables 当前内容构建与静态验证通过。
+SampleScene 的两个 builtin NPC 下载、生成、注册、普通/流式对话、移动、取消、Inventory、
+新存档/Context 恢复及 Go 重启重连全部通过。修复首份动态 Manifest 绑定装配顺序，并调整
+SampleScene 地面与 NavMesh 以满足严格原点生成条件；迁移保留 16 个文件和 2 个目录 GUID。
+此记录不代表新 IL2CPP Player、生产部署或阶段三完整故障矩阵已验收。
 
 ### 阶段三：补齐完整性、取消和恢复闭环
 

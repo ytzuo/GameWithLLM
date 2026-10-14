@@ -107,16 +107,12 @@ namespace GameWithLLM.AgentRuntime
     public sealed class NpcContentBinding
     {
         public string EntityId { get; }
-        public string ContentVersion { get; }
-        public string ManifestSha256 { get; }
-        public NpcContentBinding(string entityId, string contentVersion, string manifestSha256)
+        public NpcContentBinding(string entityId)
         {
-            const string segment = @"^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$";
-            if (!System.Text.RegularExpressions.Regex.IsMatch(entityId ?? string.Empty, segment) ||
-                !System.Text.RegularExpressions.Regex.IsMatch(contentVersion ?? string.Empty, segment) ||
-                !System.Text.RegularExpressions.Regex.IsMatch(manifestSha256 ?? string.Empty, @"^[0-9a-f]{64}$"))
+            if (!System.Text.RegularExpressions.Regex.IsMatch(entityId ?? string.Empty, @"^[A-Za-z][A-Za-z0-9_]{0,63}\z") ||
+                System.Text.RegularExpressions.Regex.IsMatch(entityId, @"^(CON|PRN|AUX|NUL|COM[1-9]|LPT[1-9])$", System.Text.RegularExpressions.RegexOptions.IgnoreCase | System.Text.RegularExpressions.RegexOptions.CultureInvariant))
                 throw new ArgumentException("Invalid NPC content binding.");
-            EntityId = entityId; ContentVersion = contentVersion; ManifestSha256 = manifestSha256;
+            EntityId = entityId;
         }
     }
 

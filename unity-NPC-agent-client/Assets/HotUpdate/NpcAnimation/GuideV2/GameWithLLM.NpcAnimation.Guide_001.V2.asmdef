@@ -1,7 +1,0 @@
-{
-  "name": "GameWithLLM.NpcAnimation.Guide_001.V2",
-  "references": [
-    "GameWithLLM.Client.Gameplay"
-  ],
-  "autoReferenced": false
-}

@@ -31,7 +31,7 @@ function New-Candidate {
         })
     }
     if ($NpcPayload) {
-        $npcDirectory = Join-Path $repository 'NpcContent/npc/merchant_001/1'
+        $npcDirectory = Join-Path $repository 'NpcContent/npc/Merchant'
         New-Item -ItemType Directory -Force -Path $npcDirectory | Out-Null
         Set-Content -LiteralPath (Join-Path $npcDirectory 'npc.json') -Value $NpcPayload -NoNewline -Encoding utf8
         $indexPath = Join-Path $repository 'NpcContent/npc/index.json'
@@ -98,30 +98,26 @@ try {
     $current = Get-Content -Raw -LiteralPath (Join-Path $publish 'current.json') | ConvertFrom-Json
     if ($current.releaseId -ne 'script-test-v1' -or $current.previousReleaseId -ne 'script-test-v2' -or
         -not $current.rollback) { throw 'Rollback did not atomically point to the retained v1 release.' }
-    $npcV1 = New-Candidate 'npc-test-v1' 'base' 'immutable-npc-v1'
+    $npcV1 = New-Candidate 'npc-test-v1' 'base' 'current-npc'
     & $promote -CandidateDirectory $npcV1.Candidate -PublishRoot $publish -Confirm:$false | Out-Null
     if ((Get-Content -Raw (Join-Path $publish 'npc/index.json')) -ne 'npc-test-v1') { throw 'NPC index was not switched.' }
-    $missingNpcEvidence = New-Candidate 'npc-test-missing-evidence' 'base' 'immutable-npc-v1'
+    $missingNpcEvidence = New-Candidate 'npc-test-missing-evidence' 'base' 'current-npc'
     Remove-Item -LiteralPath (Join-Path $missingNpcEvidence.Candidate 'npc-runtime-smoke.passed.json')
     $rejected = $false
     try { & $promote -CandidateDirectory $missingNpcEvidence.Candidate -PublishRoot $publish -Confirm:$false | Out-Null }
     catch { $rejected = $true }
     if (-not $rejected) { throw 'NPC content was promoted without runtime smoke evidence.' }
-    $npcV2 = New-Candidate 'npc-test-v2' 'base' 'immutable-npc-v1'
+    $npcV2 = New-Candidate 'npc-test-v2' 'base' 'current-npc'
     & $promote -CandidateDirectory $npcV2.Candidate -PublishRoot $publish -Confirm:$false | Out-Null
-    $npcBad = New-Candidate 'npc-test-conflict' 'base' 'modified-same-version'
-    $rejected = $false
-    try { & $promote -CandidateDirectory $npcBad.Candidate -PublishRoot $publish -Confirm:$false | Out-Null }
-    catch { $rejected = $true }
-    if (-not $rejected -or (Get-Content -Raw (Join-Path $publish 'npc/index.json')) -ne 'npc-test-v2') {
-        throw 'An immutable NPC conflict changed the live index.'
-    }
-    if ((Get-Content -Raw (Join-Path $publish 'current.json') | ConvertFrom-Json).releaseId -ne 'npc-test-v2') {
-        throw 'An immutable NPC conflict changed the release pointer.'
+    $npcUpdated = New-Candidate 'npc-test-update' 'base' 'updated-current-npc'
+    & $promote -CandidateDirectory $npcUpdated.Candidate -PublishRoot $publish -Confirm:$false | Out-Null
+    if ((Get-Content -Raw (Join-Path $publish 'npc/Merchant/npc.json')) -ne 'updated-current-npc' -or
+        (Get-Content -Raw (Join-Path $publish 'npc/index.json')) -ne 'npc-test-update') {
+        throw 'Current NPC update did not publish payload before switching index.'
     }
     & $promote -CandidateDirectory (Join-Path $publish 'releases/npc-test-v1') -PublishRoot $publish -Rollback -Confirm:$false | Out-Null
     if ((Get-Content -Raw (Join-Path $publish 'npc/index.json')) -ne 'npc-test-v1') { throw 'NPC index rollback failed.' }
-    Write-Output 'Content release transaction tests passed: publish, interrupted retry, tamper rejection, pointer preservation, v2, rollback, NPC immutable content and index rollback.'
+    Write-Output 'Content release transaction tests passed: publish, interrupted retry, tamper rejection, pointer preservation, v2, rollback, NPC current content and index rollback.'
 }
 finally {
     $resolvedParent = [IO.Path]::GetFullPath($testParent).TrimEnd([IO.Path]::DirectorySeparatorChar) +

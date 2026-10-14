@@ -15,24 +15,6 @@ MonoBehaviour:
   m_GroupName: Remote_Characters
   m_GUID: caf13ddae8c5c164dad75b62d8b44db1
   m_SerializeEntries:
-  - m_GUID: 01c2653f5bd2e7c41bfa402141b9114b
-    m_Address: npc/merchant_001/1/controller
-    m_ReadOnly: 0
-    m_SerializedLabels:
-    - content.npc.merchant_001
-    FlaggedDuringContentUpdateRestriction: 0
-  - m_GUID: 18fd8f1dbc1461445878be15575e13a5
-    m_Address: npc/guide_001/1/visual
-    m_ReadOnly: 0
-    m_SerializedLabels:
-    - content.npc.guide_001
-    FlaggedDuringContentUpdateRestriction: 0
-  - m_GUID: 1d5b978a23d10a14cbb24e77b0bd44e7
-    m_Address: npc/guide_001/1/texture
-    m_ReadOnly: 0
-    m_SerializedLabels:
-    - content.npc.guide_001
-    FlaggedDuringContentUpdateRestriction: 0
   - m_GUID: 20a61d70a79eaea4fb8d5d3822d3ba0f
     m_Address: character/player/material/default-body
     m_ReadOnly: 0
@@ -41,10 +23,10 @@ MonoBehaviour:
     - content.characters.player
     FlaggedDuringContentUpdateRestriction: 0
   - m_GUID: 25cbefa25050b4b4da67b060f87ca04a
-    m_Address: npc/merchant_001/3/visual
+    m_Address: npc/Merchant/visual
     m_ReadOnly: 0
     m_SerializedLabels:
-    - content.npc.merchant_001
+    - content.npc.Merchant
     FlaggedDuringContentUpdateRestriction: 0
   - m_GUID: 297ae5714847efd4f9e1df60808cc813
     m_Address: character/player/animator/default
@@ -53,48 +35,12 @@ MonoBehaviour:
     - content.characters
     - content.characters.player
     FlaggedDuringContentUpdateRestriction: 0
-  - m_GUID: 2a03cfeca310b1d47942b5feee2dca89
-    m_Address: npc/guide_001/1/controller
-    m_ReadOnly: 0
-    m_SerializedLabels:
-    - content.npc.guide_001
-    FlaggedDuringContentUpdateRestriction: 0
-  - m_GUID: 3261882399461d44ca85818841e3111a
-    m_Address: npc/merchant_001/1/material
-    m_ReadOnly: 0
-    m_SerializedLabels:
-    - content.npc.merchant_001
-    FlaggedDuringContentUpdateRestriction: 0
   - m_GUID: 397b7111212611b42b4c0636f196c570
     m_Address: character/alice/animator/default
     m_ReadOnly: 0
     m_SerializedLabels:
     - content.characters
     - content.characters.alice
-    FlaggedDuringContentUpdateRestriction: 0
-  - m_GUID: 410b65aeb412ea0409860c9a32a1e53d
-    m_Address: npc/guide_001/2/material
-    m_ReadOnly: 0
-    m_SerializedLabels:
-    - content.npc.guide_001
-    FlaggedDuringContentUpdateRestriction: 0
-  - m_GUID: 414b0e6e93f1bca4e8b0f77f983465d4
-    m_Address: npc/merchant_001/2/texture
-    m_ReadOnly: 0
-    m_SerializedLabels:
-    - content.npc.merchant_001
-    FlaggedDuringContentUpdateRestriction: 0
-  - m_GUID: 422a4d59b54b98547929ef4af8a8ab75
-    m_Address: npc/guide_001/1/idle
-    m_ReadOnly: 0
-    m_SerializedLabels:
-    - content.npc.guide_001
-    FlaggedDuringContentUpdateRestriction: 0
-  - m_GUID: 49de90c6a5b96d1488cab9c84890781b
-    m_Address: npc/merchant_001/1/idle
-    m_ReadOnly: 0
-    m_SerializedLabels:
-    - content.npc.merchant_001
     FlaggedDuringContentUpdateRestriction: 0
   - m_GUID: 4a3e8bf6f6eee0a4bb07766706ece908
     m_Address: character/player/visual/default
@@ -104,10 +50,10 @@ MonoBehaviour:
     - content.characters.player
     FlaggedDuringContentUpdateRestriction: 0
   - m_GUID: 4f2704ed01e0b484b8133aee76e879d4
-    m_Address: npc/guide_001/3/visual
+    m_Address: npc/Guide/visual
     m_ReadOnly: 0
     m_SerializedLabels:
-    - content.npc.guide_001
+    - content.npc.Guide
     FlaggedDuringContentUpdateRestriction: 0
   - m_GUID: 5337538bf36faa449b6dc7b9148359af
     m_Address: character/alice/material/default-body
@@ -115,24 +61,6 @@ MonoBehaviour:
     m_SerializedLabels:
     - content.characters
     - content.characters.alice
-    FlaggedDuringContentUpdateRestriction: 0
-  - m_GUID: 54c0db9c5cce4dd4885e2d53c02c84fe
-    m_Address: npc/guide_001/2/idle
-    m_ReadOnly: 0
-    m_SerializedLabels:
-    - content.npc.guide_001
-    FlaggedDuringContentUpdateRestriction: 0
-  - m_GUID: 60c0d2beb05b6294ba828549921569c6
-    m_Address: npc/merchant_001/1/texture
-    m_ReadOnly: 0
-    m_SerializedLabels:
-    - content.npc.merchant_001
-    FlaggedDuringContentUpdateRestriction: 0
-  - m_GUID: 6ec9aabfbc11d94448bc7bdce6e33efa
-    m_Address: npc/guide_001/2/visual
-    m_ReadOnly: 0
-    m_SerializedLabels:
-    - content.npc.guide_001
     FlaggedDuringContentUpdateRestriction: 0
   - m_GUID: 732b089eb3cbe3b4a9650a11b0a02033
     m_Address: character/alice/texture/default-body
@@ -148,42 +76,12 @@ MonoBehaviour:
     - content.characters
     - content.characters.ryan
     FlaggedDuringContentUpdateRestriction: 0
-  - m_GUID: 7918e46f3495efa4bb56965aa2d7e73f
-    m_Address: npc/guide_001/2/texture
-    m_ReadOnly: 0
-    m_SerializedLabels:
-    - content.npc.guide_001
-    FlaggedDuringContentUpdateRestriction: 0
-  - m_GUID: 7d10c0cc2a9c8374694da88bdaa2a014
-    m_Address: npc/merchant_001/2/idle
-    m_ReadOnly: 0
-    m_SerializedLabels:
-    - content.npc.merchant_001
-    FlaggedDuringContentUpdateRestriction: 0
-  - m_GUID: 81416c4bde2dd34478eb6042acb2e566
-    m_Address: npc/merchant_001/2/controller
-    m_ReadOnly: 0
-    m_SerializedLabels:
-    - content.npc.merchant_001
-    FlaggedDuringContentUpdateRestriction: 0
   - m_GUID: 836cb94d6e4181a4c8837d0caee36617
     m_Address: character/ryan/animator/default
     m_ReadOnly: 0
     m_SerializedLabels:
     - content.characters
     - content.characters.ryan
-    FlaggedDuringContentUpdateRestriction: 0
-  - m_GUID: 85d8a039dc4086542847b690150ed67b
-    m_Address: npc/merchant_001/2/material
-    m_ReadOnly: 0
-    m_SerializedLabels:
-    - content.npc.merchant_001
-    FlaggedDuringContentUpdateRestriction: 0
-  - m_GUID: 89cad1d8a3c3e75419c6266018122fbf
-    m_Address: npc/guide_001/2/animation-script
-    m_ReadOnly: 0
-    m_SerializedLabels:
-    - content.npc.guide_001
     FlaggedDuringContentUpdateRestriction: 0
   - m_GUID: 8c3058df5b425b345944060c499f99bf
     m_Address: character/ryan/texture/default-body
@@ -198,42 +96,6 @@ MonoBehaviour:
     m_SerializedLabels:
     - content.characters
     - content.characters.alice
-    FlaggedDuringContentUpdateRestriction: 0
-  - m_GUID: 954d2a5b537c9944682084bea6d5d4c0
-    m_Address: npc/guide_001/2/controller
-    m_ReadOnly: 0
-    m_SerializedLabels:
-    - content.npc.guide_001
-    FlaggedDuringContentUpdateRestriction: 0
-  - m_GUID: 95e3bf3b9a9f3ff4889378912a238877
-    m_Address: npc/merchant_001/2/animation-script
-    m_ReadOnly: 0
-    m_SerializedLabels:
-    - content.npc.merchant_001
-    FlaggedDuringContentUpdateRestriction: 0
-  - m_GUID: 9c079425d794fdc47a2a09e8f2c31308
-    m_Address: npc/merchant_001/2/visual
-    m_ReadOnly: 0
-    m_SerializedLabels:
-    - content.npc.merchant_001
-    FlaggedDuringContentUpdateRestriction: 0
-  - m_GUID: ae3ac84fe2342c345be8ccd85f01c7c9
-    m_Address: npc/merchant_001/1/animation-script
-    m_ReadOnly: 0
-    m_SerializedLabels:
-    - content.npc.merchant_001
-    FlaggedDuringContentUpdateRestriction: 0
-  - m_GUID: b30205033af59e54a8f9e3329267e1d1
-    m_Address: npc/guide_001/1/animation-script
-    m_ReadOnly: 0
-    m_SerializedLabels:
-    - content.npc.guide_001
-    FlaggedDuringContentUpdateRestriction: 0
-  - m_GUID: ca95387187d477f49b15db09f31ff699
-    m_Address: npc/merchant_001/1/visual
-    m_ReadOnly: 0
-    m_SerializedLabels:
-    - content.npc.merchant_001
     FlaggedDuringContentUpdateRestriction: 0
   - m_GUID: ccf66a9affaeb524c8e37c4960732497
     m_Address: character/alice/visual/default
@@ -261,12 +123,6 @@ MonoBehaviour:
     m_SerializedLabels:
     - content.characters
     - content.characters.player
-    FlaggedDuringContentUpdateRestriction: 0
-  - m_GUID: e8b662f2417934647b9fc67750650d1d
-    m_Address: npc/guide_001/1/material
-    m_ReadOnly: 0
-    m_SerializedLabels:
-    - content.npc.guide_001
     FlaggedDuringContentUpdateRestriction: 0
   - m_GUID: f5c370a8fd015bb4c86c8a376e966985
     m_Address: character/ryan/visual/default

@@ -49,11 +49,7 @@ public static class HybridClrProjectSetup
             Array.Empty<UnityEditorInternal.AssemblyDefinitionAsset>();
         settings.hotUpdateAssemblies = new[]
         {
-            SmokeAssemblyName,
-            "GameWithLLM.NpcAnimation.Merchant_001.V1",
-            "GameWithLLM.NpcAnimation.Guide_001.V1",
-            "GameWithLLM.NpcAnimation.Merchant_001.V2",
-            "GameWithLLM.NpcAnimation.Guide_001.V2"
+            SmokeAssemblyName
         };
         settings.preserveHotUpdateAssemblies = Array.Empty<string>();
         settings.patchAOTAssemblies = PatchAotAssemblies;

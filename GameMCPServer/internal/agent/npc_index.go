@@ -8,34 +8,28 @@ import (
 )
 
 // Frozen UI keys. Values are plain text; progressFormat uses {downloaded}/{total}.
-var NPCTextKeys = []string{"remoteTab", "localTab", "download", "spawn", "cancel", "retry", "close", "refresh", "alreadySpawned", "restartRequired", "progressFormat", "downloading", "installed", "remoteEmpty", "localEmpty", "errorFetch", "errorContent", "errorCompatibility", "errorDownload", "errorCancelled", "errorSpawn", "errorBusy"}
+var NPCTextKeys = []string{"remoteTab", "localTab", "download", "spawn", "cancel", "retry", "close", "refresh", "alreadySpawned", "restartRequired", "progressFormat", "downloading", "installed", "remoteEmpty", "localEmpty", "errorFetch", "errorContent", "errorResource", "errorDownload", "errorCancelled", "errorSpawn", "errorBusy"}
 
 type NPCIndexEntry struct {
-	NPCID            string `json:"npcId"`
-	ContentVersion   string `json:"contentVersion"`
-	DisplayName      string `json:"displayName"`
-	Description      string `json:"description"`
-	AvatarPath       string `json:"avatarPath"`
-	ManifestPath     string `json:"manifestPath"`
-	ManifestSHA256   string `json:"manifestSha256"`
-	MinPlayerVersion string `json:"minPlayerVersion"`
-	MaxPlayerVersion string `json:"maxPlayerVersion"`
+	Name         string `json:"name"`
+	DisplayName  string `json:"displayName"`
+	Description  string `json:"description"`
+	AvatarPath   string `json:"avatarPath"`
+	ManifestPath string `json:"manifestPath"`
 }
 type NPCIndex struct {
-	SchemaVersion         int               `json:"schemaVersion"`
-	CatalogContentVersion string            `json:"catalogContentVersion"`
-	Texts                 map[string]string `json:"texts"`
-	NPCs                  []NPCIndexEntry   `json:"npcs"`
+	Texts map[string]string `json:"texts"`
+	NPCs  []NPCIndexEntry   `json:"npcs"`
 }
 
 func ParseNPCIndex(data []byte) (*NPCIndex, error) {
-	if len(data) > MaxNPCContentBytes || rejectDuplicateJSONProperties(data) != nil {
+	if len(data) > MaxNPCContentBytes || rejectDuplicateJSONProperties(data) != nil || !exactNPCObject(data, "texts", "npcs") {
 		return nil, errors.New("NPC_INDEX_JSON_INVALID")
 	}
 	decoder := json.NewDecoder(bytes.NewReader(data))
 	decoder.DisallowUnknownFields()
 	var index NPCIndex
-	if decoder.Decode(&index) != nil || index.SchemaVersion != 1 || strings.TrimSpace(index.CatalogContentVersion) == "" || index.NPCs == nil {
+	if decoder.Decode(&index) != nil || index.NPCs == nil || len(index.NPCs) > 256 {
 		return nil, errors.New("NPC_INDEX_INVALID")
 	}
 	if len(index.Texts) != len(NPCTextKeys) {
@@ -51,12 +45,12 @@ func ParseNPCIndex(data []byte) (*NPCIndex, error) {
 	}
 	seen := map[string]bool{}
 	for _, entry := range index.NPCs {
-		b := NPCContentBinding{entry.NPCID, entry.ContentVersion, entry.ManifestSHA256}
-		prefix := "npc/" + entry.NPCID + "/" + entry.ContentVersion + "/"
-		if b.Validate() != nil || seen[entry.NPCID] || entry.ManifestPath != prefix+"npc.json" || entry.AvatarPath != prefix+"avatar.png" || strings.TrimSpace(entry.DisplayName) == "" || strings.TrimSpace(entry.Description) == "" || entry.MinPlayerVersion == "" || entry.MaxPlayerVersion == "" {
+		b := NPCContentBinding{entry.Name}
+		prefix := "npc/" + entry.Name + "/"
+		if b.Validate() != nil || seen[strings.ToLower(entry.Name)] || entry.ManifestPath != prefix+"npc.json" || entry.AvatarPath != prefix+"avatar.png" || strings.TrimSpace(entry.DisplayName) == "" || strings.TrimSpace(entry.Description) == "" || len([]rune(entry.DisplayName)) > 80 || len([]rune(entry.Description)) > 600 {
 			return nil, errors.New("NPC_INDEX_ENTRY_INVALID")
 		}
-		seen[entry.NPCID] = true
+		seen[strings.ToLower(entry.Name)] = true
 	}
 	return &index, nil
 }

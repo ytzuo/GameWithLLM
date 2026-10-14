@@ -234,50 +234,38 @@ System Prompt 由 Go 启动时严格加载 `config/system_prompt.zh-CN.json`，�
 
 ### 2.7 远端 NPC 内容契约与 Prefab 接入
 
-内容源为仓库 `NpcContent/npc/index.json` 与 `npc/{npcId}/{contentVersion}/`。
-索引可变，版本目录不可变；已发布 v1 JSON 字段和文本键见
-`Docs/History/RemoteNpc/REMOTE_NPC_CONTENT_CONTRACT_V1.md`。解析器按显式
-`schemaVersion` 严格区分 v1/v2，并拒绝未知、重复或跨版本字段。v1 保留手写
-Controller/动画/材质/贴图 Address 与必需动画 DLL；v2 的 `visual` 只有
-`prefabAddress`，Addressables 从 Prefab 引用图下载模型、Mesh、Avatar、材质、贴图、
-Controller 和 AnimationClip 传递依赖。v2 Prefab 必须自带有效 Animator、Avatar 和
-RuntimeAnimatorController，且不能包含 Entity、NavMesh、Inventory、工具、Registry 或
-网络权威组件。视觉实例仍只挂在 AOT 权威实体的 `VisualRoot` 下。
+内容源为 `NpcContent/npc/index.json` 与 `npc/{name}/npc.json`。NPC 使用唯一 ASCII
+技术名称 `name`（`^[A-Za-z][A-Za-z0-9_]{0,63}$`），大小写不敏感检查唯一性，并拒绝
+Windows 设备保留名。当前两种样例为 `Merchant`、`Guide`，均只保留当前 builtin 源资产。
+展示名称由 Definition 的 `displayName` 单独配置，生成 Profile 时复用；修改展示名不改变身份。
 
-v2 `animationDriver` 显式选择 `builtin` 或 `hotUpdate`。内置
-`standard-locomotion` 位于稳定 Gameplay AOT 程序集，每帧写入 float `Speed`，并从
-`INpcAnimationEventSource` 快照和事件独立写入 bool `Moving/Thinking/Speaking`。
-`hotUpdate` 继续使用版本化 DLL Address、程序集、入口、长度和 SHA-256。未知 kind/ID
-直接拒绝，builtin 不下载或加载 NPC 专属 DLL。当前 Merchant v3 与 Guide v3 均为
-schema v2/builtin；Guide v2 及更早版本保留为 schema v1/hot-update 兼容回归，既有版本
-目录和 Address 不修改。
+索引只有 `texts/npcs`，条目只有 `name/displayName/description/avatarPath/manifestPath`；
+清单只有 `name/visual/animationDriver/profile/systemPrompt`。固定路径、未知/重复字段、大小、
+超时与同源检查仍保留，旧 v1/v2 清单直接拒绝，不做兼容解析。`visual` 只有固定
+`npc/{name}/visual` 地址；模型、Mesh、Avatar、材质、贴图、Controller 与 Clip 从 Prefab
+依赖图交付。视觉必须包含有效 Animator、Avatar 和 Controller，禁止权威组件。
 
-公共 SDK `RuntimeManifest` 添加 `NpcContents`，线上 JSON 为可选 `npcContents`：
-每项只有 `entityId / contentVersion / manifestSha256`，原有 `entities/tools/revision`
-含义不变。绑定实体必须在同一 Manifest 中且唯一。`NpcEntity.BindContent` 仅允许在
-inactive 时设置同 ID 绑定；Host 与 Gateway 快照、重新序列化和重连均保留绑定。
-完整 Manifest 更新不得改变仍在场的实体绑定。重新连接后旧 Context 使用前核对绑定，
-版本/hash 冲突时拒绝复用，不能把已创建 Prompt 换成新内容。
+`animationDriver` 显式选择 `builtin` 或 `hotUpdate`。内置 `standard-locomotion` 位于
+Gameplay AOT 程序集，维护 float `Speed` 和 bool `Moving/Thinking/Speaking`；builtin 无
+专属 DLL。可选 DLL 使用固定 `npc/{name}/animation-script`，长度/SHA-256 仅验证字节完整性，
+并校验程序集、入口和接口。NPC 不含内容版本、Player 版本、Catalog 版本或清单 hash。
 
-Go `NPCContentResolver` 使用 `NPC_CONTENT_BASE_URL` 下构造的固定路径，合法 ID/version
-为 `[A-Za-z0-9][A-Za-z0-9_-]{0,63}`，hash 为 64 位小写十六进制。
-禁止任意 URL、路径穿越和重定向。HTTP 超时 10 秒、清单上限 256 KiB；先校验原始
-字节 hash，再严格拒绝重复/未知 JSON 字段，核对 Profile ID、Prompt 内容版本及
-完整模板占位符。成功定义按 ID/version/hash 缓存，无 TTL、磁盘恢复或后台刷新；失败
-不缓存，下次对话可重试。错误只返回稳定 `NPC_CONTENT_*`，不泄露远端正文。
-HTTP 期间不持有 Registry 或 Service 生命周期锁，解析后重新核对当前实体绑定。
+公共 SDK `NpcContentBinding` 仅有 `EntityId`，线上可选 `npcContents` 每项仅有 `entityId`。
+绑定仍必须对应同一 Manifest 中的唯一实体，Host/Gateway 快照与重连完整保留它。
+原有 `entities/tools/revision/generation` 不变，既有 Context 使用前仍校验身份绑定。
 
-对话快照版本仍为 1，每个 Context 可选保存 `npcContent`（同三字段），不保存 Prompt。
-restore 在替换当前 Context 前核对版本/hash并从当前绑定解析 Prompt；冲突返回
-`NPC_CONTENT_VERSION_MISMATCH`，解析失败返回 `NPC_CONTENT_UNAVAILABLE`，失败保留
-原 Context。旧无绑定快照继续从服务端 Profile/Prompt 配置恢复。
+Go 每次新建 Context 从可信 `NPC_CONTENT_BASE_URL` 读取固定 `npc/{name}/npc.json`，
+不永久缓存 NPC 配置。清单中的 `systemPrompt` 只含 locale/template，解析后直接构造
+运行时 Prompt；通用 Prompt Catalog 仍保留原格式。Context 创建后固定其 Prompt，
+后续人格或表现修改不替换既有 Context。对话快照格式为 2，远端 NPC 引用仅存身份；
+恢复读取当前配置，先准备全部 Context 再替换，失败保留原 Context。旧快照格式拒绝。
 
 `INpcAnimationDriver` 位于稳定 Gameplay AOT 程序集，生命周期为
 `Bind(Animator) / Tick(deltaTime, movementSpeed) / Dispose`，只允许主线程调用。
 事件能力通过旁路接口 `INpcEventDrivenAnimationDriver.BindEventSource` 增加，未实现该接口的
 已发布 v1 Driver 仍只走旧生命周期。事件源提供 `NpcAnimationSnapshot` 与带 operationId、
 结束原因的 `NpcAnimationEvent`；`NpcAnimationDriverHost` 在普通 `Bind` 后可选绑定事件源，
-`Dispose` 必须退订。样例旧 DLL 仍只引用 Gameplay、标准库和 Unity 动画模块，不实现
+`Dispose` 必须退订。可选动画 DLL 仅引用 Gameplay、标准库和 Unity 动画模块，不实现
 IAgentTool、不改变 ToolSet、不执行工具发现。
 
 `NpcEntity` 在 `SetDestination` 成功后发布 `MovementStarted`，并在到达、失败、取消、
@@ -289,52 +277,28 @@ cancelled、异常、切场和销毁立即收束，迟到事件因 operationId �
 独立维度，可同时为 Moving + Thinking 或 Moving + Speaking，事件不进入网络协议、Profile、
 模型历史或世界存档。
 
-Editor-only `NpcContentDefinition` 是生产作者入口，包含稳定 ID/版本、完整视觉 Prefab、
-头像、Profile、Prompt 和 driver 选择。`NpcContentRelease.BuildDefinitions` 统一注册
-版本化 Prefab Address/Label、生成严格 v2 `npc.json`、复制头像原始字节、更新索引并
-执行内容验证；生产路径不再复制固定 Merchant/Guide 文件或维护 GUID 重映射表。
-`NpcContent` 模块在统一验证器检查 Prefab 完整性及依赖、程序集引用、入口、hash 与版本地址；
-`Build-ContentRelease.ps1` 使用 Go 同一个解析器校验静态索引/Profile/Prompt。
-候选文件台账追加 `npcContentRoot` 和静态 NPC 文件，原有 release 字段不改变含义。
-提升脚本拒绝覆盖已发布版本，先交付不可变文件，最后切换 `npc/index.json`，回滚
-索引同时保留所有已发布版本。真实远端发布与环境证据仍按既有流水线执行。
+Editor-only `NpcContentDefinition` 是作者入口，配置名称、单一展示名、介绍、Prefab、头像、
+Profile、Prompt 与 driver。资源位于 `Assets/Content/Npcs/{name}/`，Definition、Visual、Avatar
+使用固定文件名；迁移保留当前源资产 GUID。`BuildDefinitions` 校验作者资产与名称后，在
+临时目录生成和解析全部当前清单，再替换专用静态目录，删除不再存在的 NPC 输出。
+Address 为 `npc/{name}/visual`，Label 为 `content.npc.{name}`；旧 NPC Address 和历史源资产已移除。
+统一内容验证与 Go 静态验证器使用同一当前契约。发布允许覆盖 NPC 当前文件，资源在索引之前
+交付；整体 release/ToolSet/AOT metadata 的不可变性和校验保持。
 
-### 2.8 待实施：NPC 当前资源集契约
+### 2.8 NPC 当前资源集实施边界
 
-状态：2026-10-14 已完成重构阶段一的契约冻结、依赖盘点与迁移清单；尚未切换运行时。
-本节描述目标，不替代 2.7 和 6.3 的当前实现。实施计划见
-`Docs/NPC_PRESENTATION_PIPELINE_REFACTOR_PLAN.md`，阶段一交接及 JSON 夹具见
-`Docs/NpcPresentationStage1/README.md`。
+2026-10-14 阶段二已切换 SDK、Unity、Go、两个 builtin NPC、安装记录和存档格式。
+计划见 `Docs/NPC_PRESENTATION_PIPELINE_REFACTOR_PLAN.md`，阶段二证据见
+`Docs/NpcPresentationStage2/README.md`。阶段一夹具仅作为冻结契约的历史交接。
 
-- 一个 NPC 只有一个 ASCII 技术名称 `name`，工程目录为 `Assets/Content/Npcs/{name}/`，
-  静态目录为 `NpcContent/npc/{name}/`，视觉 Address 为 `npc/{name}/visual`。
-  名称满足 `^[A-Za-z][A-Za-z0-9_]{0,63}$`，大小写不敏感唯一并拒绝 Windows 保留名；
-  `displayName` 单独配置且允许中文。协议 `entityId` 与 Profile `npcId` 字段保留，动态
-  NPC 的字段值等于技术名称，每名称最多一个实例。
-- NPC 索引仅含 `texts/npcs`；NPC 清单仅含 `name/visual/animationDriver/profile/systemPrompt`。
-  删除 NPC schema/content/Player/Catalog 版本字段及历史清单 hash 绑定，只有一种固定格式。
-  头像、Prefab、动画、材质、贴图由当前定义与 Prefab 引用图交付，不保存历史版本源资产。
-- SDK `NpcContentBinding` 与 Manifest `npcContents` 每项只保留 `entityId`。名称必须对应
-  同一 Manifest 中的唯一实体；工具 Schema、revision、generation 和生命周期约束保留。
-- 安装和生成只校验字段、身份、路径、Address、依赖与实际加载结果，保留 Animator/Avatar/
-  Controller、必需动画参数、无权威组件等检查。Addressables Bundle hash/CRC 及可选 DLL
-  长度/hash/程序集/接口校验用于资源完整性，不用于历史或 Player 版本相等判断。
-- Catalog 仍在启动时更新；当前 Address 无法解析时提示资源未就绪，不比较 Catalog 版本。
-  离线只使用完整安装记录和可加载缓存，运行中不替换已生成 NPC 或卸载动画程序集。
-- Go 按名称读取可信固定路径 `npc/{name}/npc.json`，每次新建 Context 读取当前人格配置，
-  已创建 Context 固定使用创建时 Prompt；恢复读取当前配置，不按表现版本/hash 拒绝复用。
-  不增加 TTL、长期记忆或背景刷新，不让 Unity 组装模型请求。
-- 新世界存档格式固定为 `version: 3`，对话快照为 `snapshotVersion: 2`，远端 NPC 引用
-  仅含 `entityId`。格式标记识别文件结构，不校验资产版本。新安装与目录缓存分别使用
-  `installed-current.json`、`catalog-cache-current.json`，不读取旧文件，不自动删除用户存档。
-- NPC 构建输出允许覆盖当前文件，校验成功后提交，索引最后切换；删除旧名称和版本
-  目录与旧 Address。整体 release/ToolSet/AOT metadata 及发布事务不因本次重构取消。
+安装索引为 `installed-current.json`，目录缓存为 `catalog-cache-current.json`，不读取旧文件。
+发现仅有旧安装索引时提示重新安装；旧用户存档不自动删除。世界存档仅接受格式 3，
+远端 NPC 引用仅存 entityId；对话快照仅接受格式 2。这些标记用于文件结构识别。
+Catalog 仍仅在启动时更新，运行中不替换已生成实例或卸载程序集。
 
-阶段二必须在同一个交付单元同步切换 Unity SDK、客户端、Go、静态内容与保存格式，删除
-旧 NPC 解析分支、版本/hash 绑定、旧资产和旧测试夹具，不发布仅修改一端的状态。
-完成相应验收后更新 2.7、6.3 的现状描述；阶段四清理旧 NPC 发布门禁及文档，删除本节
-“待实施”状态，不保留长期双格式兼容。旧发布 Player 不接入新 NPC 文件；本次以新的
-Player 与匹配 Go 服务和完整内容建立切换基线。
+阶段三继续补齐统一实际加载准备、离线/修复、取消和恢复失败闭环，以及 Address 缺失的
+专用 UI 提示。阶段四继续收束生产 smoke 场景名、缓存策略、失败发布事务与工程历史文档，
+并完成 IL2CPP/部署验证。不能将当前 Editor 验证视为已发布新 Player 基线；旧 Player 不接入新清单。
 
 ## 3. 进程内契约
 
@@ -631,50 +595,31 @@ Catalog 持有共享资产 lease 到应用退出，窗口仅同步克隆并在�
 
 ### 6.3 远端 NPC 目录、安装与动态生成
 
-Unity 在内容启动完成后创建唯一的 `NpcLibraryServices`，其目录客户端从当前
-Addressables 内容通道推导可信静态根，只读取 `npc/index.json`、该索引声明的头像和
-不可变 `npc.json`。目录和清单执行未知/重复字段、ID、版本、hash、相对路径、同源、
-大小与超时校验；目录失败时只回退到最后一次完整缓存。打开资料库只加载文本和头像，
-不会下载模型依赖，窗口关闭会释放头像纹理。
+Unity 在内容启动后创建唯一 `NpcLibraryServices`。资料库只获取当前索引、文本与头像，
+不提前下载模型；关闭窗口释放头像。目录请求失败可使用最后完整的新格式缓存，取消不回退。
 
-`NpcContentInstaller` 在 `Application.persistentDataPath/NpcContent` 维护单一原子替换的
-安装索引和原始已验证清单。同一时刻只允许一个下载任务；Addressables 依赖地址完全来自
-清单，取消或失败不会写入安装成功。已安装内容在显示和生成前通过
-`GetDownloadSizeAsync` 检测缓存驱逐并转为修复状态。远端目录的
-`catalogContentVersion` 与本次启动内容版本不一致时只允许操作已有本地内容，新的远端
-安装要求重启。
+`NpcContentInstaller` 在 persistentDataPath/NpcContent 原子保存当前安装记录，条目字段为
+name/displayName/description/avatarPath/manifestJson。同一时间仅一个下载任务；地址从
+清单取得，依赖下载后实际加载 Prefab，检查完整 Animator 与 builtin 参数，必要 DLL 检查长度/hash。
+取消或失败不提交成功记录。生成前检测缓存驱逐并要求修复，已生成 NPC 不允许运行中更新。
 
-`NpcSpawnController` 为每个 `npcId` 保持一个实例和一个生成中标记。权威根由本地 AOT
-代码在 Player 下以未激活状态构造，并在 `(0,0,0)` 精确验证 NavMesh；随后绑定
-`NpcEntity`、库存身份和 `NpcContentBinding`，通过 `CharacterVisualController` 严格加载
-远端视觉和 Animator。动画 DLL 以清单长度、SHA-256、程序集名、入口类型及
-`INpcAnimationDriver` 契约校验后加载，只在 Unity 主线程 Bind/Tick/Dispose，不参加工具
-发现。所有准备完成后才激活权威根并加入 Player 可见 NPC 列表，因此既有
-`RuntimeAvailabilityChanged` 和完整 Manifest 发布仍是唯一运行时权威。任何失败都会
-释放实例、动画驱动、资源 lease 和生成中标记。
+`NpcSpawnController` 每名称最多一个实例与生成任务。AOT 权威根在 Player 下以 inactive
+状态构造，在 `(0,0,0)` 严格检查 NavMesh，绑定 NPC、库存 `npc:{name}.inventory` 和仅身份
+ContentBinding；严格加载 Prefab/驱动后才激活与注册。动画 Bind/Tick/Dispose 仅在主线程。
+失败释放实例、驱动、资源 lease 与生成标记。SampleScene 地面和精细高度 NavMesh 已调整，
+让原点符合严格生成前置条件；本地 Alice/Ryan 身份保持现状。
 
-世界存档格式版本为 2，并为每个远端 NPC 保存 `entityId / contentVersion /
-manifestSha256`；版本 1 的无远端 NPC 存档继续可读。恢复先完整校验所有安装记录、版本、
-hash 与 Addressables 缓存，再通过唯一生成入口补齐实体；任一前置条件失败时不生成任何
-缺失实体。生成失败会回收本轮已创建实体。全部实体就绪后才恢复 Transform/Inventory、
-同步发送完整 Runtime Manifest，最后调用 Go 的 Context restore，因此版本冲突不会混用旧
-Context。缓存缺失、未安装和版本冲突分别返回稳定错误并引导补下载或安装存档版本。
+世界存档格式 3，远端 npcContents 每项仅 entityId。恢复先检查完整安装身份与缓存，再经
+唯一生成入口补齐实体；本轮生成失败回收已创建实体。实体就绪后恢复 Transform/Inventory、
+发布完整 Manifest，再恢复 Go Context。统一实际资源准备与更全面的失败回滚验证属于阶段三。
+切场先取消并等待安装与生成，旧场景卸载后清理失效引用，新场景仍使用同一生成入口。
 
-切场开始时 `AgentHostClient` 在取得对话/工具临界区锁前先取消并等待当前 NPC 安装与生成；
-取消后的任务不得提交安装记录或激活实体。旧场景卸载后，生成器会清理失效 Unity 引用，
-同一 npcId 在新场景仍可通过同一唯一入口重新生成。
-
-含 `npcContentRoot` 的生产候选除通用环境 smoke 外，还必须提供与候选 manifest SHA-256
-绑定的 `npc-runtime-smoke.passed.json`。发布脚本硬性要求动态下载、动画 driver、存档恢复、
-版本冲突、缓存修复、Catalog 重启提示、切场取消和重连 Manifest 八项均通过；证据随不可变
-release 归档。发布仍按不可变 NPC 文件、release/Catalog、`current.json`、最后
-`npc/index.json` 的顺序执行，已发布版本永不覆盖。
-
-现有已发布基线为 Player `0.2.0`、release `h8-production-2.0.0`、ToolSet `6.0.0`；它只
-保证旧 `INpcAnimationDriver` AOT 契约。事件接口扩展正式发布时必须分配新的 Player 身份，
-并由上述 metadata 门禁验证，不能覆盖或冒充 0.2.0。Merchant/Guide 当前索引都指向内容
-版本 3 的 schema v2 清单，历史静态文件与 Address 继续保留。共享 URP Shader 由
-`Remote_Materials` 显式持有，避免场景和逐 NPC Bundle 重复打包。
+含 npcContentRoot 的生产候选仍要求与整体候选 SHA-256 绑定的 NPC runtime smoke 证据。
+阶段二仅调整静态验证与当前文件覆盖入口，生产 evidence 的 version-conflict 和
+catalog-restart-required 场景名暂待阶段四收束。整体 release/Catalog/工具包/AOT 门禁保持。
+现有已发布基线仍为 Player 0.2.0、release h8-production-2.0.0、ToolSet 6.0.0，不能把新
+源内容冒充该旧 Player 的发布契约；新 IL2CPP 基线和环境发布验收留到阶段四。
+共享 URP Shader 由 Remote_Materials 持有，避免场景和逐 NPC Bundle 重复打包。
 
 ## 7. 代码地图
 

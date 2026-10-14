@@ -441,8 +441,7 @@ public sealed class RuntimeGatewayClient : IRuntimeTransport, IDisposable
         }
         var npcContents = new List<object>();
         foreach (NpcContentBinding binding in manifest.NpcContents)
-            npcContents.Add(new { entityId = binding.EntityId, contentVersion = binding.ContentVersion,
-                manifestSha256 = binding.ManifestSha256 });
+            npcContents.Add(new { entityId = binding.EntityId });
         return new
         {
             npcContents,

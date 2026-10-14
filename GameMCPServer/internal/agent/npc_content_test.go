@@ -2,8 +2,6 @@ package agent
 
 import (
 	"context"
-	"crypto/sha256"
-	"encoding/hex"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -28,29 +26,24 @@ func (b testBindings) NPCContentBinding(_ context.Context, _, id string) (*NPCCo
 	return &v, nil
 }
 func contentFixture(id string) ([]byte, NPCContentBinding) {
-	prefix := "npc/" + id + "/1/"
-	prompt := *DefaultSystemPromptCatalog()
-	prompt.ContentVersion = "1"
-	prompt.Template = id + " identity\n" + prompt.Template
-	d := NPCContentDefinition{SchemaVersion: 1, NPCID: id, ContentVersion: "1", PlayerBuildID: "windows-x64-0.1.0", Profile: testNPCProfile(id), SystemPrompt: prompt, Visual: NPCVisual{PrefabAddress: prefix + "visual", AnimatorControllerAddress: prefix + "controller"}, AnimationScript: NPCAnimationScript{Address: prefix + "script", AssemblyName: "Sample." + id + ".V1", EntryType: "Sample.Driver", Length: 100, SHA256: strings.Repeat("a", 64)}}
+	prefix := "npc/" + id + "/"
+	prompt := DefaultSystemPromptCatalog()
+	d := NPCContentDefinition{Name: id, Profile: testNPCProfile(id), SystemPrompt: NPCPrompt{Locale: prompt.Locale, Template: id + " identity\n" + prompt.Template}, Visual: NPCVisual{PrefabAddress: prefix + "visual"}, AnimationDriver: NPCAnimationDriver{Kind: "builtin", DriverID: "standard-locomotion"}}
 	data, _ := json.Marshal(d)
 	return data, bindingFor(id, data)
 }
-func bindingFor(id string, data []byte) NPCContentBinding {
-	sum := sha256.Sum256(data)
-	return NPCContentBinding{id, "1", hex.EncodeToString(sum[:])}
-}
+func bindingFor(id string, _ []byte) NPCContentBinding { return NPCContentBinding{id} }
 
 func TestNPCResolverAndContextIsolation(t *testing.T) {
-	a, ba := contentFixture("merchant_001")
-	b, bb := contentFixture("guide_001")
+	a, ba := contentFixture("Merchant")
+	b, bb := contentFixture("Guide")
 	var requests atomic.Int32
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		requests.Add(1)
 		switch r.URL.Path {
-		case "/npc/merchant_001/1/npc.json":
+		case "/npc/Merchant/npc.json":
 			w.Write(a)
-		case "/npc/guide_001/1/npc.json":
+		case "/npc/Guide/npc.json":
 			w.Write(b)
 		default:
 			http.NotFound(w, r)
@@ -60,7 +53,7 @@ func TestNPCResolverAndContextIsolation(t *testing.T) {
 	resolver, err := NewNPCContentResolver(server.URL)
 	require.NoError(t, err)
 	unknown := ba
-	unknown.ContentVersion = "unknown"
+	unknown.EntityID = "Unknown"
 	_, err = resolver.Resolve(context.Background(), unknown)
 	require.EqualError(t, err, "NPC_CONTENT_FETCH_FAILED")
 	requests.Store(0)
@@ -77,8 +70,8 @@ func TestNPCResolverAndContextIsolation(t *testing.T) {
 	require.NoError(t, err)
 	_, err = service.SubmitMessage(ctx, second.ID, "hello")
 	require.NoError(t, err)
-	assert.Contains(t, llm.requests[0].Messages[0].Content, "merchant_001 identity")
-	assert.Contains(t, llm.requests[1].Messages[0].Content, "guide_001 identity")
+	assert.Contains(t, llm.requests[0].Messages[0].Content, "Merchant identity")
+	assert.Contains(t, llm.requests[1].Messages[0].Content, "Guide identity")
 	legacy, err := service.StartSession(ctx, "player", "legacy")
 	require.NoError(t, err)
 	assert.Nil(t, legacy.NPCContent)
@@ -90,17 +83,16 @@ func TestNPCResolverAndContextIsolation(t *testing.T) {
 	require.True(t, service.SaveConversations(ctx, ConversationSaveRequest{InstanceID: "game-1", PlayerID: "player", SaveID: testSaveID, OperationID: testOpID1, Mode: "create"}).OK)
 	loaded := service.LoadConversations(ctx, ConversationLoadRequest{InstanceID: "game-1", PlayerID: "player", SaveID: testSaveID, NPCIDs: []string{ba.EntityID, bb.EntityID, "legacy"}})
 	require.True(t, loaded.OK, loaded.Message)
-	assert.EqualValues(t, 2, requests.Load())
-	// Same ID/version, different hash is a conflict as well.
-	changed := ba
-	changed.ManifestSHA256 = strings.Repeat("b", 64)
-	bindings[ba.EntityID] = changed
+	assert.EqualValues(t, 4, requests.Load())
+	// Removing the identity binding rejects restore without replacing live Contexts.
+	delete(bindings, ba.EntityID)
 	loaded = service.LoadConversations(ctx, ConversationLoadRequest{InstanceID: "game-1", PlayerID: "player", SaveID: testSaveID, NPCIDs: []string{ba.EntityID, bb.EntityID, "legacy"}})
-	assert.Equal(t, "NPC_CONTENT_VERSION_MISMATCH", loaded.ErrorCode)
+	assert.Equal(t, "NPC_CONTENT_BINDING_CHANGED", loaded.ErrorCode)
+
 }
 
 func TestNPCContentFetchDoesNotHoldLifecycleLock(t *testing.T) {
-	data, binding := contentFixture("merchant_001")
+	data, binding := contentFixture("Merchant")
 	started := make(chan struct{})
 	release := make(chan struct{})
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -134,7 +126,7 @@ func TestNPCContentFetchDoesNotHoldLifecycleLock(t *testing.T) {
 }
 
 func TestNPCResolverRejectsUntrustedContentAndRetries(t *testing.T) {
-	valid, binding := contentFixture("merchant_001")
+	valid, binding := contentFixture("Merchant")
 	var body atomic.Value
 	body.Store([]byte(`{"schemaVersion":1}`))
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { w.Write(body.Load().([]byte)) }))
@@ -142,7 +134,7 @@ func TestNPCResolverRejectsUntrustedContentAndRetries(t *testing.T) {
 	resolver, err := NewNPCContentResolver(server.URL)
 	require.NoError(t, err)
 	_, err = resolver.Resolve(context.Background(), binding)
-	assert.EqualError(t, err, "NPC_CONTENT_HASH_MISMATCH")
+	assert.EqualError(t, err, "NPC_CONTENT_JSON_INVALID")
 	body.Store(valid)
 	_, err = resolver.Resolve(context.Background(), binding)
 	require.NoError(t, err)
@@ -153,10 +145,10 @@ func TestNPCResolverRejectsUntrustedContentAndRetries(t *testing.T) {
 	require.NoError(t, err)
 	assert.NotEqual(t, "mutated", d.Profile.DisplayName)
 	for _, id := range []string{"../x", "a/b", "a%2fb", "a\\b", ".", ""} {
-		_, err = resolver.Resolve(context.Background(), NPCContentBinding{id, "1", binding.ManifestSHA256})
+		_, err = resolver.Resolve(context.Background(), NPCContentBinding{id})
 		require.Error(t, err)
 	}
-	bads := [][]byte{[]byte(`{"x":1,"x":2}`), []byte(`null`), append(valid, []byte(`{}`)...), []byte(strings.Replace(string(valid), `"schemaVersion":1`, `"schemaVersion":2`, 1)), []byte(strings.Replace(string(valid), `"npcId":"merchant_001"`, `"npcId":"wrong"`, 1)), []byte(strings.Replace(string(valid), `"playerBuildId"`, `"unknown"`, 1)), []byte(strings.Replace(string(valid), "{{npcId}}", "{{unknown}}", 1)), make([]byte, MaxNPCContentBytes+1)}
+	bads := [][]byte{[]byte(`{"x":1,"x":2}`), []byte(`null`), append(valid, []byte(`{}`)...), []byte(strings.Replace(string(valid), `"name":`, `"schemaVersion":1,"name":`, 1)), []byte(strings.Replace(string(valid), `"npcId":"Merchant"`, `"npcId":"wrong"`, 1)), []byte(strings.Replace(string(valid), `"visual"`, `"unknown"`, 1)), []byte(strings.Replace(string(valid), "{{npcId}}", "{{unknown}}", 1)), make([]byte, MaxNPCContentBytes+1)}
 	for _, bad := range bads {
 		_, err = ParseNPCContent(bad, bindingFor(binding.EntityID, bad))
 		require.Error(t, err)
@@ -169,7 +161,7 @@ func TestNPCResolverNoRedirectAndCancellation(t *testing.T) {
 	defer target.Close()
 	redirect := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { http.Redirect(w, r, target.URL, 302) }))
 	defer redirect.Close()
-	_, b := contentFixture("merchant_001")
+	_, b := contentFixture("Merchant")
 	resolver, err := NewNPCContentResolver(redirect.URL)
 	require.NoError(t, err)
 	_, err = resolver.Resolve(context.Background(), b)
@@ -192,18 +184,75 @@ func TestRepositoryNPCStaticContract(t *testing.T) {
 	index, err := ParseNPCIndex(raw)
 	require.NoError(t, err)
 	require.Len(t, index.NPCs, 2)
-	schemas := make(map[string]int)
 	for _, entry := range index.NPCs {
 		data, err := os.ReadFile(filepath.Join(root, filepath.FromSlash(entry.ManifestPath)))
 		require.NoError(t, err)
-		definition, err := ParseNPCContent(data, NPCContentBinding{entry.NPCID, entry.ContentVersion, entry.ManifestSHA256})
+		definition, err := ParseNPCContent(data, NPCContentBinding{entry.Name})
 		require.NoError(t, err)
-		schemas[entry.NPCID] = definition.SchemaVersion
-		if entry.NPCID == "merchant_001" {
-			assert.Equal(t, "builtin", definition.AnimationDriver.Kind)
-			assert.Equal(t, "standard-locomotion", definition.AnimationDriver.DriverID)
-		}
+		assert.Equal(t, "builtin", definition.AnimationDriver.Kind)
+		assert.Equal(t, "standard-locomotion", definition.AnimationDriver.DriverID)
 	}
-	assert.Equal(t, 2, schemas["merchant_001"])
-	assert.Equal(t, 1, schemas["guide_001"])
+}
+func TestNewContextReadsCurrentContent(t *testing.T) {
+	original, binding := contentFixture("Merchant")
+	var body atomic.Value
+	body.Store(original)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { w.Write(body.Load().([]byte)) }))
+	defer server.Close()
+	resolver, err := NewNPCContentResolver(server.URL)
+	require.NoError(t, err)
+	service := NewConversationServiceWithArchive(&scriptedLLM{}, NewMemorySessionStore(), &fakeRuntime{}, testProfileCatalog("legacy"), "model", 3, NewFileConversationArchive(t.TempDir()))
+	service.ConfigureNPCContent(resolver, testBindings{binding.EntityID: binding})
+	first, err := service.StartSession(context.Background(), "player", binding.EntityID)
+	require.NoError(t, err)
+	body.Store([]byte(strings.Replace(string(original), "Merchant identity", "changed identity", 1)))
+	second, err := service.StartSession(context.Background(), "another-player", binding.EntityID)
+	require.NoError(t, err)
+	assert.Contains(t, first.SystemPrompt, "Merchant identity")
+	assert.Contains(t, second.SystemPrompt, "changed identity")
+	ctx := context.Background()
+	saved := service.SaveConversations(ctx, ConversationSaveRequest{InstanceID: "game-1", PlayerID: "player", SaveID: testSaveID, OperationID: testOpID1, Mode: "create"})
+	require.True(t, saved.OK, saved.Message)
+	restored := service.LoadConversations(ctx, ConversationLoadRequest{InstanceID: "game-1", PlayerID: "player", SaveID: testSaveID, NPCIDs: []string{binding.EntityID}})
+	require.True(t, restored.OK, restored.Message)
+	current, err := service.store.Load(ctx, restored.Contexts[0].SessionID)
+	require.NoError(t, err)
+	assert.Contains(t, current.SystemPrompt, "changed identity")
+	body.Store([]byte(`{"schemaVersion":1}`))
+	failed := service.LoadConversations(ctx, ConversationLoadRequest{InstanceID: "game-1", PlayerID: "player", SaveID: testSaveID, NPCIDs: []string{binding.EntityID}})
+	assert.False(t, failed.OK)
+	retained, err := service.store.Load(ctx, current.ID)
+	require.NoError(t, err)
+	assert.Equal(t, current.SystemPrompt, retained.SystemPrompt)
+
+}
+
+func TestCurrentNPCNamesAndOldFormats(t *testing.T) {
+	raw, err := os.ReadFile(filepath.Join("..", "..", "..", "NpcContent", "npc", "index.json"))
+	require.NoError(t, err)
+	var wire map[string]any
+	require.NoError(t, json.Unmarshal(raw, &wire))
+	entries := wire["npcs"].([]any)
+	entry := entries[0].(map[string]any)
+	duplicate := map[string]any{}
+	for key, value := range entry {
+		duplicate[key] = value
+	}
+	duplicate["name"] = strings.ToLower(entry["name"].(string))
+	wire["npcs"] = append(entries, duplicate)
+	bad, _ := json.Marshal(wire)
+	_, err = ParseNPCIndex(bad)
+	require.Error(t, err)
+	wire["npcs"] = entries
+	wire["schemaVersion"] = 1
+	bad, _ = json.Marshal(wire)
+	_, err = ParseNPCIndex(bad)
+	require.Error(t, err)
+	for _, name := range []string{"CON", "lpt1", "1Merchant", "Merchant-1", "../x"} {
+		assert.False(t, ValidNPCName(name))
+	}
+	var binding NPCContentBinding
+	assert.Error(t, json.Unmarshal([]byte(`{"entityId":"Merchant","contentVersion":"3","manifestSha256":"ignored"}`), &binding))
+	assert.NoError(t, json.Unmarshal([]byte(`{"entityId":"Merchant"}`), &binding))
+	assert.EqualError(t, validateConversationSnapshot(conversationSnapshot{SnapshotVersion: 1}), "unsupported conversation snapshot version")
 }

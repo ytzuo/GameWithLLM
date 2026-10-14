@@ -1,0 +1,71 @@
+{
+  "stage": 2,
+  "date": "2026-10-14",
+  "status": "completed",
+  "scope": "current-name builtin Merchant and Guide; Editor and local deterministic LLM integration",
+  "formats": {
+    "worldSave": 3,
+    "conversationSnapshot": 2,
+    "installedIndex": "installed-current.json",
+    "catalogCache": "catalog-cache-current.json"
+  },
+  "checks": [
+    {
+      "name": "go test ./...",
+      "result": "passed"
+    },
+    {
+      "name": "go vet ./...",
+      "result": "passed"
+    },
+    {
+      "name": "go test -race ./...",
+      "result": "passed under Ubuntu WSL, Go 1.26.5; Windows native runtime exits 0xc0000139",
+      "evidence": "Artifacts/NpcPresentationStage2/go-race-wsl.log"
+    },
+    {
+      "name": "Unity C# compilation and NPC EditMode tests",
+      "result": "15/15 passed; Unity exit 0",
+      "evidence": "unity-NPC-agent-client/Logs/npc-stage2-editmode.xml"
+    },
+    {
+      "name": "Addressables current content build",
+      "result": "passed; NPC_LOCAL_CONTENT_BUILD_SUCCESS",
+      "evidence": "unity-NPC-agent-client/Logs/npc-stage2-content-build.log"
+    },
+    {
+      "name": "static content parser",
+      "result": "NPC_CONTENT_VALIDATED npc_count=2"
+    },
+    {
+      "name": "release transaction tests",
+      "result": "passed, including current payload overwrite and index rollback"
+    },
+    {
+      "name": "GUID and deleted dependency audit",
+      "result": "16 file GUIDs and 2 directory GUIDs preserved; no dangling deleted GUIDs"
+    },
+    {
+      "name": "SampleScene integration",
+      "result": "passed; Unity exit 0",
+      "evidence": "unity-NPC-agent-client/Logs/npc-stage2-scene.log",
+      "scenarios": [
+        "runtime-registration",
+        "ordinary-and-streaming-dialogue",
+        "both-current-npc-bindings-and-dialogue",
+        "move-warehouse-and-gate",
+        "cancel-task-and-movement",
+        "inventory",
+        "world-inventory-and-context-restore",
+        "snapshot-format-two-identity-only",
+        "go-restart-reconnect-manifest",
+        "console-and-missing-script"
+      ]
+    }
+  ],
+  "notPerformed": [
+    "new Windows IL2CPP Player build",
+    "remote production deploy/environment smoke",
+    "stage-three exhaustive integrity/cancellation/rollback cases"
+  ]
+}

@@ -134,7 +134,7 @@ func (s *Service) ValidateSessionOwner(ctx context.Context, sessionID, instanceI
 			return err
 		}
 		if !sameNPCBinding(binding, session.NPCContent) {
-			return errors.New("NPC_CONTENT_VERSION_MISMATCH")
+			return errors.New("NPC_CONTENT_BINDING_CHANGED")
 		}
 	}
 	return nil

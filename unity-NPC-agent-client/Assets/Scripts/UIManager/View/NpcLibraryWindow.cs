@@ -164,9 +164,7 @@ public sealed class NpcLibraryWindow : BaseWindow
         {
             var remote = (_catalog?.Npcs ?? Array.Empty<RemoteNpcSummary>()).ToDictionary(x => x.NpcId, StringComparer.Ordinal);
             items = _services.Installer.Installed.Select(record =>
-                remote.TryGetValue(record.NpcId, out RemoteNpcSummary summary) &&
-                string.Equals(summary.ContentVersion, record.ContentVersion, StringComparison.Ordinal) &&
-                string.Equals(summary.ManifestSha256, record.ManifestSha256, StringComparison.Ordinal)
+                remote.TryGetValue(record.NpcId, out RemoteNpcSummary summary)
                     ? summary
                     : RemoteNpcSummary.FromInstalled(record));
         }
@@ -185,7 +183,9 @@ public sealed class NpcLibraryWindow : BaseWindow
             _selected = null;
             ShowEmptyDetail();
             ShowState(_tab == LibraryTab.Installed ? Text("localEmpty", "暂无已下载 NPC") : Text("remoteEmpty", "暂无可发现 NPC"),
-                string.IsNullOrWhiteSpace(_search.value) ? "这里会显示符合当前分类的角色。" : "没有匹配搜索条件的角色。", false, LibraryStateKind.Empty);
+                _tab == LibraryTab.Installed && _services.Installer.RequiresReinstall
+                    ? "旧格式安装记录不可用，请重新安装 NPC。"
+                    : string.IsNullOrWhiteSpace(_search.value) ? "这里会显示符合当前分类的角色。" : "没有匹配搜索条件的角色。", false, LibraryStateKind.Empty);
             return;
         }
         HideState();
@@ -282,7 +282,7 @@ public sealed class NpcLibraryWindow : BaseWindow
         }
         _detailName.text = summary.DisplayName;
         _detailName.tooltip = summary.DisplayName;
-        _detailVersion.text = $"版本 {summary.ContentVersion}";
+        _detailVersion.text = summary.NpcId;
         _detailDescription.text = summary.Description;
         _detailAvatar.style.backgroundImage = new StyleBackground(StyleKeyword.Null);
         foreach (VisualElement child in _detailAvatar.Children()) child.style.display = DisplayStyle.Flex;
@@ -291,13 +291,11 @@ public sealed class NpcLibraryWindow : BaseWindow
         _status.RemoveFromClassList("npc-library-status--error");
 
         bool installed = _services.Installer.TryGet(summary.NpcId, out InstalledNpcRecord record);
-        bool selectedVersionInstalled = installed &&
-            string.Equals(record.ContentVersion, summary.ContentVersion, StringComparison.Ordinal) &&
-            string.Equals(record.ManifestSha256, summary.ManifestSha256, StringComparison.Ordinal);
+        bool selectedInstalled = installed;
         if (_services.Spawner.IsSpawned(summary.NpcId)) { SetAction(Text("alreadySpawned", "已在场景中"), false); SetStatus(Text("alreadySpawned", "已在场景中"), false); return; }
         if (_services.Installer.ActiveNpcId == summary.NpcId) { SetAction(Text("cancel", "取消"), true); SetStatus(Text("downloading", "下载中"), false); _progress.RemoveFromClassList("npc-library-progress--hidden"); return; }
         if (_services.Installer.ActiveNpcId != null) { SetAction(Text("download", "下载"), false); SetStatus(Text("errorBusy", "已有下载任务，请稍后重试"), false); return; }
-        if (selectedVersionInstalled)
+        if (selectedInstalled)
         {
             try
             {
@@ -321,11 +319,8 @@ public sealed class NpcLibraryWindow : BaseWindow
             }
             return;
         }
-        bool catalogMismatch = !string.IsNullOrEmpty(_services.ActiveCatalogContentVersion) && _catalog != null &&
-            !string.Equals(_services.ActiveCatalogContentVersion, _catalog.CatalogContentVersion, StringComparison.Ordinal);
-        SetAction(Text("download", installed ? "更新并下载" : "下载"), !catalogMismatch && IsCompatible(summary));
-        SetStatus(catalogMismatch ? Text("restartRequired", "重启游戏后可下载此版本") :
-            IsCompatible(summary) ? "尚未下载" : Text("errorCompatibility", "NPC 与当前 Player 不兼容"), catalogMismatch || !IsCompatible(summary));
+        SetAction(Text("download", installed ? "修复并下载" : "下载"), true);
+        SetStatus(_services.Installer.RequiresReinstall ? "旧格式安装记录不可用，请重新安装 NPC。" : "尚未下载", false);
     }
 
     private async Task RunActionAsync()
@@ -339,8 +334,6 @@ public sealed class NpcLibraryWindow : BaseWindow
         try
         {
             if (_services.Installer.TryGet(summary.NpcId, out InstalledNpcRecord record) &&
-                string.Equals(record.ContentVersion, summary.ContentVersion, StringComparison.Ordinal) &&
-                string.Equals(record.ManifestSha256, summary.ManifestSha256, StringComparison.Ordinal) &&
                 !await _services.Installer.IsCacheMissingAsync(summary.NpcId, _lifetime.Token))
             {
                 spawnPhase = true;
@@ -433,8 +426,6 @@ public sealed class NpcLibraryWindow : BaseWindow
     }
     private string Text(string key, string fallback) => _catalog != null && _catalog.Texts.TryGetValue(key, out string value) ? value : fallback;
     private static string FormatBytes(long value) => value >= 1048576 ? $"{value / 1048576f:0.0} MB" : value >= 1024 ? $"{value / 1024f:0.0} KB" : $"{value} B";
-    private static bool IsCompatible(RemoteNpcSummary summary)
-        => NpcContentInstaller.IsCompatiblePlayerVersion(summary, Application.version);
     private static void AddPlaceholder(VisualElement parent, string className)
     { var wrapper = new VisualElement(); wrapper.AddToClassList(className); var icon = new VisualElement(); icon.AddToClassList("npc-library-placeholder"); var head = new VisualElement(); head.AddToClassList("npc-library-placeholder-head"); var body = new VisualElement(); body.AddToClassList("npc-library-placeholder-body"); icon.Add(head); icon.Add(body); wrapper.Add(icon); parent.Add(wrapper); }
 }
