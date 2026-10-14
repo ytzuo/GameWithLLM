@@ -249,7 +249,8 @@ public sealed class RemoteNpcCatalogClient : IDisposable
         {
             throw;
         }
-        catch when (File.Exists(_cachePath)) { return RemoteNpcContract.ParseCatalog(File.ReadAllText(_cachePath, Encoding.UTF8)); }
+        catch (IOException) when (File.Exists(_cachePath))
+        { return RemoteNpcContract.ParseCatalog(File.ReadAllText(_cachePath, Encoding.UTF8)); }
     }
 
     public async Task<RemoteNpcManifest> FetchManifestAsync(RemoteNpcSummary summary, CancellationToken token)
@@ -275,12 +276,14 @@ public sealed class RemoteNpcCatalogClient : IDisposable
 
     private async Task<byte[]> GetBytesAsync(string relativePath, int maxBytes, CancellationToken token)
     {
+        token.ThrowIfCancellationRequested();
         Uri uri = new Uri(_root, relativePath);
         if (uri.Scheme != _root.Scheme || uri.Host != _root.Host || uri.Port != _root.Port || !uri.AbsoluteUri.StartsWith(_root.AbsoluteUri, StringComparison.Ordinal)) throw new InvalidDataException("NPC URL escapes the trusted root.");
         using var request = UnityWebRequest.Get(uri);
         request.redirectLimit = 0; request.timeout = Math.Max(1, (int)_timeout.TotalSeconds);
         UnityWebRequestAsyncOperation operation = request.SendWebRequest();
         while (!operation.isDone) { token.ThrowIfCancellationRequested(); if (request.downloadedBytes > (ulong)maxBytes) { request.Abort(); throw new InvalidDataException("NPC response exceeds the size limit."); } await Task.Yield(); }
+        token.ThrowIfCancellationRequested();
         if (request.result != UnityWebRequest.Result.Success) throw new IOException($"NPC content request failed ({request.responseCode}).");
         byte[] data = request.downloadHandler.data; if (data == null || data.Length == 0 || data.Length > maxBytes) throw new InvalidDataException("NPC response size is invalid."); return data;
     }
@@ -329,7 +332,7 @@ public sealed class NpcContentInstaller
     private readonly RemoteNpcCatalogClient _client;
     private readonly string _indexPath;
     private readonly Func<string, bool> _isSpawned;
-    private readonly Dictionary<string, InstalledNpcRecord> _installed = new Dictionary<string, InstalledNpcRecord>(StringComparer.Ordinal);
+    private readonly Dictionary<string, InstalledNpcRecord> _installed = new Dictionary<string, InstalledNpcRecord>(StringComparer.OrdinalIgnoreCase);
     private readonly object _gate = new object();
     private CancellationTokenSource _active;
     private TaskCompletionSource<bool> _activeCompletion;
@@ -370,7 +373,7 @@ public sealed class NpcContentInstaller
         if (summary == null)
             throw new ArgumentNullException(nameof(summary));
         if (_isSpawned?.Invoke(summary.NpcId) == true)
-            throw new InvalidOperationException("NPC_UPDATE_REQUIRES_RESTART");
+            throw new InvalidOperationException("NPC_ALREADY_SPAWNED");
         CancellationTokenSource linked;
         lock (_gate)
         {
@@ -379,14 +382,19 @@ public sealed class NpcContentInstaller
             _activeCompletion = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
             ActiveNpcId = summary.NpcId;
         }
-        Changed?.Invoke();
         try
         {
+            Changed?.Invoke();
+            linked.Token.ThrowIfCancellationRequested();
             RemoteNpcManifest manifest = await _client.FetchManifestAsync(summary, linked.Token);
+            await NpcPresentationPreparation.RequireAddressesAsync(_provider, manifest, linked.Token);
             var progress = new Progress<ContentDownloadProgress>(p => ProgressChanged?.Invoke(summary.NpcId, p));
             await _provider.DownloadDependenciesAsync(manifest.DownloadAddresses, progress, linked.Token);
             if (await _provider.GetDownloadSizeAsync(manifest.DownloadAddresses, linked.Token) != 0) throw new IOException("NPC dependency cache is incomplete after download.");
-            await ValidateDownloadedAssetsAsync(manifest, linked.Token);
+            await NpcPresentationPreparation.ValidateAsync(_provider, manifest, linked.Token);
+            linked.Token.ThrowIfCancellationRequested();
+            if (_isSpawned?.Invoke(summary.NpcId) == true)
+                throw new InvalidOperationException("NPC_ALREADY_SPAWNED");
             var record = new InstalledNpcRecord { NpcId = summary.NpcId, DisplayName = summary.DisplayName, Description = summary.Description, AvatarPath = summary.AvatarPath, ManifestJson = manifest.RawJson };
             bool hadPrevious = _installed.TryGetValue(summary.NpcId, out InstalledNpcRecord previous);
             _installed[summary.NpcId] = record;
@@ -420,7 +428,24 @@ public sealed class NpcContentInstaller
     {
         if (!TryGet(npcId, out InstalledNpcRecord record)) return false;
         RemoteNpcManifest manifest = RemoteNpcContract.ParseManifest(record.ManifestJson);
-        return await _provider.GetDownloadSizeAsync(manifest.DownloadAddresses, token) > 0;
+        await NpcPresentationPreparation.RequireAddressesAsync(_provider, manifest, token);
+        if (await _provider.GetDownloadSizeAsync(manifest.DownloadAddresses, token) > 0) return true;
+        try
+        {
+            await NpcPresentationPreparation.ValidateAsync(_provider, manifest, token);
+            return false;
+        }
+        catch (OperationCanceledException) { throw; }
+        catch (InvalidOperationException ex) when (ex.Message == "NPC_RESOURCE_RESTART_REQUIRED") { throw; }
+        catch { return true; }
+    }
+
+    public async Task ValidateInstalledAsync(string npcId, CancellationToken token)
+    {
+        if (!TryGet(npcId, out InstalledNpcRecord record))
+            throw new InvalidOperationException($"NPC_CONTENT_NOT_INSTALLED:{npcId}");
+        await NpcPresentationPreparation.ValidateAsync(_provider,
+            RemoteNpcContract.ParseManifest(record.ManifestJson), token);
     }
 
     public bool RequiresReinstall { get; private set; }
@@ -448,36 +473,8 @@ public sealed class NpcContentInstaller
                 _installed[record.NpcId] = record;
             }
         }
-        catch (Exception ex) { Debug.LogWarning($"[NPC Content] Installed index was ignored: {ex.GetBaseException().Message}"); _installed.Clear(); }
+        catch (Exception) { Debug.LogWarning("[NPC Content] Installed index is invalid; reinstall required."); _installed.Clear(); RequiresReinstall = true; }
     }
     private void Save() => RemoteNpcCatalogClient.AtomicWrite(_indexPath, JArray.FromObject(_installed.Values.OrderBy(x => x.NpcId)).ToString(Formatting.None));
 
-    private async Task ValidateDownloadedAssetsAsync(
-        RemoteNpcManifest manifest,
-        CancellationToken token)
-    {
-        if (!manifest.UsesBuiltinAnimationDriver)
-        {
-            using ContentAssetLease<TextAsset> dll = await _provider.LoadAssetAsync<TextAsset>(
-                manifest.AnimationScriptAddress,
-                token);
-            byte[] bytes = dll.Asset?.bytes;
-            if (bytes == null || bytes.LongLength != manifest.AnimationLength ||
-                !string.Equals(
-                    RemoteNpcContract.ComputeSha256(bytes),
-                    manifest.AnimationSha256,
-                    StringComparison.Ordinal))
-                throw new InvalidDataException("NPC animation assembly integrity check failed.");
-        }
-
-        using ContentAssetLease<GameObject> visual = await _provider.LoadAssetAsync<GameObject>(
-            manifest.PrefabAddress,
-            token);
-        CharacterVisualController.ValidateVisualInstance(visual.Asset, true);
-        if (manifest.UsesBuiltinAnimationDriver)
-        {
-            using var driver = StandardLocomotionAnimationDriver.Create(manifest.BuiltinAnimationDriverId);
-            driver.Bind(visual.Asset.GetComponentInChildren<Animator>(true));
-        }
-    }
 }

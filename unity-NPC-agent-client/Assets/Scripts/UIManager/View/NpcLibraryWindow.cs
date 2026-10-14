@@ -13,7 +13,7 @@ public sealed class NpcLibraryWindow : BaseWindow
     private Button _installedTab, _discoverTab, _close, _retry, _action;
     private TextField _search;
     private VisualElement _state, _scroll, _grid, _detailAvatar;
-    private Label _stateIcon, _searchPlaceholder, _stateTitle, _stateDetail, _detailName, _detailVersion, _detailDescription, _status;
+    private Label _stateIcon, _searchPlaceholder, _stateTitle, _stateDetail, _detailName, _detailIdentity, _detailDescription, _status;
     private ProgressBar _progress;
     private NpcLibraryServices _services;
     private RemoteNpcCatalog _catalog;
@@ -48,7 +48,7 @@ public sealed class NpcLibraryWindow : BaseWindow
         _stateTitle = RootElement.Q<Label>("npc-library-state-title");
         _stateDetail = RootElement.Q<Label>("npc-library-state-detail");
         _detailName = RootElement.Q<Label>("npc-library-detail-name");
-        _detailVersion = RootElement.Q<Label>("npc-library-detail-version");
+        _detailIdentity = RootElement.Q<Label>("npc-library-detail-version");
         _detailDescription = RootElement.Q<Label>("npc-library-detail-description");
         _status = RootElement.Q<Label>("npc-library-status");
         _progress = RootElement.Q<ProgressBar>("npc-library-progress");
@@ -282,7 +282,7 @@ public sealed class NpcLibraryWindow : BaseWindow
         }
         _detailName.text = summary.DisplayName;
         _detailName.tooltip = summary.DisplayName;
-        _detailVersion.text = summary.NpcId;
+        _detailIdentity.text = summary.NpcId;
         _detailDescription.text = summary.Description;
         _detailAvatar.style.backgroundImage = new StyleBackground(StyleKeyword.Null);
         foreach (VisualElement child in _detailAvatar.Children()) child.style.display = DisplayStyle.Flex;
@@ -308,13 +308,15 @@ public sealed class NpcLibraryWindow : BaseWindow
                 SetStatus(missing ? "本地缓存不完整，需要重新下载。" : Text("installed", "已下载"), missing);
             }
             catch (OperationCanceledException) { }
-            catch
+            catch (Exception error)
             {
                 if (_lifetime != null && lifecycleGeneration == _lifecycleGeneration &&
                     detailGeneration == _detailGeneration && _selected?.NpcId == summary.NpcId)
                 {
                     SetAction(Text("retry", "修复"), true);
-                    SetStatus("无法确认本地缓存状态。", true);
+                    SetStatus(error.Message == "NPC_RESOURCE_RESTART_REQUIRED"
+                        ? Text("restartRequired", "资源尚未就绪，请重启后重试")
+                        : "无法确认本地缓存状态。", true);
                 }
             }
             return;
@@ -354,15 +356,23 @@ public sealed class NpcLibraryWindow : BaseWindow
             _transientStatusNpcId = summary.NpcId;
             _transientStatusIsError = false;
         }
-        catch (Exception)
+        catch (Exception error)
         {
-            _transientStatus = spawnPhase
+            _transientStatus = error.Message == "NPC_RESOURCE_RESTART_REQUIRED"
+                ? Text("restartRequired", "资源尚未就绪，请重启后重试")
+                : error is System.IO.InvalidDataException
+                ? Text("errorContent", "NPC 配置无效或资源损坏，请修复后重试")
+                : error is InvalidOperationException && error.Message == "NPC_INSTALL_BUSY"
+                ? Text("errorBusy", "已有下载任务，请稍后重试")
+                : error is InvalidOperationException || error is BadImageFormatException || error is TypeLoadException
+                ? Text("errorResource", "NPC 资源缺失或损坏，请修复后重试")
+                : spawnPhase
                 ? Text("errorSpawn", "生成失败，请重试")
                 : Text("errorDownload", "下载失败，请重试");
             _transientStatusNpcId = summary.NpcId;
             _transientStatusIsError = true;
         }
-        finally { await RenderDetailAsync(); RenderGrid(); }
+        finally { if (_lifetime != null && !_lifetime.IsCancellationRequested) { await RenderDetailAsync(); RenderGrid(); } }
     }
 
     private void OnInstallerChanged() { if (_lifetime != null) RenderGrid(); }
@@ -413,7 +423,7 @@ public sealed class NpcLibraryWindow : BaseWindow
         foreach (VisualElement child in _detailAvatar.Children())
             child.style.display = DisplayStyle.Flex;
         _detailName.text = "选择一个 NPC";
-        _detailVersion.text = string.Empty;
+        _detailIdentity.text = string.Empty;
         _detailDescription.text = "从左侧列表选择角色，查看内容说明与可用操作。";
         _progress.AddToClassList("npc-library-progress--hidden");
         SetStatus(string.Empty, false);

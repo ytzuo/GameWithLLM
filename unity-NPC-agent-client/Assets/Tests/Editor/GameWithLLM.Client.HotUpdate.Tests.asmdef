@@ -6,7 +6,9 @@
     "GameWithLLM.Client.Core",
     "GameWithLLM.Client.Gameplay",
     "GameWithLLM.Client.ToolFramework",
-    "GameWithLLM.Client.BuiltinTools"
+    "GameWithLLM.Client.BuiltinTools",
+    "Unity.Addressables",
+    "Unity.ResourceManager"
   ],
   "includePlatforms": [
     "Editor"

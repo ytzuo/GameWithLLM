@@ -22,7 +22,7 @@ public sealed class NpcLibraryServices : IDisposable
         CatalogClient = new RemoteNpcCatalogClient(
             RemoteNpcContentRootResolver.Resolve(), root, TimeSpan.FromSeconds(15));
         Spawner = new NpcSpawnController(provider);
-        Installer = new NpcContentInstaller(provider, CatalogClient, root, Spawner.IsSpawned);
+        Installer = new NpcContentInstaller(provider, CatalogClient, root, name => Spawner.IsSpawned(name) || Spawner.IsSpawning(name));
         Current = this;
     }
 
@@ -34,7 +34,13 @@ public sealed class NpcLibraryServices : IDisposable
         if (ReferenceEquals(Current, this)) Current = null;
     }
 
-    public async Task PrepareRestoreAsync(
+    public async Task PrepareRestoreAsync(IReadOnlyList<SaveGameNpcContentState> requirements, CancellationToken token)
+    {
+        using var preparation = await BeginRestoreAsync(requirements, token);
+        preparation.Commit();
+    }
+
+    public async Task<NpcRestorePreparation> BeginRestoreAsync(
         IReadOnlyList<SaveGameNpcContentState> requirements,
         CancellationToken token)
     {
@@ -62,8 +68,9 @@ public sealed class NpcLibraryServices : IDisposable
                 await Spawner.SpawnAsync(installed, token);
                 created.Add(requirement.EntityId);
             }
-            Spawner.DespawnRemoteExcept(new HashSet<string>(
-                requirements.Select(item => item.EntityId), StringComparer.Ordinal));
+            token.ThrowIfCancellationRequested();
+            return new NpcRestorePreparation(Spawner, created, Spawner.SuspendRemoteExcept(
+                new HashSet<string>(requirements.Select(item => item.EntityId), StringComparer.OrdinalIgnoreCase)));
         }
         catch
         {
@@ -80,7 +87,7 @@ public sealed class NpcLibraryServices : IDisposable
 
     public static void ValidateRestoreRequirements(IReadOnlyList<SaveGameNpcContentState> requirements)
     {
-        var ids = new HashSet<string>(StringComparer.Ordinal);
+        var ids = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         foreach (SaveGameNpcContentState item in requirements ?? Array.Empty<SaveGameNpcContentState>())
         {
             if (item == null || string.IsNullOrWhiteSpace(item.EntityId) ||
@@ -95,10 +102,10 @@ public sealed class NpcSpawnController : IDisposable
 {
     private readonly IContentAssetProvider _provider;
     private readonly Dictionary<string, GameObject> _instances =
-        new Dictionary<string, GameObject>(StringComparer.Ordinal);
-    private readonly HashSet<string> _spawning = new HashSet<string>(StringComparer.Ordinal);
+        new Dictionary<string, GameObject>(StringComparer.OrdinalIgnoreCase);
+    private readonly HashSet<string> _spawning = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, Task<NpcEntity>> _spawnTasks =
-        new Dictionary<string, Task<NpcEntity>>(StringComparer.Ordinal);
+        new Dictionary<string, Task<NpcEntity>>(StringComparer.OrdinalIgnoreCase);
     private CancellationTokenSource _sceneCts = new CancellationTokenSource();
 
     public NpcSpawnController(IContentAssetProvider provider)
@@ -125,17 +132,25 @@ public sealed class NpcSpawnController : IDisposable
         _instances[npcId] = existing.gameObject;
         return true;
     }
-    public bool IsSpawning(string npcId) => _spawning.Contains(npcId);
+    public bool IsSpawning(string npcId) => _spawning.Contains(npcId) || _spawnTasks.ContainsKey(npcId);
 
     public Task<NpcEntity> SpawnAsync(InstalledNpcRecord record, CancellationToken token)
     {
         if (record == null) throw new ArgumentNullException(nameof(record));
+        token.ThrowIfCancellationRequested();
         if (_spawnTasks.TryGetValue(record.NpcId, out Task<NpcEntity> active)) return active;
         CancellationTokenSource linked = CancellationTokenSource.CreateLinkedTokenSource(token, _sceneCts.Token);
-        Task<NpcEntity> task = SpawnCoreAsync(record, linked.Token);
+        Task<NpcEntity> task = SpawnDeferredAsync(record, linked.Token);
         _spawnTasks[record.NpcId] = task;
         _ = ObserveSpawnAsync(record.NpcId, task, linked);
         return task;
+    }
+
+    private async Task<NpcEntity> SpawnDeferredAsync(InstalledNpcRecord record, CancellationToken token)
+    {
+        await Task.Yield();
+        token.ThrowIfCancellationRequested();
+        return await SpawnCoreAsync(record, token);
     }
 
     private async Task<NpcEntity> SpawnCoreAsync(InstalledNpcRecord record, CancellationToken token)
@@ -153,6 +168,7 @@ public sealed class NpcSpawnController : IDisposable
         if (!_spawning.Add(record.NpcId)) throw new InvalidOperationException("NPC_SPAWN_BUSY");
 
         GameObject root = null;
+        NpcPresentationPreparation prepared = null;
         try
         {
             PlayerMock player = UnityEngine.Object.FindFirstObjectByType<PlayerMock>(
@@ -182,44 +198,14 @@ public sealed class NpcSpawnController : IDisposable
             visualRoot.SetParent(root.transform, false);
             var visuals = root.AddComponent<CharacterVisualController>();
             visuals.ConfigureDynamic(record.NpcId, visualRoot);
-            Animator animator = await visuals.LoadStrictAsync(
-                _provider, manifest, token);
-
-            INpcAnimationDriver driver;
-            IDisposable assemblyLease = null;
-            if (manifest.UsesBuiltinAnimationDriver)
-            {
-                driver = StandardLocomotionAnimationDriver.Create(manifest.BuiltinAnimationDriverId);
-                driver.Bind(animator);
-            }
-            else
-            {
-                ContentAssetLease<TextAsset> dllLease = await _provider.LoadAssetAsync<TextAsset>(
-                    manifest.AnimationScriptAddress, token);
-                assemblyLease = dllLease;
-                try
-                {
-                    byte[] dll = dllLease.Asset?.bytes;
-                    if (dll == null || dll.LongLength != manifest.AnimationLength ||
-                        !string.Equals(RemoteNpcContract.ComputeSha256(dll), manifest.AnimationSha256, StringComparison.Ordinal))
-                        throw new InvalidDataException("NPC animation assembly integrity check failed.");
-                    Assembly assembly = AppDomain.CurrentDomain.GetAssemblies().FirstOrDefault(
-                        x => string.Equals(x.GetName().Name, manifest.AnimationAssemblyName, StringComparison.Ordinal)) ??
-                        Assembly.Load(dll);
-                    if (!string.Equals(assembly.GetName().Name, manifest.AnimationAssemblyName, StringComparison.Ordinal))
-                        throw new InvalidDataException("NPC animation assembly name mismatch.");
-                    Type type = assembly.GetType(manifest.AnimationEntryType, true, false);
-                    if (type.IsAbstract || !typeof(INpcAnimationDriver).IsAssignableFrom(type) ||
-                        type.GetConstructor(Type.EmptyTypes) == null)
-                        throw new InvalidDataException("NPC animation entry contract is invalid.");
-                    driver = (INpcAnimationDriver)Activator.CreateInstance(type);
-                    driver.Bind(animator);
-                }
-                catch { dllLease.Dispose(); throw; }
-            }
-
+            prepared = await NpcPresentationPreparation.PrepareAsync(
+                _provider, manifest, visualRoot, token);
+            prepared.Instance.transform.SetLocalPositionAndRotation(Vector3.zero, Quaternion.identity);
+            prepared.Instance.transform.localScale = Vector3.one;
+            visuals.AttachPreparedPresentation(prepared);
             var driverHost = root.AddComponent<NpcAnimationDriverHost>();
-            driverHost.Initialize(driver, nav, entity, assemblyLease);
+            driverHost.Initialize(prepared.Driver, nav, entity, prepared);
+            prepared = null;
             token.ThrowIfCancellationRequested();
             root.SetActive(true);
             if (!nav.isOnNavMesh) throw new InvalidOperationException("NPC_SPAWN_ORIGIN_NOT_ON_NAVMESH");
@@ -230,8 +216,11 @@ public sealed class NpcSpawnController : IDisposable
         }
         catch
         {
+            prepared?.Dispose();
             if (root != null)
             {
+                root.GetComponent<NpcAnimationDriverHost>()?.Release();
+                root.GetComponent<CharacterVisualController>()?.ReleaseVisual();
                 root.SetActive(false);
                 UnityEngine.Object.Destroy(root);
             }
@@ -289,8 +278,26 @@ public sealed class NpcSpawnController : IDisposable
         foreach (PlayerMock player in UnityEngine.Object.FindObjectsByType<PlayerMock>(
                      FindObjectsInactive.Include, FindObjectsSortMode.None))
             player.npcEntities.Remove(entity);
+        instance.GetComponent<NpcAnimationDriverHost>()?.Release();
         instance.SetActive(false);
         UnityEngine.Object.Destroy(instance);
+    }
+
+    public List<GameObject> SuspendRemoteExcept(ISet<string> retainedNpcIds)
+    {
+        var suspended = new List<GameObject>();
+        foreach (NpcEntity entity in UnityEngine.Object.FindObjectsByType<NpcEntity>(
+                     FindObjectsInactive.Exclude, FindObjectsSortMode.None))
+        {
+            if (entity?.ContentBinding == null || retainedNpcIds.Contains(entity.npcId)) continue;
+            _instances[entity.npcId] = entity.gameObject;
+            suspended.Add(entity.gameObject);
+            foreach (PlayerMock player in UnityEngine.Object.FindObjectsByType<PlayerMock>(
+                         FindObjectsInactive.Include, FindObjectsSortMode.None))
+                player.npcEntities.Remove(entity);
+            entity.gameObject.SetActive(false);
+        }
+        return suspended;
     }
 
     public void DespawnRemoteExcept(ISet<string> retainedNpcIds)
@@ -317,9 +324,44 @@ public sealed class NpcSpawnController : IDisposable
                              FindObjectsInactive.Include,
                              FindObjectsSortMode.None))
                     player.npcEntities.Remove(entity);
+                instance.GetComponent<NpcAnimationDriverHost>()?.Release();
+                instance.SetActive(false);
                 UnityEngine.Object.Destroy(instance);
             }
         _instances.Clear();
+    }
+}
+
+// Keep displaced entities and their leases until both world and Go restore succeed.
+public sealed class NpcRestorePreparation : IDisposable
+{
+    private readonly NpcSpawnController _spawner;
+    private readonly List<string> _created;
+    private readonly List<GameObject> _suspended;
+    private bool _finished;
+    internal NpcRestorePreparation(NpcSpawnController spawner, List<string> created, List<GameObject> suspended)
+    { _spawner = spawner; _created = created; _suspended = suspended; }
+    public void Commit()
+    {
+        if (_finished) return;
+        _finished = true;
+        foreach (GameObject instance in _suspended)
+            if (instance != null) _spawner.Despawn(instance.GetComponent<NpcEntity>().npcId);
+    }
+    public void Dispose()
+    {
+        if (_finished) return;
+        _finished = true;
+        foreach (string name in _created) _spawner.Despawn(name);
+        foreach (GameObject instance in _suspended)
+        {
+            if (instance == null) continue;
+            var entity = instance.GetComponent<NpcEntity>();
+            foreach (PlayerMock player in UnityEngine.Object.FindObjectsByType<PlayerMock>(
+                         FindObjectsInactive.Exclude, FindObjectsSortMode.None))
+                if (!player.npcEntities.Contains(entity)) player.npcEntities.Add(entity);
+            instance.SetActive(true);
+        }
     }
 }
 
@@ -348,9 +390,11 @@ internal sealed class NpcAnimationDriverHost : MonoBehaviour
             _driver.Tick(Time.deltaTime, _agent != null && _agent.enabled ? _agent.velocity.magnitude : 0f);
     }
 
-    private void OnDestroy()
+    public void Release()
     {
-        try { _driver?.Dispose(); }
+        // The preparation lease owns the driver as well as both resources.
+        try { if (_assemblyLease == null) _driver?.Dispose(); }
         finally { _driver = null; _assemblyLease?.Dispose(); _assemblyLease = null; }
     }
+    private void OnDestroy() => Release();
 }

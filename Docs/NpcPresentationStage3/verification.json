@@ -1,0 +1,95 @@
+{
+  "stage": 3,
+  "date": "2026-10-14",
+  "status": "completed",
+  "scope": "Editor integrity/cancellation/restore; Merchant and Guide; local deterministic model",
+  "checks": [
+    {
+      "name": "Unity C# and related EditMode tests",
+      "result": "28/28 passed; Unity exit 0",
+      "evidence": "unity-NPC-agent-client/Logs/npc-stage3-editmode.xml",
+      "tests": [
+        "CancellationIsNotConvertedIntoRetryableFailure",
+        "CatalogFailureUsesLastSuccessfulCache",
+        "FirstRunCatalogFailureKeepsRuntimeBlocked",
+        "InvalidA2CandidateFallsBackToBuiltinWithoutMarkingReleaseSuccessful",
+        "SuccessfulAttemptRunsEveryStageInOrderAndMarksCache",
+        "ValidA2Candidate_IsMarkedSuccessfulOnlyAfterRegistryActivationConfirmation",
+        "AnimationEventsKeepMovementAndConversationIndependent",
+        "BindingRejectsPathsDuplicatesAndWrongEntities",
+        "FinalOnlyResponseStartsSpeakingAndCancellationClosesStateOnce",
+        "NewResponseSupersedesEstimatedSpeakingWithoutAcceptingLateCompletion",
+        "RuntimeWireManifestPreservesContentBindingAndLegacyFields",
+        "StreamingSpeakingTimerCountsElapsedTimeAndIgnoresLateEvents",
+        "CancellationAfterCompletedLoadReleasesCandidate",
+        "CompleteOfflineCacheExercisesInstanceAndReleasesAllLeases",
+        "CorruptPrefabAndAnimatorParametersCannotPassPreparation",
+        "InstalledRecordWorksOfflineAndDetectsEvictionWithoutChangingRecord",
+        "InvalidDllBytesAndEntryContractReleaseVisualAndAssembly",
+        "MissingScriptIsRejectedExplicitly",
+        "ZeroDownloadSizeDoesNotHideMissingAddressOrDependency",
+        "CurrentSaveRoundTripsRemoteNpcContentIdentity",
+        "OldAndMissingWorldSaveFormatsAreExplicitlyRejected",
+        "RestoreRequirementsRejectDuplicateAndIncompleteBindings",
+        "AtomicWriteLeavesOneCommittedFile",
+        "CurrentCatalogAndBuiltinManifestsOwnCompleteDependencies",
+        "CurrentContractRejectsOldFieldsDuplicatesTraversalAndCaseCollisions",
+        "DisplayNameDoesNotChangeIdentity",
+        "NpcLibraryUxmlSatisfiesRegisteredUiContract",
+        "OldInstalledIndexRequiresReinstallWithoutDeletingIt"
+      ]
+    },
+    {
+      "name": "SampleScene provider fault matrix",
+      "result": "passed",
+      "evidence": "Artifacts/NpcPresentationStage3/fault-report.json",
+      "scenarios": [
+        "address-missing-restart-and-load-failure-retain-record",
+        "single-download-and-cancel-no-commit",
+        "cache-eviction-repair-and-offline-installed-preparation",
+        "same-name-task-and-scene-transition-cancellation",
+        "restore-preflight-and-second-spawn-failure-rollback",
+        "uncommitted-restore-rollback",
+        "changed-model-animation-and-display-name-restore"
+      ],
+      "leaseBaseline": 20,
+      "leaseFinal": 20
+    },
+    {
+      "name": "SampleScene A2A/MCP/Save integration",
+      "result": "passed; Unity exit 0",
+      "evidence": "Artifacts/NpcPresentationStage3/scene-report.json",
+      "scenarios": [
+        "runtime-registration",
+        "ordinary-and-streaming-dialogue",
+        "both-current-npc-bindings-and-dialogue",
+        "move-warehouse-and-gate",
+        "cancel-task-and-movement",
+        "inventory",
+        "failed-current-config-restore-preserves-world-inventory-and-context",
+        "world-inventory-and-context-restore",
+        "snapshot-format-two-identity-only",
+        "go-restart-reconnect-manifest",
+        "console-and-missing-script"
+      ]
+    },
+    {
+      "name": "go test ./...",
+      "result": "passed"
+    },
+    {
+      "name": "go vet ./...",
+      "result": "passed"
+    },
+    {
+      "name": "go test -race ./...",
+      "result": "passed under Ubuntu WSL, Go 1.26.5; native Windows runtime exits 0xc0000139",
+      "evidence": "Artifacts/NpcPresentationStage3/go-race-wsl.log"
+    }
+  ],
+  "boundaries": [
+    "Cache eviction, address absence and asynchronous waiting points are provider boundary injections; successful operations use real Addressables.",
+    "No global Unity Cache deletion or physical cache eviction claim.",
+    "New Windows IL2CPP Player, production deployment and candidate-bound evidence remain stage four."
+  ]
+}

@@ -144,7 +144,7 @@ https://gamewithllm.dev/extensions/game-context/v1
 }
 ```
 
-创建 Context 时，Agent Service 要求对应 Runtime 与实体已注册；未绑定 NPC 使用配置 Profile，绑定 NPC 从可信内容根独立解析版本化定义。
+创建 Context 时，Agent Service 要求对应 Runtime 与实体已注册；未绑定 NPC 使用配置 Profile，绑定 NPC 从可信内容根独立解析当前名称定义。
 复用 Context 时重新校验 `instanceId + playerId + agentId`，禁止跨 Runtime、
 玩家或实体复用。当前 Go `Capabilities` 实现尚未用 Manifest 的实体列表核对
 新 Context 的 `agentId`；不存在或离线的实体会在 Unity 执行工具时被拒绝。
@@ -287,17 +287,19 @@ Address 为 `npc/{name}/visual`，Label 为 `content.npc.{name}`；旧 NPC Addre
 
 ### 2.8 NPC 当前资源集实施边界
 
-2026-10-14 阶段二已切换 SDK、Unity、Go、两个 builtin NPC、安装记录和存档格式。
+2026-10-14 阶段二已切换 SDK、Unity、Go、两个 builtin NPC、安装记录和存档格式；
+阶段三已补齐完整性、取消与恢复事务。
 计划见 `Docs/NPC_PRESENTATION_PIPELINE_REFACTOR_PLAN.md`，阶段二证据见
-`Docs/NpcPresentationStage2/README.md`。阶段一夹具仅作为冻结契约的历史交接。
+`Docs/NpcPresentationStage2/README.md`，阶段三证据见 `Docs/NpcPresentationStage3/README.md`。
+阶段一夹具仅作为冻结契约的历史交接。
 
 安装索引为 `installed-current.json`，目录缓存为 `catalog-cache-current.json`，不读取旧文件。
 发现仅有旧安装索引时提示重新安装；旧用户存档不自动删除。世界存档仅接受格式 3，
 远端 NPC 引用仅存 entityId；对话快照仅接受格式 2。这些标记用于文件结构识别。
 Catalog 仍仅在启动时更新，运行中不替换已生成实例或卸载程序集。
 
-阶段三继续补齐统一实际加载准备、离线/修复、取消和恢复失败闭环，以及 Address 缺失的
-专用 UI 提示。阶段四继续收束生产 smoke 场景名、缓存策略、失败发布事务与工程历史文档，
+安装/缓存预检/生成共用实际加载与驱动绑定准备，Address 缺失使用重启提示；
+恢复失败保留原世界、库存和 Context。阶段四继续收束生产 smoke 场景名、缓存策略、失败发布事务与工程历史文档，
 并完成 IL2CPP/部署验证。不能将当前 Editor 验证视为已发布新 Player 基线；旧 Player 不接入新清单。
 
 ## 3. 进程内契约
@@ -600,8 +602,12 @@ Unity 在内容启动后创建唯一 `NpcLibraryServices`。资料库只获取�
 
 `NpcContentInstaller` 在 persistentDataPath/NpcContent 原子保存当前安装记录，条目字段为
 name/displayName/description/avatarPath/manifestJson。同一时间仅一个下载任务；地址从
-清单取得，依赖下载后实际加载 Prefab，检查完整 Animator 与 builtin 参数，必要 DLL 检查长度/hash。
-取消或失败不提交成功记录。生成前检测缓存驱逐并要求修复，已生成 NPC 不允许运行中更新。
+清单取得，先解析强类型 Address。安装、缓存预检与生成共用 `NpcPresentationPreparation`：
+实际加载并在 inactive 父对象下实例化 Prefab，检查 Missing Script、权威组件、完整 Animator 与
+builtin 参数；必要 DLL 检查长度/hash、程序集、入口与接口并实际创建/绑定驱动。
+取消或失败不提交成功记录并保留上一安装。缓存驱逐或实际加载失败要求修复；
+离线使用最后完整安装和可用缓存。Address 缺失明确提示资源尚未就绪、重启重试；
+已生成或正在生成 NPC 不允许运行中安装替换。
 
 `NpcSpawnController` 每名称最多一个实例与生成任务。AOT 权威根在 Player 下以 inactive
 状态构造，在 `(0,0,0)` 严格检查 NavMesh，绑定 NPC、库存 `npc:{name}.inventory` 和仅身份
@@ -609,9 +615,11 @@ ContentBinding；严格加载 Prefab/驱动后才激活与注册。动画 Bind/T
 失败释放实例、驱动、资源 lease 与生成标记。SampleScene 地面和精细高度 NavMesh 已调整，
 让原点符合严格生成前置条件；本地 Alice/Ryan 身份保持现状。
 
-世界存档格式 3，远端 npcContents 每项仅 entityId。恢复先检查完整安装身份与缓存，再经
-唯一生成入口补齐实体；本轮生成失败回收已创建实体。实体就绪后恢复 Transform/Inventory、
-发布完整 Manifest，再恢复 Go Context。统一实际资源准备与更全面的失败回滚验证属于阶段三。
+世界存档格式 3，远端 npcContents 每项仅 entityId。恢复先检查全部安装身份、缓存和实际
+加载结果，再经唯一生成入口补齐实体；本轮生成失败回收已创建实体。`NpcRestorePreparation`
+保留暂时移出的 NPC，全部实体就绪后恢复 Transform/Inventory、发布完整 Manifest，再恢复
+Go Context。成功后提交并替换 Unity Context/聊天记录；失败回收本轮实体、重新激活原实体、
+恢复原 Transform/Inventory 并重新发布 Manifest，保留原 Context。
 切场先取消并等待安装与生成，旧场景卸载后清理失效引用，新场景仍使用同一生成入口。
 
 含 npcContentRoot 的生产候选仍要求与整体候选 SHA-256 绑定的 NPC runtime smoke 证据。

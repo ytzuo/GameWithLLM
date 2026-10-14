@@ -17,6 +17,7 @@ public interface IContentAssetProvider : IDisposable
     Task InitializeAsync(CancellationToken cancellationToken);
     Task<IReadOnlyList<string>> CheckForCatalogUpdatesAsync(CancellationToken cancellationToken);
     Task UpdateCatalogsAsync(IReadOnlyList<string> catalogIds, CancellationToken cancellationToken);
+    Task<bool> AddressExistsAsync(string key, Type assetType, CancellationToken cancellationToken);
     Task<long> GetDownloadSizeAsync(IReadOnlyList<string> keys, CancellationToken cancellationToken);
     Task DownloadDependenciesAsync(
         IReadOnlyList<string> keys,
@@ -64,6 +65,19 @@ public sealed class ContentAssetProvider : IContentAssetProvider, IContentSceneP
     private bool _disposed;
 
     public bool IsInitialized { get; private set; }
+
+    public async Task<bool> AddressExistsAsync(string key, Type assetType, CancellationToken cancellationToken)
+    {
+        RequireInitialized();
+        var handle = Addressables.LoadResourceLocationsAsync(key, assetType);
+        try
+        {
+            await AwaitAsync(handle, cancellationToken);
+            cancellationToken.ThrowIfCancellationRequested();
+            return handle.Result != null && handle.Result.Count > 0;
+        }
+        finally { if (handle.IsValid()) Addressables.Release(handle); }
+    }
 
     public async Task InitializeAsync(CancellationToken cancellationToken)
     {
@@ -335,6 +349,7 @@ public sealed class ContentAssetProvider : IContentAssetProvider, IContentSceneP
             cancellationToken.ThrowIfCancellationRequested();
             await Task.Yield();
         }
+        cancellationToken.ThrowIfCancellationRequested();
         EnsureSucceeded(handle);
     }
 
@@ -347,6 +362,7 @@ public sealed class ContentAssetProvider : IContentAssetProvider, IContentSceneP
             cancellationToken.ThrowIfCancellationRequested();
             await Task.Yield();
         }
+        cancellationToken.ThrowIfCancellationRequested();
         EnsureSucceeded(handle);
     }
 

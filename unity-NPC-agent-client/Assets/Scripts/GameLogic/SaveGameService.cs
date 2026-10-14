@@ -154,6 +154,8 @@ public sealed class SaveGameService
         WriteFile(file, true);
     }
 
+    public SaveGameFile CaptureCurrentState() => Capture(Guid.NewGuid().ToString("D"), "Restore rollback", "create");
+
     public void Apply(SaveGameFile file)
     {
         ValidatedWorld world = ValidateWorld(file);

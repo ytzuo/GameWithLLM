@@ -15,13 +15,23 @@ public sealed class CharacterVisualController : MonoBehaviour
     [SerializeField] private GameObject fallbackVisual;
 
     private ContentInstanceLease _instanceLease;
+    private NpcPresentationPreparation _preparedPresentation;
     private bool _loadAttempted;
 
     public string CharacterId => characterId;
     public string AppearanceId => appearanceId;
     public Transform VisualRoot => visualRoot;
     public GameObject FallbackVisual => fallbackVisual;
-    public bool IsRemoteVisualActive => _instanceLease != null && !_instanceLease.IsReleased;
+    public bool IsRemoteVisualActive => _instanceLease != null && !_instanceLease.IsReleased ||
+        _preparedPresentation?.Instance != null;
+
+    public void AttachPreparedPresentation(NpcPresentationPreparation prepared)
+    {
+        if (_loadAttempted || prepared?.Instance == null || prepared.Instance.transform.parent != visualRoot)
+            throw new InvalidOperationException("Prepared NPC visual binding is invalid.");
+        _loadAttempted = true;
+        _preparedPresentation = prepared;
+    }
 
     // Dynamic NPCs configure this stable AOT controller before their inactive root is activated.
     public void ConfigureDynamic(string configuredCharacterId, Transform configuredVisualRoot)
@@ -33,42 +43,6 @@ public sealed class CharacterVisualController : MonoBehaviour
         appearanceId = "remote";
         visualRoot = configuredVisualRoot;
         fallbackVisual = null;
-    }
-
-    public async Task<Animator> LoadStrictAsync(
-        IContentAssetProvider provider,
-        RemoteNpcManifest manifest,
-        CancellationToken cancellationToken)
-    {
-        if (_loadAttempted)
-            throw new InvalidOperationException("Character visual load was already attempted.");
-        _loadAttempted = true;
-        if (provider == null || visualRoot == null || visualRoot.parent != transform)
-            throw new InvalidOperationException("Dynamic character visual contract is incomplete.");
-
-        ContentInstanceLease candidate = null;
-        try
-        {
-            if (manifest == null)
-                throw new ArgumentNullException(nameof(manifest));
-            candidate = await provider.InstantiateAsync(manifest.PrefabAddress, visualRoot, cancellationToken);
-            GameObject instance = candidate.Instance;
-            ValidateVisualInstance(instance, true);
-            Animator animator = FindVisualAnimator(instance, true);
-            if (animator == null)
-                throw new InvalidOperationException("Remote NPC visual does not contain an Animator.");
-
-            instance.transform.SetLocalPositionAndRotation(Vector3.zero, Quaternion.identity);
-            instance.transform.localScale = Vector3.one;
-            _instanceLease = candidate;
-            candidate = null;
-            return animator;
-        }
-        catch
-        {
-            candidate?.Dispose();
-            throw;
-        }
     }
 
     public async Task LoadAsync(
@@ -119,6 +93,8 @@ public sealed class CharacterVisualController : MonoBehaviour
 
     public void ReleaseVisual()
     {
+        _preparedPresentation?.Dispose();
+        _preparedPresentation = null;
         _instanceLease?.Dispose();
         _instanceLease = null;
         if (fallbackVisual != null)
@@ -136,6 +112,8 @@ public sealed class CharacterVisualController : MonoBehaviour
                 "Character visual Prefab contains an authoritative entity, inventory, or NavMesh component.");
         foreach (MonoBehaviour behaviour in instance.GetComponentsInChildren<MonoBehaviour>(true))
         {
+            if (behaviour == null)
+                throw new InvalidOperationException("NPC visual Prefab contains Missing Script.");
             string typeName = behaviour.GetType().Name;
             if (typeName.Contains("Registry", StringComparison.Ordinal) ||
                 typeName.Contains("Tool", StringComparison.Ordinal) ||

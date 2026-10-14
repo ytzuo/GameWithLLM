@@ -157,6 +157,7 @@ public sealed class ClientContentBootstrapTests
 
     private sealed class FakeProvider : IContentAssetProvider
     {
+        public Task<bool> AddressExistsAsync(string key, Type assetType, CancellationToken token) => Task.FromResult(true);
         public bool IsInitialized { get; private set; }
         public IReadOnlyList<string> CatalogUpdates { get; set; } = Array.Empty<string>();
         public Exception CatalogError { get; set; }

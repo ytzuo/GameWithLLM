@@ -598,15 +598,16 @@ public class AgentHostClient : Singleton<AgentHostClient>, ISceneTransitionParti
     public async Task<AgentSnapshotLoadResult> LoadConversationsForSaveGameAsync(
         string saveId,
         IReadOnlyList<string> npcIds,
-        Action applyWorldState)
+        Action applyWorldState,
+        Action rollbackWorldState = null)
     {
         await _sendLock.WaitAsync(_appCts.Token);
         _saveBusy = true;
+        bool previousRestoreFailed = _restoreFailed;
+        bool restored = false;
         _restoreFailed = true;
         try
         {
-            _contexts.Clear();
-            ChatViewModel.Instance.ClearAllHistory();
             applyWorldState?.Invoke();
             await PublishManifestAndWaitAsync(_appCts.Token);
             AgentSnapshotLoadResult result = await _saveCoordinator.RestoreAsync(
@@ -617,6 +618,7 @@ public class AgentHostClient : Singleton<AgentHostClient>, ISceneTransitionParti
                 npcIds ?? Array.Empty<string>(),
                 _appCts.Token);
             if (!result.Ok) return result;
+            _contexts.Clear();
             if (result.Contexts != null)
             {
                 foreach (AgentLoadedConversationContext context in result.Contexts)
@@ -626,9 +628,22 @@ public class AgentHostClient : Singleton<AgentHostClient>, ISceneTransitionParti
             }
             ChatViewModel.Instance.ReplaceHistories(result.Contexts);
             _restoreFailed = false;
+            restored = true;
             return result;
         }
-        finally { _saveBusy = false; _sendLock.Release(); }
+        finally
+        {
+            try
+            {
+                if (!restored)
+                {
+                    rollbackWorldState?.Invoke();
+                    _restoreFailed = previousRestoreFailed;
+                    if (rollbackWorldState != null) await PublishManifestAndWaitAsync(_appCts.Token);
+                }
+            }
+            finally { _saveBusy = false; _sendLock.Release(); }
+        }
     }
 
     private void OnRuntimeChanged(string _, bool __) => PublishManifest();
